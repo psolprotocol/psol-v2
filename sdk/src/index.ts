@@ -43,4 +43,5 @@ export const SDK_VERSION = '2.0.0';
 /**
  * Check if SDK is production ready
  */
-export const IS_PRODUCTION_READY = true;
+export const IS_PRODUCTION_READY = false;
+export const SDK_STATUS = "alpha";
