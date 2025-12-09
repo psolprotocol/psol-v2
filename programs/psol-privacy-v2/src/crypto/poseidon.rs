@@ -227,17 +227,25 @@ pub fn compute_commitment(
 /// nullifier_hash = Poseidon(Poseidon(nullifier, secret), Poseidon(leaf_index, 0))
 ///
 /// Used to mark commitments as spent without revealing which one.
+/// Compute nullifier hash.
+///
+/// Canonical formula (must match circuits and SDK):
+/// nullifier_hash = Poseidon(Poseidon(nullifier, secret), leaf_index)
+///
+/// `leaf_index` is encoded as a field element using `u64_to_bytes32`.
 pub fn compute_nullifier_hash(
     nullifier: &ScalarField,
     secret: &ScalarField,
     leaf_index: u32,
 ) -> Result<ScalarField> {
+    // Convert leaf index to field representation
     let index_scalar = u64_to_bytes32(leaf_index as u64);
-    let zero = [0u8; 32];
 
-    let inner1 = hash_two_to_one(nullifier, secret);
-    let inner2 = hash_two_to_one(&index_scalar, &zero);
-    Ok(hash_two_to_one(&inner1, &inner2))
+    // First hash: H(nullifier, secret)
+    let inner = hash_two_to_one(nullifier, secret);
+
+    // Second hash: H(inner, leaf_index)
+    Ok(hash_two_to_one(&inner, &index_scalar))
 }
 
 // ============================================================================
