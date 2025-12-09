@@ -1,0 +1,669 @@
+{
+  "version": "0.1.0",
+  "name": "psol_privacy_v2",
+  "instructions": [
+    {
+      "name": "initializePoolV2",
+      "docs": ["Initialize a new MASP pool"],
+      "accounts": [
+        { "name": "authority", "isMut": true, "isSigner": true, "docs": ["Pool authority (admin)"] },
+        { "name": "poolConfig", "isMut": true, "isSigner": false, "docs": ["Pool configuration account (PDA)"] },
+        { "name": "merkleTree", "isMut": true, "isSigner": false, "docs": ["Merkle tree account (PDA)"] },
+        { "name": "relayerRegistry", "isMut": true, "isSigner": false, "docs": ["Relayer registry account (PDA)"] },
+        { "name": "complianceConfig", "isMut": true, "isSigner": false, "docs": ["Compliance configuration account (PDA)"] },
+        { "name": "systemProgram", "isMut": false, "isSigner": false }
+      ],
+      "args": [
+        { "name": "treeDepth", "type": "u8" },
+        { "name": "rootHistorySize", "type": "u16" }
+      ]
+    },
+    {
+      "name": "registerAsset",
+      "docs": ["Register a new asset (SPL token) with the pool"],
+      "accounts": [
+        { "name": "authority", "isMut": true, "isSigner": true },
+        { "name": "poolConfig", "isMut": true, "isSigner": false },
+        { "name": "assetVault", "isMut": true, "isSigner": false },
+        { "name": "mint", "isMut": false, "isSigner": false },
+        { "name": "vaultTokenAccount", "isMut": true, "isSigner": false },
+        { "name": "tokenProgram", "isMut": false, "isSigner": false },
+        { "name": "systemProgram", "isMut": false, "isSigner": false },
+        { "name": "rent", "isMut": false, "isSigner": false }
+      ],
+      "args": [
+        { "name": "assetId", "type": { "array": ["u8", 32] } }
+      ]
+    },
+    {
+      "name": "setVerificationKeyV2",
+      "docs": ["Set verification key for a specific proof type"],
+      "accounts": [
+        { "name": "authority", "isMut": true, "isSigner": true },
+        { "name": "poolConfig", "isMut": true, "isSigner": false },
+        { "name": "vkAccount", "isMut": true, "isSigner": false },
+        { "name": "systemProgram", "isMut": false, "isSigner": false }
+      ],
+      "args": [
+        { "name": "proofType", "type": { "defined": "ProofType" } },
+        { "name": "vkAlphaG1", "type": { "array": ["u8", 64] } },
+        { "name": "vkBetaG2", "type": { "array": ["u8", 128] } },
+        { "name": "vkGammaG2", "type": { "array": ["u8", 128] } },
+        { "name": "vkDeltaG2", "type": { "array": ["u8", 128] } },
+        { "name": "vkIc", "type": { "vec": { "array": ["u8", 64] } } }
+      ]
+    },
+    {
+      "name": "lockVerificationKeyV2",
+      "docs": ["Lock a verification key (makes it immutable)"],
+      "accounts": [
+        { "name": "authority", "isMut": false, "isSigner": true },
+        { "name": "poolConfig", "isMut": true, "isSigner": false },
+        { "name": "vkAccount", "isMut": true, "isSigner": false }
+      ],
+      "args": [
+        { "name": "proofType", "type": { "defined": "ProofType" } }
+      ]
+    },
+    {
+      "name": "pausePoolV2",
+      "docs": ["Pause the pool (admin only)"],
+      "accounts": [
+        { "name": "authority", "isMut": false, "isSigner": true },
+        { "name": "poolConfig", "isMut": true, "isSigner": false }
+      ],
+      "args": []
+    },
+    {
+      "name": "unpausePoolV2",
+      "docs": ["Unpause the pool (admin only)"],
+      "accounts": [
+        { "name": "authority", "isMut": false, "isSigner": true },
+        { "name": "poolConfig", "isMut": true, "isSigner": false }
+      ],
+      "args": []
+    },
+    {
+      "name": "initiateAuthorityTransferV2",
+      "docs": ["Initiate authority transfer (2-step process)"],
+      "accounts": [
+        { "name": "authority", "isMut": false, "isSigner": true },
+        { "name": "poolConfig", "isMut": true, "isSigner": false }
+      ],
+      "args": [
+        { "name": "newAuthority", "type": "publicKey" }
+      ]
+    },
+    {
+      "name": "acceptAuthorityTransferV2",
+      "docs": ["Accept authority transfer"],
+      "accounts": [
+        { "name": "newAuthority", "isMut": false, "isSigner": true },
+        { "name": "poolConfig", "isMut": true, "isSigner": false }
+      ],
+      "args": []
+    },
+    {
+      "name": "cancelAuthorityTransferV2",
+      "docs": ["Cancel pending authority transfer"],
+      "accounts": [
+        { "name": "authority", "isMut": false, "isSigner": true },
+        { "name": "poolConfig", "isMut": true, "isSigner": false }
+      ],
+      "args": []
+    },
+    {
+      "name": "configureRelayerRegistry",
+      "docs": ["Configure global relayer parameters"],
+      "accounts": [
+        { "name": "authority", "isMut": false, "isSigner": true },
+        { "name": "poolConfig", "isMut": false, "isSigner": false },
+        { "name": "relayerRegistry", "isMut": true, "isSigner": false }
+      ],
+      "args": [
+        { "name": "minFeeBps", "type": "u16" },
+        { "name": "maxFeeBps", "type": "u16" },
+        { "name": "requireStake", "type": "bool" },
+        { "name": "minStakeAmount", "type": "u64" }
+      ]
+    },
+    {
+      "name": "registerRelayer",
+      "docs": ["Register a new relayer node"],
+      "accounts": [
+        { "name": "operator", "isMut": true, "isSigner": true },
+        { "name": "poolConfig", "isMut": false, "isSigner": false },
+        { "name": "relayerRegistry", "isMut": true, "isSigner": false },
+        { "name": "relayerNode", "isMut": true, "isSigner": false },
+        { "name": "systemProgram", "isMut": false, "isSigner": false }
+      ],
+      "args": [
+        { "name": "feeBps", "type": "u16" },
+        { "name": "metadataUri", "type": "string" }
+      ]
+    },
+    {
+      "name": "updateRelayer",
+      "docs": ["Update relayer configuration"],
+      "accounts": [
+        { "name": "operator", "isMut": false, "isSigner": true },
+        { "name": "relayerRegistry", "isMut": true, "isSigner": false },
+        { "name": "relayerNode", "isMut": true, "isSigner": false }
+      ],
+      "args": [
+        { "name": "feeBps", "type": { "option": "u16" } },
+        { "name": "metadataUri", "type": { "option": "string" } },
+        { "name": "isActive", "type": { "option": "bool" } }
+      ]
+    },
+    {
+      "name": "deactivateRelayer",
+      "docs": ["Deactivate a relayer (can be reactivated)"],
+      "accounts": [
+        { "name": "operator", "isMut": false, "isSigner": true },
+        { "name": "relayerRegistry", "isMut": true, "isSigner": false },
+        { "name": "relayerNode", "isMut": true, "isSigner": false }
+      ],
+      "args": []
+    },
+    {
+      "name": "depositMasp",
+      "docs": ["Deposit assets into the shielded pool (MASP)"],
+      "accounts": [
+        { "name": "depositor", "isMut": true, "isSigner": true },
+        { "name": "poolConfig", "isMut": true, "isSigner": false },
+        { "name": "merkleTree", "isMut": true, "isSigner": false },
+        { "name": "assetVault", "isMut": true, "isSigner": false },
+        { "name": "depositorTokenAccount", "isMut": true, "isSigner": false },
+        { "name": "vaultTokenAccount", "isMut": true, "isSigner": false },
+        { "name": "complianceConfig", "isMut": false, "isSigner": false },
+        { "name": "tokenProgram", "isMut": false, "isSigner": false }
+      ],
+      "args": [
+        { "name": "amount", "type": "u64" },
+        { "name": "commitment", "type": { "array": ["u8", 32] } },
+        { "name": "assetId", "type": { "array": ["u8", 32] } },
+        { "name": "encryptedNote", "type": { "option": "bytes" } }
+      ]
+    },
+    {
+      "name": "withdrawMasp",
+      "docs": ["Withdraw assets from the shielded pool (MASP)"],
+      "accounts": [
+        { "name": "relayer", "isMut": true, "isSigner": true },
+        { "name": "poolConfig", "isMut": true, "isSigner": false },
+        { "name": "merkleTree", "isMut": false, "isSigner": false },
+        { "name": "vkAccount", "isMut": false, "isSigner": false },
+        { "name": "assetVault", "isMut": true, "isSigner": false },
+        { "name": "vaultTokenAccount", "isMut": true, "isSigner": false },
+        { "name": "recipientTokenAccount", "isMut": true, "isSigner": false },
+        { "name": "relayerTokenAccount", "isMut": true, "isSigner": false },
+        { "name": "spentNullifier", "isMut": true, "isSigner": false },
+        { "name": "relayerRegistry", "isMut": false, "isSigner": false },
+        { "name": "relayerNode", "isMut": true, "isSigner": false, "isOptional": true },
+        { "name": "tokenProgram", "isMut": false, "isSigner": false },
+        { "name": "systemProgram", "isMut": false, "isSigner": false }
+      ],
+      "args": [
+        { "name": "proofData", "type": "bytes" },
+        { "name": "merkleRoot", "type": { "array": ["u8", 32] } },
+        { "name": "nullifierHash", "type": { "array": ["u8", 32] } },
+        { "name": "recipient", "type": "publicKey" },
+        { "name": "amount", "type": "u64" },
+        { "name": "assetId", "type": { "array": ["u8", 32] } },
+        { "name": "relayerFee", "type": "u64" }
+      ]
+    },
+    {
+      "name": "privateTransferJoinSplit",
+      "docs": ["Private transfer (Join-Split) - internal transfer without touching vault", "RESERVED: Returns NotImplemented in v2.0"],
+      "accounts": [
+        { "name": "relayer", "isMut": true, "isSigner": true },
+        { "name": "poolConfig", "isMut": true, "isSigner": false },
+        { "name": "merkleTree", "isMut": true, "isSigner": false },
+        { "name": "vkAccount", "isMut": false, "isSigner": false },
+        { "name": "assetVault", "isMut": true, "isSigner": false },
+        { "name": "relayerRegistry", "isMut": false, "isSigner": false },
+        { "name": "relayerNode", "isMut": true, "isSigner": false, "isOptional": true },
+        { "name": "tokenProgram", "isMut": false, "isSigner": false },
+        { "name": "systemProgram", "isMut": false, "isSigner": false }
+      ],
+      "args": [
+        { "name": "proofData", "type": "bytes" },
+        { "name": "merkleRoot", "type": { "array": ["u8", 32] } },
+        { "name": "inputNullifiers", "type": { "vec": { "array": ["u8", 32] } } },
+        { "name": "outputCommitments", "type": { "vec": { "array": ["u8", 32] } } },
+        { "name": "publicAmount", "type": "i64" },
+        { "name": "assetId", "type": { "array": ["u8", 32] } },
+        { "name": "relayerFee", "type": "u64" },
+        { "name": "encryptedOutputs", "type": { "option": { "vec": "bytes" } } }
+      ]
+    },
+    {
+      "name": "proveMembership",
+      "docs": ["Prove pool membership without spending", "RESERVED: Returns NotImplemented in v2.0"],
+      "accounts": [
+        { "name": "prover", "isMut": true, "isSigner": true },
+        { "name": "poolConfig", "isMut": true, "isSigner": false },
+        { "name": "merkleTree", "isMut": false, "isSigner": false },
+        { "name": "vkAccount", "isMut": false, "isSigner": false }
+      ],
+      "args": [
+        { "name": "proofData", "type": "bytes" },
+        { "name": "merkleRoot", "type": { "array": ["u8", 32] } },
+        { "name": "threshold", "type": "u64" },
+        { "name": "assetId", "type": { "array": ["u8", 32] } }
+      ],
+      "returns": "bool"
+    },
+    {
+      "name": "configureCompliance",
+      "docs": ["Configure compliance/audit metadata settings"],
+      "accounts": [
+        { "name": "authority", "isMut": false, "isSigner": true },
+        { "name": "poolConfig", "isMut": false, "isSigner": false },
+        { "name": "complianceConfig", "isMut": true, "isSigner": false }
+      ],
+      "args": [
+        { "name": "requireEncryptedNote", "type": "bool" },
+        { "name": "auditPubkey", "type": { "option": "publicKey" } },
+        { "name": "metadataSchemaVersion", "type": "u8" }
+      ]
+    },
+    {
+      "name": "attachAuditMetadata",
+      "docs": ["Attach encrypted audit metadata to existing commitment"],
+      "accounts": [
+        { "name": "authority", "isMut": true, "isSigner": true },
+        { "name": "poolConfig", "isMut": false, "isSigner": false },
+        { "name": "complianceConfig", "isMut": true, "isSigner": false }
+      ],
+      "args": [
+        { "name": "commitment", "type": { "array": ["u8", 32] } },
+        { "name": "encryptedMetadata", "type": "bytes" }
+      ]
+    },
+    {
+      "name": "executeShieldedAction",
+      "docs": ["Execute shielded action via CPI", "RESERVED: Returns NotImplemented in v2.0"],
+      "accounts": [
+        { "name": "relayer", "isMut": true, "isSigner": true },
+        { "name": "poolConfig", "isMut": true, "isSigner": false },
+        { "name": "merkleTree", "isMut": true, "isSigner": false },
+        { "name": "vkAccount", "isMut": false, "isSigner": false },
+        { "name": "assetVault", "isMut": true, "isSigner": false },
+        { "name": "targetProgram", "isMut": false, "isSigner": false },
+        { "name": "systemProgram", "isMut": false, "isSigner": false }
+      ],
+      "args": [
+        { "name": "actionType", "type": { "defined": "ShieldedActionType" } },
+        { "name": "proofData", "type": "bytes" },
+        { "name": "actionData", "type": "bytes" }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "PoolConfigV2",
+      "docs": ["Main pool configuration account for MASP v2"],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "authority", "type": "publicKey" },
+          { "name": "pendingAuthority", "type": "publicKey" },
+          { "name": "merkleTree", "type": "publicKey" },
+          { "name": "relayerRegistry", "type": "publicKey" },
+          { "name": "complianceConfig", "type": "publicKey" },
+          { "name": "treeDepth", "type": "u8" },
+          { "name": "registeredAssetCount", "type": "u16" },
+          { "name": "maxAssets", "type": "u16" },
+          { "name": "bump", "type": "u8" },
+          { "name": "isPaused", "type": "bool" },
+          { "name": "vkConfigured", "type": "u8" },
+          { "name": "vkLocked", "type": "u8" },
+          { "name": "totalDeposits", "type": "u64" },
+          { "name": "totalWithdrawals", "type": "u64" },
+          { "name": "totalJoinSplits", "type": "u64" },
+          { "name": "totalMembershipProofs", "type": "u64" },
+          { "name": "createdAt", "type": "i64" },
+          { "name": "lastActivityAt", "type": "i64" },
+          { "name": "version", "type": "u8" },
+          { "name": "featureFlags", "type": "u8" },
+          { "name": "reserved", "type": { "array": ["u8", 64] } }
+        ]
+      }
+    },
+    {
+      "name": "MerkleTreeV2",
+      "docs": ["Merkle tree state for MASP commitments"],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "pool", "type": "publicKey" },
+          { "name": "depth", "type": "u8" },
+          { "name": "nextLeafIndex", "type": "u32" },
+          { "name": "currentRoot", "type": { "array": ["u8", 32] } },
+          { "name": "rootHistorySize", "type": "u16" },
+          { "name": "rootHistoryPosition", "type": "u16" },
+          { "name": "initializedAt", "type": "i64" },
+          { "name": "lastInsertAt", "type": "i64" },
+          { "name": "reserved", "type": { "array": ["u8", 32] } }
+        ]
+      }
+    },
+    {
+      "name": "AssetVault",
+      "docs": ["Asset vault account - one per registered asset"],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "pool", "type": "publicKey" },
+          { "name": "assetId", "type": { "array": ["u8", 32] } },
+          { "name": "mint", "type": "publicKey" },
+          { "name": "tokenAccount", "type": "publicKey" },
+          { "name": "bump", "type": "u8" },
+          { "name": "isActive", "type": "bool" },
+          { "name": "depositsEnabled", "type": "bool" },
+          { "name": "withdrawalsEnabled", "type": "bool" },
+          { "name": "minDeposit", "type": "u64" },
+          { "name": "maxDeposit", "type": "u64" },
+          { "name": "totalDeposited", "type": "u64" },
+          { "name": "totalWithdrawn", "type": "u64" },
+          { "name": "shieldedBalance", "type": "u64" },
+          { "name": "depositCount", "type": "u64" },
+          { "name": "withdrawalCount", "type": "u64" },
+          { "name": "registeredAt", "type": "i64" },
+          { "name": "lastActivityAt", "type": "i64" },
+          { "name": "decimals", "type": "u8" },
+          { "name": "assetType", "type": "u8" },
+          { "name": "metadataUri", "type": "string" },
+          { "name": "reserved", "type": { "array": ["u8", 32] } }
+        ]
+      }
+    },
+    {
+      "name": "VerificationKeyAccountV2",
+      "docs": ["Verification key storage for ZK proofs"],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "pool", "type": "publicKey" },
+          { "name": "proofType", "type": "u8" },
+          { "name": "isInitialized", "type": "bool" },
+          { "name": "bump", "type": "u8" },
+          { "name": "vkAlphaG1", "type": { "array": ["u8", 64] } },
+          { "name": "vkBetaG2", "type": { "array": ["u8", 128] } },
+          { "name": "vkGammaG2", "type": { "array": ["u8", 128] } },
+          { "name": "vkDeltaG2", "type": { "array": ["u8", 128] } },
+          { "name": "vkIc", "type": { "vec": { "array": ["u8", 64] } } },
+          { "name": "publicInputsCount", "type": "u8" },
+          { "name": "vkHash", "type": { "array": ["u8", 32] } },
+          { "name": "setAt", "type": "i64" },
+          { "name": "setBy", "type": "publicKey" }
+        ]
+      }
+    },
+    {
+      "name": "SpentNullifierV2",
+      "docs": ["Record of a spent nullifier"],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "pool", "type": "publicKey" },
+          { "name": "nullifierHash", "type": { "array": ["u8", 32] } },
+          { "name": "assetId", "type": { "array": ["u8", 32] } },
+          { "name": "spendType", "type": "u8" },
+          { "name": "spentAt", "type": "i64" },
+          { "name": "spentSlot", "type": "u64" },
+          { "name": "spentBy", "type": "publicKey" },
+          { "name": "bump", "type": "u8" }
+        ]
+      }
+    },
+    {
+      "name": "RelayerRegistry",
+      "docs": ["Relayer Registry - global configuration for all relayers"],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "pool", "type": "publicKey" },
+          { "name": "minFeeBps", "type": "u16" },
+          { "name": "maxFeeBps", "type": "u16" },
+          { "name": "requireStake", "type": "bool" },
+          { "name": "minStakeAmount", "type": "u64" },
+          { "name": "relayerCount", "type": "u32" },
+          { "name": "activeRelayerCount", "type": "u32" },
+          { "name": "totalFeesCollected", "type": "u64" },
+          { "name": "totalTransactions", "type": "u64" },
+          { "name": "createdAt", "type": "i64" },
+          { "name": "lastUpdatedAt", "type": "i64" },
+          { "name": "bump", "type": "u8" },
+          { "name": "registrationsOpen", "type": "bool" },
+          { "name": "reserved", "type": { "array": ["u8", 32] } }
+        ]
+      }
+    },
+    {
+      "name": "RelayerNode",
+      "docs": ["Individual Relayer Node account"],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "registry", "type": "publicKey" },
+          { "name": "operator", "type": "publicKey" },
+          { "name": "feeBps", "type": "u16" },
+          { "name": "isActive", "type": "bool" },
+          { "name": "stakeAmount", "type": "u64" },
+          { "name": "transactionsProcessed", "type": "u64" },
+          { "name": "feesEarned", "type": "u64" },
+          { "name": "registeredAt", "type": "i64" },
+          { "name": "lastActiveAt", "type": "i64" },
+          { "name": "metadataUri", "type": "string" },
+          { "name": "bump", "type": "u8" },
+          { "name": "reputationScore", "type": "u8" },
+          { "name": "reserved", "type": { "array": ["u8", 16] } }
+        ]
+      }
+    },
+    {
+      "name": "ComplianceConfig",
+      "docs": ["Compliance configuration for the pool"],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "pool", "type": "publicKey" },
+          { "name": "bump", "type": "u8" },
+          { "name": "requireEncryptedNote", "type": "bool" },
+          { "name": "auditEnabled", "type": "bool" },
+          { "name": "auditPubkey", "type": "publicKey" },
+          { "name": "complianceLevel", "type": "u8" },
+          { "name": "metadataSchemaVersion", "type": "u8" },
+          { "name": "createdAt", "type": "i64" },
+          { "name": "lastUpdatedAt", "type": "i64" },
+          { "name": "reserved", "type": { "array": ["u8", 32] } }
+        ]
+      }
+    }
+  ],
+  "types": [
+    {
+      "name": "ProofType",
+      "docs": ["Proof types supported by pSOL v2"],
+      "type": {
+        "kind": "enum",
+        "variants": [
+          { "name": "Deposit" },
+          { "name": "Withdraw" },
+          { "name": "JoinSplit" },
+          { "name": "Membership" }
+        ]
+      }
+    },
+    {
+      "name": "ShieldedActionType",
+      "docs": ["Shielded action types for CPI"],
+      "type": {
+        "kind": "enum",
+        "variants": [
+          { "name": "DexSwap" },
+          { "name": "LendingDeposit" },
+          { "name": "LendingBorrow" },
+          { "name": "Stake" },
+          { "name": "Unstake" },
+          { "name": "Custom" }
+        ]
+      }
+    },
+    {
+      "name": "SpendType",
+      "docs": ["How a nullifier was spent"],
+      "type": {
+        "kind": "enum",
+        "variants": [
+          { "name": "Withdraw" },
+          { "name": "JoinSplit" },
+          { "name": "ShieldedCpi" }
+        ]
+      }
+    }
+  ],
+  "events": [
+    {
+      "name": "PoolInitializedV2",
+      "fields": [
+        { "name": "pool", "type": "publicKey", "index": false },
+        { "name": "authority", "type": "publicKey", "index": false },
+        { "name": "merkleTree", "type": "publicKey", "index": false },
+        { "name": "relayerRegistry", "type": "publicKey", "index": false },
+        { "name": "treeDepth", "type": "u8", "index": false },
+        { "name": "rootHistorySize", "type": "u16", "index": false },
+        { "name": "timestamp", "type": "i64", "index": false }
+      ]
+    },
+    {
+      "name": "DepositMaspEvent",
+      "fields": [
+        { "name": "pool", "type": "publicKey", "index": false },
+        { "name": "commitment", "type": { "array": ["u8", 32] }, "index": false },
+        { "name": "leafIndex", "type": "u32", "index": false },
+        { "name": "amount", "type": "u64", "index": false },
+        { "name": "assetId", "type": { "array": ["u8", 32] }, "index": false },
+        { "name": "hasEncryptedNote", "type": "bool", "index": false },
+        { "name": "timestamp", "type": "i64", "index": false }
+      ]
+    },
+    {
+      "name": "WithdrawMaspEvent",
+      "fields": [
+        { "name": "pool", "type": "publicKey", "index": false },
+        { "name": "nullifierHash", "type": { "array": ["u8", 32] }, "index": false },
+        { "name": "recipient", "type": "publicKey", "index": false },
+        { "name": "amount", "type": "u64", "index": false },
+        { "name": "assetId", "type": { "array": ["u8", 32] }, "index": false },
+        { "name": "relayer", "type": "publicKey", "index": false },
+        { "name": "relayerFee", "type": "u64", "index": false },
+        { "name": "timestamp", "type": "i64", "index": false }
+      ]
+    },
+    {
+      "name": "AssetRegistered",
+      "fields": [
+        { "name": "pool", "type": "publicKey", "index": false },
+        { "name": "assetId", "type": { "array": ["u8", 32] }, "index": false },
+        { "name": "mint", "type": "publicKey", "index": false },
+        { "name": "vault", "type": "publicKey", "index": false },
+        { "name": "decimals", "type": "u8", "index": false },
+        { "name": "timestamp", "type": "i64", "index": false }
+      ]
+    },
+    {
+      "name": "VerificationKeySetV2",
+      "fields": [
+        { "name": "pool", "type": "publicKey", "index": false },
+        { "name": "proofType", "type": "u8", "index": false },
+        { "name": "icLength", "type": "u8", "index": false },
+        { "name": "vkHash", "type": { "array": ["u8", 32] }, "index": false },
+        { "name": "authority", "type": "publicKey", "index": false },
+        { "name": "timestamp", "type": "i64", "index": false }
+      ]
+    },
+    {
+      "name": "RelayerRegistered",
+      "fields": [
+        { "name": "pool", "type": "publicKey", "index": false },
+        { "name": "registry", "type": "publicKey", "index": false },
+        { "name": "relayer", "type": "publicKey", "index": false },
+        { "name": "operator", "type": "publicKey", "index": false },
+        { "name": "feeBps", "type": "u16", "index": false },
+        { "name": "timestamp", "type": "i64", "index": false }
+      ]
+    }
+  ],
+  "errors": [
+    { "code": 6000, "name": "InvalidProof", "msg": "Invalid proof: verification failed" },
+    { "code": 6001, "name": "InvalidProofFormat", "msg": "Invalid proof format: expected 256 bytes" },
+    { "code": 6002, "name": "InvalidPublicInputs", "msg": "Invalid public inputs for proof verification" },
+    { "code": 6003, "name": "VerificationKeyNotSet", "msg": "Verification key not configured for this proof type" },
+    { "code": 6004, "name": "VerificationKeyLocked", "msg": "Verification key is locked and cannot be modified" },
+    { "code": 6005, "name": "UnsupportedProofType", "msg": "Proof type not supported" },
+    { "code": 6006, "name": "ProofNotImplemented", "msg": "Circuit not implemented: proof verification unavailable" },
+    { "code": 6007, "name": "VkIcLengthMismatch", "msg": "VK IC length mismatch for proof type" },
+    { "code": 6020, "name": "InvalidMerkleRoot", "msg": "Merkle root not in recent history" },
+    { "code": 6021, "name": "MerkleTreeFull", "msg": "Merkle tree is full" },
+    { "code": 6022, "name": "InvalidTreeDepth", "msg": "Tree depth must be between 4 and 24" },
+    { "code": 6023, "name": "InvalidRootHistorySize", "msg": "Root history size must be at least 30" },
+    { "code": 6040, "name": "NullifierAlreadySpent", "msg": "Nullifier already spent" },
+    { "code": 6041, "name": "InvalidNullifier", "msg": "Invalid nullifier: cannot be all zeros" },
+    { "code": 6042, "name": "TooManyNullifiers", "msg": "Too many nullifiers for join-split (max 2)" },
+    { "code": 6043, "name": "DuplicateNullifier", "msg": "Duplicate nullifier in input set" },
+    { "code": 6050, "name": "InvalidAmount", "msg": "Invalid amount: must be greater than zero" },
+    { "code": 6051, "name": "InsufficientBalance", "msg": "Insufficient vault balance" },
+    { "code": 6052, "name": "RelayerFeeExceedsAmount", "msg": "Relayer fee exceeds withdrawal amount" },
+    { "code": 6053, "name": "BelowMinimumDeposit", "msg": "Amount below minimum deposit" },
+    { "code": 6054, "name": "ExceedsMaximumDeposit", "msg": "Amount exceeds maximum deposit" },
+    { "code": 6055, "name": "ArithmeticOverflow", "msg": "Arithmetic overflow" },
+    { "code": 6056, "name": "ValueConservationFailed", "msg": "Join-split value conservation failed" },
+    { "code": 6070, "name": "InvalidMint", "msg": "Token mint does not match pool configuration" },
+    { "code": 6071, "name": "AssetNotRegistered", "msg": "Asset not registered with pool" },
+    { "code": 6072, "name": "AssetNotActive", "msg": "Asset is not active" },
+    { "code": 6073, "name": "TooManyAssets", "msg": "Too many assets registered" },
+    { "code": 6074, "name": "AssetIdMismatch", "msg": "Asset ID mismatch" },
+    { "code": 6075, "name": "DepositsDisabled", "msg": "Deposits are disabled for this asset" },
+    { "code": 6076, "name": "WithdrawalsDisabled", "msg": "Withdrawals are disabled for this asset" },
+    { "code": 6090, "name": "InvalidCommitment", "msg": "Invalid commitment: cannot be all zeros" },
+    { "code": 6091, "name": "TooManyOutputs", "msg": "Too many output commitments for join-split (max 2)" },
+    { "code": 6100, "name": "Unauthorized", "msg": "Unauthorized: caller is not pool authority" },
+    { "code": 6101, "name": "InvalidAuthority", "msg": "Invalid authority address" },
+    { "code": 6102, "name": "NoPendingAuthority", "msg": "No pending authority transfer" },
+    { "code": 6103, "name": "RecipientMismatch", "msg": "Recipient does not match proof public inputs" },
+    { "code": 6120, "name": "RelayerNotRegistered", "msg": "Relayer not registered" },
+    { "code": 6121, "name": "RelayerNotActive", "msg": "Relayer not active" },
+    { "code": 6122, "name": "RelayerFeeOutOfRange", "msg": "Relayer fee out of allowed range" },
+    { "code": 6123, "name": "InvalidFeeConfiguration", "msg": "Invalid fee configuration" },
+    { "code": 6124, "name": "RegistrationsClosed", "msg": "Relayer registrations are closed" },
+    { "code": 6125, "name": "InsufficientStake", "msg": "Insufficient relayer stake" },
+    { "code": 6140, "name": "PoolPaused", "msg": "Pool is paused" },
+    { "code": 6141, "name": "PoolNotPaused", "msg": "Pool is not paused" },
+    { "code": 6142, "name": "AlreadyInitialized", "msg": "Account already initialized" },
+    { "code": 6143, "name": "CorruptedData", "msg": "Account data corrupted" },
+    { "code": 6144, "name": "LimitExceeded", "msg": "Operation exceeds safe limits" },
+    { "code": 6145, "name": "InvalidTimestamp", "msg": "Invalid timestamp" },
+    { "code": 6160, "name": "FeatureDisabled", "msg": "Feature not enabled for this pool" },
+    { "code": 6161, "name": "NotImplemented", "msg": "Feature not implemented in this version" },
+    { "code": 6162, "name": "JoinSplitDisabled", "msg": "Join-split not enabled" },
+    { "code": 6163, "name": "MembershipProofsDisabled", "msg": "Membership proofs not enabled" },
+    { "code": 6164, "name": "ShieldedCpiDisabled", "msg": "Shielded CPI not enabled" },
+    { "code": 6180, "name": "EncryptedNoteRequired", "msg": "Encrypted note required for this pool" },
+    { "code": 6181, "name": "InvalidEncryptedNote", "msg": "Invalid encrypted note format" },
+    { "code": 6182, "name": "MetadataAlreadyAttached", "msg": "Audit metadata already attached" },
+    { "code": 6200, "name": "InputTooLarge", "msg": "Input exceeds maximum allowed length" },
+    { "code": 6201, "name": "InvalidOwner", "msg": "Invalid account owner" },
+    { "code": 6202, "name": "InvalidDiscriminator", "msg": "Invalid account discriminator" },
+    { "code": 6220, "name": "UnsupportedShieldedAction", "msg": "Shielded action not supported" },
+    { "code": 6221, "name": "CpiCallFailed", "msg": "CPI call failed" },
+    { "code": 6222, "name": "InvalidActionData", "msg": "Invalid action data" }
+  ],
+  "metadata": {
+    "address": "pSoL2xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  }
+}
