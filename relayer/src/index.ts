@@ -312,23 +312,36 @@ export class RelayerService {
   /**
    * Check if nullifier has been spent on-chain
    */
-  private async checkNullifierSpent(nullifierHash: Uint8Array): Promise<boolean> {
-    const [nullifierPda] = PublicKey.findProgramAddressSync(
-      [
-        Buffer.from('nullifier_v2'),
-        this.config.poolConfig.toBuffer(),
-        Buffer.from(nullifierHash),
-      ],
-      this.config.programId
-    );
-    
-    try {
-      await this.connection.getAccountInfo(nullifierPda);
-      return true; // Account exists = nullifier spent
-    } catch {
-      return false;
-    }
+  /**
+ * Check if nullifier has been spent on-chain
+ */
+private async checkNullifierSpent(nullifierHash: Uint8Array): Promise<boolean> {
+  const [nullifierPda] = PublicKey.findProgramAddressSync(
+    [
+      Buffer.from("nullifier_v2"),
+      this.config.poolConfig.toBuffer(),
+      Buffer.from(nullifierHash),
+    ],
+    this.config.programId,
+  );
+
+  try {
+    const accountInfo = await this.connection.getAccountInfo(nullifierPda);
+
+    // Account exists => nullifier is spent
+    return accountInfo !== null;
+  } catch (err) {
+    // RPC/network error – do not silently treat as spent or unspent
+    console.error("RPC error checking nullifier status", {
+      nullifier: bytesToHex(nullifierHash),
+      pda: nullifierPda.toBase58(),
+      error: err instanceof Error ? err.message : err,
+    });
+
+    throw new Error("Failed to verify nullifier status - RPC error");
   }
+}
+
   
   /**
    * Submit withdrawal transaction
