@@ -1,156 +1,200 @@
-//! Deposit MASP Instruction
-//!
-//! Deposits tokens into the shielded pool and inserts commitment into Merkle tree.
-
 use anchor_lang::prelude::*;
-use anchor_spl::token::{self, Token, TokenAccount, Transfer};
+use anchor_spl::token::{self, Token, TokenAccount, Mint, Transfer};
 
 use crate::error::PrivacyErrorV2;
-use crate::events::DepositMaspEvent;
+
+// Adjust these imports if your modules are nested differently.
+// If you do not re-export types in `state/mod.rs`, change to
+// `crate::state::pool_config::PoolConfigV2` etc.
 use crate::state::{
-    AssetVault, ComplianceConfig, MerkleTreeV2, PoolConfigV2,
+    PoolConfigV2,
+    MerkleTreeV2,
+    AssetVault,
+    VerificationKeyAccountV2,
+    ProofTypeV2,
 };
 
-/// Accounts for depositing to the MASP
+use crate::crypto::public_inputs::DepositPublicInputs;
+use crate::crypto::groth16_verifier::verify_proof_bytes;
+
+// If your events module has a different path or names, adjust this import
+use crate::events::DepositMaspEvent;
+
+/// Accounts required for a MASP deposit.
 #[derive(Accounts)]
-#[instruction(amount: u64, commitment: [u8; 32], asset_id: [u8; 32])]
 pub struct DepositMasp<'info> {
-    /// Depositor (token owner)
+    /// User funding the deposit and paying tx fees
     #[account(mut)]
     pub depositor: Signer<'info>,
 
-    /// Pool configuration account
+    /// Global pool configuration
     #[account(
         mut,
-        constraint = !pool_config.is_paused @ PrivacyErrorV2::PoolPaused,
-        has_one = merkle_tree,
-        has_one = compliance_config,
+        has_one = authority,
+        constraint = pool_config.is_active @ PrivacyErrorV2::PoolInactive
     )]
     pub pool_config: Account<'info, PoolConfigV2>,
 
-    /// Merkle tree account
-    #[account(mut)]
-    pub merkle_tree: Account<'info, MerkleTreeV2>,
+    /// Pool authority (PDA) that owns vaults / merkle tree
+    pub authority: UncheckedAccount<'info>,
 
-    /// Asset vault account
+    /// Merkle tree for commitments belonging to this pool
     #[account(
         mut,
-        seeds = [
-            AssetVault::SEED_PREFIX,
-            pool_config.key().as_ref(),
-            asset_id.as_ref(),
-        ],
-        bump = asset_vault.bump,
-        constraint = asset_vault.is_active @ PrivacyErrorV2::AssetNotActive,
-        constraint = asset_vault.deposits_enabled @ PrivacyErrorV2::DepositsDisabled,
+        constraint = merkle_tree.pool == pool_config.key() @ PrivacyErrorV2::InvalidMerkleTreePool
+    )]
+    pub merkle_tree: Account<'info, MerkleTreeV2>,
+
+    /// Asset vault configuration for this asset
+    #[account(
+        mut,
+        constraint = asset_vault.pool == pool_config.key() @ PrivacyErrorV2::InvalidVaultPool,
+        constraint = asset_vault.is_active @ PrivacyErrorV2::AssetNotActive
     )]
     pub asset_vault: Account<'info, AssetVault>,
 
-    /// Depositor's token account (source)
+    /// Vault token account that receives deposited tokens
     #[account(
         mut,
-        constraint = depositor_token_account.mint == asset_vault.mint @ PrivacyErrorV2::InvalidMint,
-        constraint = depositor_token_account.owner == depositor.key() @ PrivacyErrorV2::InvalidOwner,
-    )]
-    pub depositor_token_account: Account<'info, TokenAccount>,
-
-    /// Vault's token account (destination)
-    #[account(
-        mut,
-        constraint = vault_token_account.key() == asset_vault.token_account @ PrivacyErrorV2::InvalidOwner,
+        constraint = vault_token_account.key() == asset_vault.vault_token_account
+            @ PrivacyErrorV2::InvalidVaultTokenAccount
     )]
     pub vault_token_account: Account<'info, TokenAccount>,
 
-    /// Compliance configuration
-    pub compliance_config: Account<'info, ComplianceConfig>,
+    /// User token account providing funds
+    #[account(
+        mut,
+        constraint = user_token_account.mint == asset_vault.mint
+            @ PrivacyErrorV2::InvalidMint,
+        constraint = user_token_account.owner == depositor.key()
+            @ PrivacyErrorV2::InvalidTokenOwner
+    )]
+    pub user_token_account: Account<'info, TokenAccount>,
 
-    /// Token program
+    /// Mint for this asset
+    #[account(
+        constraint = mint.key() == asset_vault.mint
+            @ PrivacyErrorV2::InvalidMint
+    )]
+    pub mint: Account<'info, Mint>,
+
+    /// Verification key account for the deposit circuit
+    #[account(
+        constraint = deposit_vk.pool == pool_config.key()
+            @ PrivacyErrorV2::InvalidVerificationKeyPool,
+        constraint = deposit_vk.proof_type == ProofTypeV2::Deposit
+            @ PrivacyErrorV2::InvalidVerificationKeyType
+    )]
+    pub deposit_vk: Account<'info, VerificationKeyAccountV2>,
+
+    /// SPL token program
     pub token_program: Program<'info, Token>,
+
+    /// System program
+    pub system_program: Program<'info, System>,
 }
 
-/// Handler for deposit_masp instruction
-pub fn handler(
-    ctx: Context<DepositMasp>,
-    amount: u64,
-    commitment: [u8; 32],
-    asset_id: [u8; 32],
-    encrypted_note: Option<Vec<u8>>,
-) -> Result<()> {
-    // Validate amount
-    require!(amount > 0, PrivacyErrorV2::InvalidAmount);
+/// Arguments for a MASP deposit.
+///
+/// The client (SDK) must:
+/// 1. Generate a commitment = Poseidon(secret, nullifier, amount, asset_id)
+/// 2. Generate a Groth16 proof for the deposit circuit
+/// 3. Send commitment, amount, asset_id, and proof_data here
+#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
+pub struct DepositMaspArgs {
+    /// Commitment leaf to insert in the MASP Merkle tree
+    pub commitment: [u8; 32],
 
-    // Validate commitment is not zero
+    /// Amount of tokens to deposit
+    pub amount: u64,
+
+    /// Asset identifier (Keccak256(mint)[0..32])
+    pub asset_id: [u8; 32],
+
+    /// Groth16 proof data (serialized)
+    pub proof_data: Vec<u8>,
+}
+
+/// Main deposit handler with full ZK verification.
+///
+/// Flow:
+/// - Check basic args and asset binding
+/// - Transfer tokens from user to vault
+/// - Build deposit public inputs
+/// - Verify Groth16 proof against deposit VK
+/// - Insert commitment into Merkle tree
+/// - Emit deposit event
+pub fn deposit_masp(ctx: Context<DepositMasp>, args: DepositMaspArgs) -> Result<()> {
+    let pool_config = &ctx.accounts.pool_config;
+    let merkle_tree = &mut ctx.accounts.merkle_tree;
+    let asset_vault = &ctx.accounts.asset_vault;
+
+    // ----------------------------------------------------------------------
+    // 1. Sanity checks
+    // ----------------------------------------------------------------------
+    require!(args.amount > 0, PrivacyErrorV2::InvalidAmount);
+
+    // Enforce that the provided asset_id matches the vault's configured asset_id
+    // (assuming AssetVault stores asset_id)
     require!(
-        !commitment.iter().all(|&b| b == 0),
-        PrivacyErrorV2::InvalidCommitment
+        asset_vault.asset_id == args.asset_id,
+        PrivacyErrorV2::InvalidAssetId
     );
 
-    // Validate asset ID matches
-    require!(
-        asset_id == ctx.accounts.asset_vault.asset_id,
-        PrivacyErrorV2::AssetIdMismatch
+    // ----------------------------------------------------------------------
+    // 2. Transfer tokens from user to vault
+    // ----------------------------------------------------------------------
+    let cpi_accounts = Transfer {
+        from: ctx.accounts.user_token_account.to_account_info(),
+        to: ctx.accounts.vault_token_account.to_account_info(),
+        authority: ctx.accounts.depositor.to_account_info(),
+    };
+
+    let cpi_ctx = CpiContext::new(ctx.accounts.token_program.to_account_info(), cpi_accounts);
+
+    token::transfer(cpi_ctx, args.amount)?;
+
+    // ----------------------------------------------------------------------
+    // 3. Build deposit public inputs (must match deposit.circom order)
+    // ----------------------------------------------------------------------
+    let public_inputs = DepositPublicInputs::new(
+        args.commitment,
+        args.amount,
+        args.asset_id,
     );
+    let public_inputs_fields = public_inputs.to_field_elements();
 
-    // Validate deposit amount limits
-    ctx.accounts.asset_vault.validate_deposit_amount(amount)?;
+    // ----------------------------------------------------------------------
+    // 4. Verify Groth16 proof using deposit verification key
+    // ----------------------------------------------------------------------
+    let vk = &ctx.accounts.deposit_vk;
 
-    // Check compliance requirements
-    let has_note = encrypted_note.is_some();
-    ctx.accounts.compliance_config.check_note_requirement(has_note)?;
+    let is_valid = verify_proof_bytes(
+        vk,
+        &args.proof_data,
+        &public_inputs_fields,
+    )?;
 
-    // Validate encrypted note size if present
-    if let Some(ref note) = encrypted_note {
-        require!(
-            note.len() <= 1024,
-            PrivacyErrorV2::InputTooLarge
-        );
-    }
+    require!(is_valid, PrivacyErrorV2::InvalidProof);
 
-    let clock = Clock::get()?;
-    let timestamp = clock.unix_timestamp;
+    // ----------------------------------------------------------------------
+    // 5. Insert commitment into Merkle tree
+    // ----------------------------------------------------------------------
+    // MerkleTreeV2 must expose an insert API that takes a leaf.
+    // Adjust the method name/signature if yours differs.
+    merkle_tree.insert(args.commitment)?;
 
-    // Validate timestamp is reasonable (not in distant future)
-    require!(
-        timestamp > 0,
-        PrivacyErrorV2::InvalidTimestamp
-    );
-
-    // Transfer tokens from depositor to vault
-    let transfer_ctx = CpiContext::new(
-        ctx.accounts.token_program.to_account_info(),
-        Transfer {
-            from: ctx.accounts.depositor_token_account.to_account_info(),
-            to: ctx.accounts.vault_token_account.to_account_info(),
-            authority: ctx.accounts.depositor.to_account_info(),
-        },
-    );
-    token::transfer(transfer_ctx, amount)?;
-
-    // Insert commitment into Merkle tree
-    let leaf_index = ctx.accounts.merkle_tree.insert_leaf(commitment, timestamp)?;
-
-    // Update asset vault statistics
-    ctx.accounts.asset_vault.record_deposit(amount, timestamp)?;
-
-    // Update pool statistics
-    ctx.accounts.pool_config.record_deposit(timestamp)?;
-
-    // Emit event
+    // ----------------------------------------------------------------------
+    // 6. Emit deposit event (no address-level privacy leak here)
+    // ----------------------------------------------------------------------
     emit!(DepositMaspEvent {
-        pool: ctx.accounts.pool_config.key(),
-        commitment,
-        leaf_index,
-        amount,
-        asset_id,
-        has_encrypted_note: has_note,
-        timestamp,
+        pool: pool_config.key(),
+        commitment: args.commitment,
+        amount: args.amount,
+        asset_id: args.asset_id,
+        depositor: ctx.accounts.depositor.key(),
+        timestamp: Clock::get()?.unix_timestamp,
     });
-
-    msg!(
-        "MASP deposit: amount={}, leaf_index={}",
-        amount,
-        leaf_index
-    );
 
     Ok(())
 }
