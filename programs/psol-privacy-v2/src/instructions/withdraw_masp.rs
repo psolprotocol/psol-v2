@@ -1,6 +1,16 @@
 //! Withdraw MASP Instruction
 //!
 //! Withdraws tokens from the shielded pool using a ZK proof.
+//!
+//! # Privacy Considerations
+//!
+//! The withdrawal event intentionally does NOT include:
+//! - recipient (visible in tx accounts, but not easily indexed from events)
+//! - amount (prevents amount correlation attacks)
+//!
+//! While this data is technically visible in transaction accounts (required
+//! for token delivery), omitting it from events makes large-scale indexing
+//! and correlation significantly harder.
 
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
@@ -10,6 +20,8 @@ use crate::crypto::{
 };
 use crate::error::PrivacyErrorV2;
 use crate::events::WithdrawMaspEvent;
+#[cfg(feature = "event-debug")]
+use crate::events::WithdrawMaspDebugEvent;
 use crate::state::{
     AssetVault, MerkleTreeV2, PoolConfigV2, RelayerNode, RelayerRegistry,
     SpentNullifierV2, SpendType, VerificationKeyAccountV2,
@@ -298,24 +310,44 @@ pub fn handler(
         relayer_node.record_transaction(relayer_fee, timestamp)?;
     }
 
-    // Emit event
+    // =========================================================================
+    // EMIT PRIVACY-PRESERVING EVENT
+    // =========================================================================
+    
+    // Emit minimal, privacy-preserving withdraw event.
+    // Does NOT include recipient or amount to prevent easy indexing/correlation.
     emit!(WithdrawMaspEvent {
         pool: ctx.accounts.pool_config.key(),
         nullifier_hash,
-        recipient,
-        amount,
         asset_id,
         relayer: ctx.accounts.relayer.key(),
         relayer_fee,
         timestamp,
     });
 
-    msg!(
-        "MASP withdrawal: amount={}, recipient={}, fee={}",
-        amount,
-        recipient,
-        relayer_fee
-    );
+    // Optional debug-only event and log for local/devnet usage.
+    // This MUST NOT be enabled in mainnet builds to avoid leaking
+    // recipient and amount at the log/event layer.
+    #[cfg(feature = "event-debug")]
+    {
+        emit!(WithdrawMaspDebugEvent {
+            pool: ctx.accounts.pool_config.key(),
+            nullifier_hash,
+            recipient,
+            amount,
+            asset_id,
+            relayer: ctx.accounts.relayer.key(),
+            relayer_fee,
+            timestamp,
+        });
+
+        msg!(
+            "MASP withdrawal (debug): amount={}, recipient={}, fee={}",
+            amount,
+            recipient,
+            relayer_fee
+        );
+    }
 
     Ok(())
 }
