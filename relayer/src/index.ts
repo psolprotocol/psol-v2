@@ -133,13 +133,34 @@ export class RelayerService {
     // JSON parsing
     this.app.use(express.json({ limit: '1mb' }));
     
-    // Rate limiting
-    const limiter = rateLimit({
+    // Global backstop limiter (per IP, high cap, protects against total flood)
+    const globalLimiter = rateLimit({
       windowMs: 60 * 1000, // 1 minute
-      max: 100, // 100 requests per minute
-      message: { error: 'Too many requests' },
+      max: 500,            // 500 requests/minute per IP
+      message: { error: 'Service temporarily unavailable' },
     });
-    this.app.use(limiter);
+
+    // Per-key limiter (recipient for /withdraw, IP otherwise)
+    const perKeyLimiter = rateLimit({
+      windowMs: 60 * 1000, // 1 minute
+      max: 30,             // 30 requests per minute per key
+      message: { error: 'Too many requests, please slow down' },
+      keyGenerator: (req: Request) => {
+        // For withdraw we rate-limit by recipient, otherwise by IP
+        if (req.method === 'POST' && req.path === '/withdraw') {
+          const body = req.body as any;
+          if (body && typeof body.recipient === 'string' && body.recipient.length > 0) {
+            return `recipient:${body.recipient}`;
+          }
+        }
+        // Fallback: per-IP limiting
+        return req.ip || 'unknown';
+      },
+    });
+
+    // Apply both: global then per-key
+    this.app.use(globalLimiter);
+    this.app.use(perKeyLimiter);
     
     // Request logging
     this.app.use((req: Request, res: Response, next: NextFunction) => {
@@ -312,36 +333,32 @@ export class RelayerService {
   /**
    * Check if nullifier has been spent on-chain
    */
-  /**
- * Check if nullifier has been spent on-chain
- */
-private async checkNullifierSpent(nullifierHash: Uint8Array): Promise<boolean> {
-  const [nullifierPda] = PublicKey.findProgramAddressSync(
-    [
-      Buffer.from("nullifier_v2"),
-      this.config.poolConfig.toBuffer(),
-      Buffer.from(nullifierHash),
-    ],
-    this.config.programId,
-  );
+  private async checkNullifierSpent(nullifierHash: Uint8Array): Promise<boolean> {
+    const [nullifierPda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from('nullifier_v2'),
+        this.config.poolConfig.toBuffer(),
+        Buffer.from(nullifierHash),
+      ],
+      this.config.programId,
+    );
+    
+    try {
+      const accountInfo = await this.connection.getAccountInfo(nullifierPda);
 
-  try {
-    const accountInfo = await this.connection.getAccountInfo(nullifierPda);
+      // Account exists => nullifier is spent
+      return accountInfo !== null;
+    } catch (err) {
+      // RPC/network error, do not silently treat as spent or unspent
+      console.error('RPC error checking nullifier status', {
+        nullifier: bytesToHex(nullifierHash),
+        pda: nullifierPda.toBase58(),
+        error: err instanceof Error ? err.message : err,
+      });
 
-    // Account exists => nullifier is spent
-    return accountInfo !== null;
-  } catch (err) {
-    // RPC/network error – do not silently treat as spent or unspent
-    console.error("RPC error checking nullifier status", {
-      nullifier: bytesToHex(nullifierHash),
-      pda: nullifierPda.toBase58(),
-      error: err instanceof Error ? err.message : err,
-    });
-
-    throw new Error("Failed to verify nullifier status - RPC error");
+      throw new Error('Failed to verify nullifier status - RPC error');
+    }
   }
-}
-
   
   /**
    * Submit withdrawal transaction
