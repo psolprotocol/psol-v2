@@ -552,30 +552,35 @@ export interface ComplianceConfig {
 }
 
 // ============================================================================
-// EVENT TYPES
+// EVENT TYPES (Privacy-Preserving)
 // ============================================================================
 
 /**
- * Deposit event data
+ * Deposit event data (privacy-preserving)
+ * 
+ * Does NOT include amount or depositor to prevent correlation attacks.
+ * These fields are intentionally omitted from production events.
  */
 export interface DepositMaspEvent {
   pool: PublicKey;
   commitment: Uint8Array;
   leafIndex: number;
-  amount: BN;
+  /** New Merkle root after insertion */
+  merkleRoot: Uint8Array;
   assetId: Uint8Array;
-  hasEncryptedNote: boolean;
   timestamp: BN;
 }
 
 /**
- * Withdraw event data
+ * Withdraw event data (privacy-preserving)
+ * 
+ * Does NOT include recipient or amount to minimize correlation attacks.
+ * While these are visible in transaction accounts, omitting from events
+ * makes large-scale indexing significantly harder.
  */
 export interface WithdrawMaspEvent {
   pool: PublicKey;
   nullifierHash: Uint8Array;
-  recipient: PublicKey;
-  amount: BN;
   assetId: Uint8Array;
   relayer: PublicKey;
   relayerFee: BN;
