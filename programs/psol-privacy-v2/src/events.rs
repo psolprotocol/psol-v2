@@ -2,6 +2,18 @@
 //!
 //! Events are emitted for indexing and client notification.
 //! All events include pool reference and timestamp.
+//!
+//! # Privacy Considerations
+//!
+//! Production events are designed to minimize privacy leakage:
+//! - Deposit events do NOT include amount or depositor
+//! - Withdraw events do NOT include recipient or amount
+//!
+//! While recipient/amount are visible in transaction accounts, removing them
+//! from events makes it significantly harder to index and correlate at scale.
+//!
+//! Debug events (gated behind `event-debug` feature) include additional
+//! information useful for development but MUST NOT be enabled in production.
 
 use anchor_lang::prelude::*;
 
@@ -107,22 +119,73 @@ pub struct VerificationKeyLockedV2 {
 // DEPOSIT/WITHDRAW EVENTS
 // =========================================================================
 
+/// Privacy-preserving deposit event.
+/// Does NOT include amount or depositor to prevent correlation attacks.
 #[event]
 pub struct DepositMaspEvent {
     pub pool: Pubkey,
     pub commitment: [u8; 32],
+    /// Leaf index assigned in the shared Merkle tree
     pub leaf_index: u32,
+    /// New Merkle root after insertion
+    pub merkle_root: [u8; 32],
+    /// Asset identifier (does not reveal depositor or amount)
+    pub asset_id: [u8; 32],
+    pub timestamp: i64,
+}
+
+/// Debug-only deposit event with additional information.
+/// MUST NOT be enabled in production builds as it leaks privacy-sensitive data.
+#[cfg(feature = "event-debug")]
+#[event]
+pub struct DepositMaspDebugEvent {
+    pub pool: Pubkey,
+    pub commitment: [u8; 32],
+    pub leaf_index: u32,
+    /// WARNING: Leaks correlation data
     pub amount: u64,
     pub asset_id: [u8; 32],
+    /// WARNING: Reveals depositor identity
+    pub depositor: Pubkey,
     pub has_encrypted_note: bool,
     pub timestamp: i64,
 }
 
+/// Privacy-preserving withdrawal event.
+/// Does NOT include recipient or amount to minimize correlation attacks.
+/// 
+/// While recipient is visible in transaction accounts (for token delivery),
+/// omitting it from events makes large-scale indexing and correlation
+/// significantly harder.
+/// 
+/// The nullifier_hash is already public via the SpentNullifierV2 PDA.
 #[event]
 pub struct WithdrawMaspEvent {
+    /// Pool this withdrawal belongs to
+    pub pool: Pubkey,
+    /// Spent nullifier (already public via SpentNullifierV2 account)
+    pub nullifier_hash: [u8; 32],
+    /// Asset identifier (Keccak(mint)[0..32])
+    pub asset_id: [u8; 32],
+    /// Relayer that submitted the transaction
+    pub relayer: Pubkey,
+    /// Fee paid to relayer (needed for relayer accounting)
+    pub relayer_fee: u64,
+    /// Event timestamp
+    pub timestamp: i64,
+}
+
+/// Debug-only withdrawal event with full telemetry.
+/// MUST NOT be enabled in mainnet builds as it leaks recipient and amount
+/// at the event layer, making correlation trivial.
+#[cfg(feature = "event-debug")]
+#[event]
+pub struct WithdrawMaspDebugEvent {
     pub pool: Pubkey,
     pub nullifier_hash: [u8; 32],
+    /// WARNING: Leaks recipient identity
     pub recipient: Pubkey,
+    /// WARNING: Leaks withdrawal amount
     pub amount: u64,
     pub asset_id: [u8; 32],
     pub relayer: Pubkey,
@@ -262,13 +325,119 @@ pub struct ShieldedActionExecuted {
 }
 
 // =========================================================================
-// ERROR/DEBUG EVENTS
+// DEBUG EVENTS - GATED BEHIND event-debug FEATURE
 // =========================================================================
 
+/// Debug log event for development purposes only.
+/// 
+/// # Security Warning
+/// 
+/// This event is gated behind the `event-debug` feature flag and MUST NOT
+/// be enabled in production builds. It can leak sensitive information
+/// about pool operations.
+#[cfg(feature = "event-debug")]
 #[event]
 pub struct DebugLog {
     pub pool: Pubkey,
     pub message: String,
     pub value: u64,
     pub timestamp: i64,
+}
+
+// =========================================================================
+// HELPER MACROS FOR DEBUG LOGGING
+// =========================================================================
+
+/// Emit a debug log event (only when event-debug feature is enabled)
+#[macro_export]
+#[cfg(feature = "event-debug")]
+macro_rules! debug_log {
+    ($pool:expr, $msg:expr, $val:expr) => {
+        emit!(crate::events::DebugLog {
+            pool: $pool,
+            message: $msg.to_string(),
+            value: $val,
+            timestamp: Clock::get()?.unix_timestamp,
+        });
+    };
+}
+
+/// No-op version when event-debug is disabled
+#[macro_export]
+#[cfg(not(feature = "event-debug"))]
+macro_rules! debug_log {
+    ($pool:expr, $msg:expr, $val:expr) => {
+        // Debug logging disabled in production
+    };
+}
+
+// =========================================================================
+// TESTS
+// =========================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn deposit_event_is_privacy_preserving() {
+        let event = DepositMaspEvent {
+            pool: Pubkey::new_unique(),
+            commitment: [1u8; 32],
+            leaf_index: 0,
+            merkle_root: [2u8; 32],
+            asset_id: [3u8; 32],
+            timestamp: 0,
+        };
+        assert_eq!(event.leaf_index, 0);
+    }
+
+    #[test]
+    fn withdraw_event_is_privacy_preserving() {
+        // Verify WithdrawMaspEvent doesn't have recipient or amount fields
+        let event = WithdrawMaspEvent {
+            pool: Pubkey::new_unique(),
+            nullifier_hash: [1u8; 32],
+            asset_id: [2u8; 32],
+            relayer: Pubkey::new_unique(),
+            relayer_fee: 1000,
+            timestamp: 0,
+        };
+        // This test ensures the struct doesn't accidentally get
+        // recipient/amount fields added back
+        assert_eq!(event.relayer_fee, 1000);
+    }
+
+    #[cfg(feature = "event-debug")]
+    #[test]
+    fn debug_events_exist_when_feature_enabled() {
+        let _deposit_debug = DepositMaspDebugEvent {
+            pool: Pubkey::new_unique(),
+            commitment: [0u8; 32],
+            leaf_index: 0,
+            amount: 1000,
+            asset_id: [0u8; 32],
+            depositor: Pubkey::new_unique(),
+            has_encrypted_note: false,
+            timestamp: 0,
+        };
+
+        let _withdraw_debug = WithdrawMaspDebugEvent {
+            pool: Pubkey::new_unique(),
+            nullifier_hash: [0u8; 32],
+            recipient: Pubkey::new_unique(),
+            amount: 1000,
+            asset_id: [0u8; 32],
+            relayer: Pubkey::new_unique(),
+            relayer_fee: 100,
+            timestamp: 0,
+        };
+
+        let _debug_log = DebugLog {
+            pool: Pubkey::new_unique(),
+            message: "test".to_string(),
+            value: 42,
+            timestamp: 0,
+        };
+    }
 }
