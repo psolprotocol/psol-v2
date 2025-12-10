@@ -1,6 +1,7 @@
 //! Poseidon Hash for pSOL v2
 //!
 //! Production implementation using Solana's Poseidon syscall.
+<<<<<<< HEAD
 //! Compatible with circomlib (BN254 curve, x^5 S-box).
 //!
 //! # Compatibility
@@ -14,15 +15,22 @@
 
 use anchor_lang::prelude::*;
 use solana_program::poseidon::{hashv, Endianness, Parameters, PoseidonHash};
+=======
+//! Compatible with circomlib / circomlibjs on BN254 (x^5 S-box).
+//!
+//! All three surfaces must agree for proofs to verify:
+//! - Circuits (withdraw.circom, deposit.circom, …)
+//! - SDK (poseidon.ts / note.ts)
+//! - On-chain (this file)
+
+use anchor_lang::prelude::*;
+use solana_program::poseidon::{hashv, Endianness, Parameters};
+>>>>>>> feb3db3 (feat: integrate Groth16 deposit verification into MASP and relayer)
 
 use crate::error::PrivacyErrorV2;
 
 // Re-export from curve_utils for convenience
 pub type ScalarField = [u8; 32];
-
-// ============================================================================
-// CONSTANTS
-// ============================================================================
 
 /// BN254 scalar field modulus (r)
 /// r = 21888242871839275222246405745257275088548364400416034343698204186575808495617
@@ -33,7 +41,12 @@ pub const BN254_SCALAR_MODULUS: [u8; 32] = [
     0x43, 0xe1, 0xf5, 0x93, 0xf0, 0x00, 0x00, 0x01,
 ];
 
+<<<<<<< HEAD
 /// Flag indicating this is a production implementation
+=======
+/// Flag indicating placeholder vs real implementation.
+/// This must be `false` in production.
+>>>>>>> feb3db3 (feat: integrate Groth16 deposit verification into MASP and relayer)
 pub const IS_PLACEHOLDER: bool = false;
 
 // ============================================================================
@@ -42,6 +55,7 @@ pub const IS_PLACEHOLDER: bool = false;
 
 /// Hash two field elements using Poseidon.
 ///
+<<<<<<< HEAD
 /// Used for Merkle tree internal nodes: `parent = H(left, right)`
 ///
 /// # Arguments
@@ -64,10 +78,27 @@ pub fn hash_two_to_one(left: &ScalarField, right: &ScalarField) -> Result<Scalar
     })?;
 
     Ok(result.to_bytes())
+=======
+/// Used for Merkle tree internal nodes:
+/// `parent = H(left, right)`
+///
+/// Signature kept compatible with the previous Keccak placeholder:
+/// returns `[u8; 32]` and never `Result`, so Merkle tree code does not change.
+pub fn hash_two_to_one(left: &ScalarField, right: &ScalarField) -> [u8; 32] {
+    let result = hashv(
+        Parameters::Bn254X5,    // BN254 curve, x^5 S-box (circom compatible)
+        Endianness::BigEndian,  // Interpret inputs as big-endian field elements
+        &[left.as_slice(), right.as_slice()],
+    )
+    .expect("Poseidon hash_two_to_one syscall failed");
+
+    result.to_bytes()
+>>>>>>> feb3db3 (feat: integrate Groth16 deposit verification into MASP and relayer)
 }
 
 /// Hash four field elements using Poseidon.
 ///
+<<<<<<< HEAD
 /// Used for commitment computation: `commitment = H(secret, nullifier, amount, asset_id)`
 ///
 /// # Arguments
@@ -81,12 +112,20 @@ pub fn hash_two_to_one(left: &ScalarField, right: &ScalarField) -> Result<Scalar
 ///
 /// # Compatibility
 /// Matches `hashFour(a, b, c, d)` in SDK and `Poseidon(4)` in circom.
+=======
+/// Used for MASP commitments:
+/// `commitment = H(secret, nullifier, amount, asset_id)`
+>>>>>>> feb3db3 (feat: integrate Groth16 deposit verification into MASP and relayer)
 pub fn poseidon_hash_4(
     input0: &ScalarField,
     input1: &ScalarField,
     input2: &ScalarField,
     input3: &ScalarField,
+<<<<<<< HEAD
 ) -> Result<ScalarField> {
+=======
+) -> [u8; 32] {
+>>>>>>> feb3db3 (feat: integrate Groth16 deposit verification into MASP and relayer)
     let result = hashv(
         Parameters::Bn254X5,
         Endianness::BigEndian,
@@ -96,18 +135,29 @@ pub fn poseidon_hash_4(
             input2.as_slice(),
             input3.as_slice(),
         ],
+<<<<<<< HEAD
     ).map_err(|e| {
         msg!("Poseidon hash_4 failed: {:?}", e);
         error!(PrivacyErrorV2::CryptographyError)
     })?;
 
     Ok(result.to_bytes())
+=======
+    )
+    .expect("Poseidon poseidon_hash_4 syscall failed");
+
+    result.to_bytes()
+>>>>>>> feb3db3 (feat: integrate Groth16 deposit verification into MASP and relayer)
 }
 
 /// Hash variable number of inputs using Poseidon.
 ///
+<<<<<<< HEAD
 /// Routes to the appropriate hash function based on input count.
 /// Supported: 1, 2, 3, 4 inputs.
+=======
+/// This is mainly for tests / tooling, not the main Merkle tree path.
+>>>>>>> feb3db3 (feat: integrate Groth16 deposit verification into MASP and relayer)
 pub fn poseidon_hash(inputs: &[ScalarField]) -> Result<ScalarField> {
     if inputs.is_empty() || inputs.len() > 12 {
         msg!("Poseidon: unsupported input count {}", inputs.len());
@@ -120,8 +170,14 @@ pub fn poseidon_hash(inputs: &[ScalarField]) -> Result<ScalarField> {
         Parameters::Bn254X5,
         Endianness::BigEndian,
         &input_slices,
+<<<<<<< HEAD
     ).map_err(|e| {
         msg!("Poseidon hash failed: {:?}", e);
+=======
+    )
+    .map_err(|e| {
+        msg!("Poseidon hash syscall failed: {:?}", e);
+>>>>>>> feb3db3 (feat: integrate Groth16 deposit verification into MASP and relayer)
         error!(PrivacyErrorV2::CryptographyError)
     })?;
 
@@ -129,16 +185,20 @@ pub fn poseidon_hash(inputs: &[ScalarField]) -> Result<ScalarField> {
 }
 
 // ============================================================================
-// COMMITMENT FUNCTIONS
+// COMMITMENT / NULLIFIER FUNCTIONS
 // ============================================================================
 
 /// Compute MASP commitment.
 ///
+<<<<<<< HEAD
 /// ```text
 /// commitment = Poseidon(secret, nullifier, amount, asset_id)
 /// ```
 ///
 /// This matches the circuit (withdraw.circom lines 41-48):
+=======
+/// Matches withdraw.circom:
+>>>>>>> feb3db3 (feat: integrate Groth16 deposit verification into MASP and relayer)
 /// ```circom
 /// component commitment_hasher = Poseidon(4);
 /// commitment_hasher.inputs[0] <== secret;
@@ -146,6 +206,7 @@ pub fn poseidon_hash(inputs: &[ScalarField]) -> Result<ScalarField> {
 /// commitment_hasher.inputs[2] <== amount;
 /// commitment_hasher.inputs[3] <== asset_id;
 /// ```
+<<<<<<< HEAD
 ///
 /// # Arguments
 /// * `secret` - Random blinding factor (private)
@@ -155,23 +216,39 @@ pub fn poseidon_hash(inputs: &[ScalarField]) -> Result<ScalarField> {
 ///
 /// # Returns
 /// The commitment hash (inserted as leaf in Merkle tree).
+=======
+>>>>>>> feb3db3 (feat: integrate Groth16 deposit verification into MASP and relayer)
 pub fn compute_commitment(
     secret: &ScalarField,
     nullifier: &ScalarField,
     amount: u64,
     asset_id: &ScalarField,
 ) -> Result<ScalarField> {
+<<<<<<< HEAD
     let amount_scalar = u64_to_scalar_be(amount);
     poseidon_hash_4(secret, nullifier, &amount_scalar, asset_id)
+=======
+    // Represent amount as BN254 field element, big-endian
+    let amount_scalar = u64_to_bytes32_be(amount);
+    Ok(poseidon_hash_4(secret, nullifier, &amount_scalar, asset_id))
+>>>>>>> feb3db3 (feat: integrate Groth16 deposit verification into MASP and relayer)
 }
 
 /// Compute nullifier hash.
 ///
+<<<<<<< HEAD
+=======
+/// Correct formula (matches withdraw.circom + SDK):
+>>>>>>> feb3db3 (feat: integrate Groth16 deposit verification into MASP and relayer)
 /// ```text
 /// nullifier_hash = Poseidon(Poseidon(nullifier, secret), leaf_index)
 /// ```
 ///
+<<<<<<< HEAD
 /// This matches the circuit (withdraw.circom lines 52-63):
+=======
+/// Circom:
+>>>>>>> feb3db3 (feat: integrate Groth16 deposit verification into MASP and relayer)
 /// ```circom
 /// component nullifier_inner = Poseidon(2);
 /// nullifier_inner.inputs[0] <== nullifier;
@@ -182,12 +259,18 @@ pub fn compute_commitment(
 /// nullifier_outer.inputs[1] <== leaf_index;
 /// ```
 ///
+<<<<<<< HEAD
 /// And the SDK (poseidon.ts):
 /// ```typescript
+=======
+/// SDK (poseidon.ts):
+/// ```ts
+>>>>>>> feb3db3 (feat: integrate Groth16 deposit verification into MASP and relayer)
 /// const inner = hashTwo(nullifier, secret);
 /// return hashTwo(inner, leafIndex);
 /// ```
 ///
+<<<<<<< HEAD
 /// # CRITICAL
 /// The previous implementation was WRONG - it computed:
 /// `H(H(nullifier, secret), H(leaf_index, 0))`
@@ -202,11 +285,16 @@ pub fn compute_commitment(
 ///
 /// # Returns
 /// The nullifier hash (used to mark commitment as spent).
+=======
+/// The previous Rust implementation was wrong:
+/// it did `H(H(nullifier, secret), H(leaf_index, 0))`.
+>>>>>>> feb3db3 (feat: integrate Groth16 deposit verification into MASP and relayer)
 pub fn compute_nullifier_hash(
     nullifier: &ScalarField,
     secret: &ScalarField,
     leaf_index: u32,
 ) -> Result<ScalarField> {
+<<<<<<< HEAD
     // Convert leaf_index to scalar (big-endian to match circom field element)
     let index_scalar = u64_to_scalar_be(leaf_index as u64);
 
@@ -217,12 +305,23 @@ pub fn compute_nullifier_hash(
     // NOTE: This is the CORRECT formula matching circuit and SDK
     // Previous implementation incorrectly did: H(inner, H(leaf_index, 0))
     hash_two_to_one(&inner, &index_scalar)
+=======
+    // Convert leaf_index to field element (big-endian)
+    let index_scalar = u64_to_bytes32_be(leaf_index as u64);
+
+    // Inner: H(nullifier, secret)
+    let inner = hash_two_to_one(nullifier, secret);
+
+    // Outer: H(inner, leaf_index)
+    Ok(hash_two_to_one(&inner, &index_scalar))
+>>>>>>> feb3db3 (feat: integrate Groth16 deposit verification into MASP and relayer)
 }
 
 // ============================================================================
-// UTILITY FUNCTIONS
+// UTILITIES
 // ============================================================================
 
+<<<<<<< HEAD
 /// Convert u64 to 32-byte scalar (big-endian).
 ///
 /// Big-endian is used because:
@@ -269,6 +368,38 @@ pub fn empty_leaf_hash() -> ScalarField {
 /// Check if using placeholder implementation.
 ///
 /// Returns `false` for this production implementation.
+=======
+/// Convert u64 to 32-byte array (little-endian).
+///
+/// Kept for backward compatibility. Prefer the `_be` variant below for
+/// anything that goes into Poseidon.
+pub fn u64_to_bytes32(value: u64) -> [u8; 32] {
+    let mut bytes = [0u8; 32];
+    bytes[..8].copy_from_slice(&value.to_le_bytes());
+    bytes
+}
+
+/// Convert u64 to 32-byte array (big-endian).
+///
+/// This is what should be used for field elements passed into Poseidon.
+pub fn u64_to_bytes32_be(value: u64) -> [u8; 32] {
+    let mut bytes = [0u8; 32];
+    bytes[24..32].copy_from_slice(&value.to_be_bytes());
+    bytes
+}
+
+/// Check if a hash is all zeros.
+pub fn is_zero_hash(hash: &[u8; 32]) -> bool {
+    hash.iter().all(|&b| b == 0)
+}
+
+/// Canonical empty leaf hash (all zeros).
+pub fn empty_leaf_hash() -> [u8; 32] {
+    [0u8; 32]
+}
+
+/// Report whether this file is still using a placeholder implementation.
+>>>>>>> feb3db3 (feat: integrate Groth16 deposit verification into MASP and relayer)
 pub fn is_placeholder_implementation() -> bool {
     IS_PLACEHOLDER
 }
@@ -287,6 +418,7 @@ mod tests {
     }
 
     #[test]
+<<<<<<< HEAD
     fn test_u64_to_scalar_be() {
         let scalar = u64_to_scalar_be(0x0102030405060708);
         assert_eq!(&scalar[24..32], &[0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]);
@@ -327,4 +459,25 @@ mod tests {
     //     let expected = [...]; // Fill in from SDK test
     //     assert_eq!(hash, expected);
     // }
+=======
+    fn test_zero_helpers() {
+        let z = empty_leaf_hash();
+        assert!(is_zero_hash(&z));
+        let mut non_zero = z;
+        non_zero[31] = 1;
+        assert!(!is_zero_hash(&non_zero));
+    }
+
+    #[test]
+    fn test_u64_to_be_bytes() {
+        let v = 0x0102030405060708u64;
+        let be = u64_to_bytes32_be(v);
+        assert_eq!(&be[24..32], &v.to_be_bytes());
+    }
+
+    #[test]
+    fn test_not_placeholder() {
+        assert!(!is_placeholder_implementation());
+    }
+>>>>>>> feb3db3 (feat: integrate Groth16 deposit verification into MASP and relayer)
 }
