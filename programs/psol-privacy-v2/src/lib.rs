@@ -74,7 +74,17 @@ pub mod state;
 
 use instructions::*;
 
-declare_id!("pSoL2xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+// Default (localnet)
+#[cfg(not(any(feature = "devnet", feature = "mainnet")))]
+declare_id!("PSoL1111111111111111111111111111111111111111");
+
+// Devnet
+#[cfg(feature = "devnet")]
+declare_id!("PSoLDev111111111111111111111111111111111111");
+
+// Mainnet
+#[cfg(feature = "mainnet")]
+declare_id!("PSoLMain11111111111111111111111111111111111");
 
 #[program]
 pub mod psol_privacy_v2 {
