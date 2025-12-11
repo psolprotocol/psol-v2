@@ -1,0 +1,85 @@
+[package]
+name = "psol-privacy-v2"
+version = "2.0.0"
+description = "Multi-Asset Shielded Pool (MASP) on Solana"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/psolprotocol/psol-v2"
+readme = "README.md"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "psol_privacy_v2"
+
+[features]
+# Default features for local development
+default = []
+
+# Environment-specific program IDs
+# Use: anchor build -- --features devnet
+devnet = []
+mainnet = []
+
+# Debug features - NEVER enable in production
+# Enables verbose logging and debug events
+event-debug = []
+
+# Enable all features (for testing only)
+all-features = ["event-debug"]
+
+# Compile-time safety: prevent debug features in mainnet builds
+# This causes a compile error if both are enabled
+# See events.rs for the compile_error! macro
+
+[dependencies]
+anchor-lang = { version = "0.29.0", features = ["init-if-needed"] }
+anchor-spl = { version = "0.29.0", features = ["token"] }
+solana-program = "1.18"
+hex = "0.4"
+
+[dev-dependencies]
+anchor-client = "0.29.0"
+solana-sdk = "1.18"
+solana-program-test = "1.18"
+tokio = { version = "1.35", features = ["full"] }
+
+# ============================================================================
+# BUILD PROFILES
+# ============================================================================
+
+[profile.release]
+overflow-checks = true
+lto = "fat"
+codegen-units = 1
+opt-level = 3
+
+# For devnet builds - slightly faster compile times
+[profile.devnet]
+inherits = "release"
+lto = "thin"
+codegen-units = 4
+
+# For local development - fast compile, no optimization
+[profile.dev]
+overflow-checks = true
+opt-level = 0
+
+# ============================================================================
+# ENVIRONMENT CONFIGURATION
+# ============================================================================
+#
+# Local Development:
+#   anchor build
+#   anchor deploy --provider.cluster localnet
+#
+# Devnet:
+#   anchor build -- --features devnet
+#   anchor deploy --provider.cluster devnet --program-keypair keys/psol-devnet.json
+#
+# Mainnet:
+#   anchor build -- --features mainnet
+#   anchor deploy --provider.cluster mainnet --program-keypair keys/psol-mainnet.json
+#
+# IMPORTANT: Store mainnet keypair securely! It controls your program forever.
+#
+# ============================================================================
