@@ -1,36 +1,120 @@
+# ============================================================================
+# pSOL v2 - Anchor Configuration
+# ============================================================================
+#
+# Environment-specific configurations for localnet, devnet, and mainnet.
+#
+# Usage:
+#   anchor build                              # Local build
+#   anchor build -- --features devnet         # Devnet build
+#   anchor build -- --features mainnet        # Mainnet build
+#
+#   anchor deploy --provider.cluster devnet   # Deploy to devnet
+#
+# ============================================================================
+
 [features]
 seeds = false
 skip-lint = false
 
 [programs.localnet]
-psol_privacy_v2 = "pSoL2xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+psol_privacy_v2 = "PSoL1111111111111111111111111111111111111111"
 
 [programs.devnet]
-psol_privacy_v2 = "pSoL2xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+# TODO: Replace with actual devnet program ID after running generate-keys.sh
+psol_privacy_v2 = "PSoLDev111111111111111111111111111111111111"
 
 [programs.mainnet]
-psol_privacy_v2 = "pSoL2xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+# TODO: Replace with actual mainnet program ID after running generate-keys.sh
+psol_privacy_v2 = "PSoLMain11111111111111111111111111111111111"
+
+# ============================================================================
+# PROVIDER CONFIGURATIONS
+# ============================================================================
+
+[provider]
+# Default to localnet for development
+cluster = "Localnet"
+wallet = "~/.config/solana/id.json"
+
+# ============================================================================
+# REGISTRY (for Anchor package publishing)
+# ============================================================================
 
 [registry]
 url = "https://api.apr.dev"
 
-[provider]
-cluster = "localnet"
-wallet = "~/.config/solana/id.json"
+# ============================================================================
+# SCRIPTS
+# ============================================================================
 
 [scripts]
+# Run all tests
 test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
+
+# Deploy and initialize (devnet)
+deploy-devnet = """
+anchor build -- --features devnet && \
+anchor deploy --provider.cluster devnet --program-keypair keys/psol-devnet.json && \
+yarn run ts-node scripts/initialize-pool.ts --cluster devnet
+"""
+
+# Deploy only (mainnet) - initialization is separate for safety
+deploy-mainnet = """
+anchor build -- --features mainnet && \
+anchor deploy --provider.cluster mainnet-beta --program-keypair keys/psol-mainnet.json
+"""
+
+# Generate program keypairs
+generate-keys = "./keys/generate-keys.sh"
+
+# ============================================================================
+# TEST CONFIGURATION
+# ============================================================================
 
 [test]
 startup_wait = 5000
+shutdown_wait = 2000
+upgradeable = false
 
 [test.validator]
 url = "https://api.mainnet-beta.solana.com"
 
-[[test.validator.clone]]
-# Clone SPL Token program
-address = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+# Clone accounts for testing (e.g., token mints)
+# [[test.validator.clone]]
+# address = "So11111111111111111111111111111111111111112"  # Wrapped SOL
 
-[[test.validator.clone]]
-# Clone Associated Token program
-address = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+# [[test.validator.account]]
+# address = ""
+# filename = ""
+
+# ============================================================================
+# WORKSPACE
+# ============================================================================
+
+[workspace]
+members = [
+    "programs/psol-privacy-v2"
+]
+
+# ============================================================================
+# NOTES
+# ============================================================================
+#
+# 1. PROGRAM KEYPAIRS
+#    - Localnet: Can use any keypair, regenerate freely
+#    - Devnet: Use keys/psol-devnet.json (can share with team)
+#    - Mainnet: Use keys/psol-mainnet.json (NEVER share, store securely)
+#
+# 2. UPGRADE AUTHORITY
+#    - For mainnet, consider:
+#      a) Making program non-upgradeable after verification
+#      b) Using multi-sig upgrade authority (Squads)
+#      c) Adding timelock to upgrades
+#
+# 3. FEATURE FLAGS
+#    - event-debug: NEVER enable for mainnet (leaks privacy data)
+#    - mainnet: Enables mainnet program ID
+#    - devnet: Enables devnet program ID
+#
+# ============================================================================
