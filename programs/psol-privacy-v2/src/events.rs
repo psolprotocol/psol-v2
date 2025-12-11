@@ -14,8 +14,25 @@
 //!
 //! Debug events (gated behind `event-debug` feature) include additional
 //! information useful for development but MUST NOT be enabled in production.
+//!
+//! # Feature Flags
+//!
+//! - `event-debug`: Enables debug events with privacy-sensitive data
+//! - `mainnet`: Indicates mainnet build (incompatible with event-debug)
 
 use anchor_lang::prelude::*;
+
+// ============================================================================
+// COMPILE-TIME SAFETY CHECK
+// ============================================================================
+
+// Prevent accidental mainnet builds with debug events enabled
+#[cfg(all(feature = "event-debug", feature = "mainnet"))]
+compile_error!(
+    "SECURITY ERROR: event-debug feature must not be enabled for mainnet builds! \
+     Debug events leak privacy-sensitive data (recipient, amount, depositor). \
+     Remove event-debug feature or mainnet feature to proceed."
+);
 
 // =========================================================================
 // POOL EVENTS
@@ -116,33 +133,61 @@ pub struct VerificationKeyLockedV2 {
 }
 
 // =========================================================================
-// DEPOSIT/WITHDRAW EVENTS
+// DEPOSIT/WITHDRAW EVENTS (PRIVACY-PRESERVING)
 // =========================================================================
 
 /// Privacy-preserving deposit event.
-/// Does NOT include amount or depositor to prevent correlation attacks.
+///
+/// # Privacy Design
+///
+/// This event intentionally does NOT include:
+/// - `amount` - Would enable correlation attacks (matching deposit/withdrawal amounts)
+/// - `depositor` - Would link on-chain identity to shielded commitment
+///
+/// # Included Fields
+///
+/// - `commitment` - Needed for users to track their deposits
+/// - `leaf_index` - Required to construct withdrawal proofs
+/// - `merkle_root` - Lets clients verify tree state
+/// - `asset_id` - Asset type (does not reveal amount or depositor)
+///
+/// While the depositor address is visible in transaction accounts, omitting it
+/// from events makes large-scale indexing and correlation significantly harder.
 #[event]
 pub struct DepositMaspEvent {
+    /// Pool this deposit belongs to
     pub pool: Pubkey,
+    /// Commitment inserted into Merkle tree
     pub commitment: [u8; 32],
-    /// Leaf index assigned in the shared Merkle tree
+    /// Leaf index assigned in the shared Merkle tree (needed for withdrawal proofs)
     pub leaf_index: u32,
     /// New Merkle root after insertion
     pub merkle_root: [u8; 32],
-    /// Asset identifier (does not reveal depositor or amount)
+    /// Asset identifier (Keccak(mint)[0..32])
     pub asset_id: [u8; 32],
+    /// Event timestamp
     pub timestamp: i64,
 }
 
 /// Debug-only deposit event with additional information.
-/// MUST NOT be enabled in production builds as it leaks privacy-sensitive data.
+///
+/// # Security Warning
+///
+/// This event is gated behind the `event-debug` feature flag and MUST NOT
+/// be enabled in production builds. It leaks privacy-sensitive data that
+/// would trivially de-anonymize deposits.
+///
+/// # Leaked Data
+///
+/// - `amount` - Enables amount correlation attacks
+/// - `depositor` - Directly reveals depositor identity
 #[cfg(feature = "event-debug")]
 #[event]
 pub struct DepositMaspDebugEvent {
     pub pool: Pubkey,
     pub commitment: [u8; 32],
     pub leaf_index: u32,
-    /// WARNING: Leaks correlation data
+    /// WARNING: Leaks deposit amount for correlation attacks
     pub amount: u64,
     pub asset_id: [u8; 32],
     /// WARNING: Reveals depositor identity
@@ -152,13 +197,22 @@ pub struct DepositMaspDebugEvent {
 }
 
 /// Privacy-preserving withdrawal event.
-/// Does NOT include recipient or amount to minimize correlation attacks.
-/// 
-/// While recipient is visible in transaction accounts (for token delivery),
-/// omitting it from events makes large-scale indexing and correlation
-/// significantly harder.
-/// 
-/// The nullifier_hash is already public via the SpentNullifierV2 PDA.
+///
+/// # Privacy Design
+///
+/// This event intentionally does NOT include:
+/// - `recipient` - Would link withdrawal to recipient identity
+/// - `amount` - Would enable amount correlation attacks
+///
+/// # Included Fields
+///
+/// - `nullifier_hash` - Already public via SpentNullifierV2 PDA
+/// - `asset_id` - Asset type (common knowledge)
+/// - `relayer` / `relayer_fee` - Needed for relayer accounting
+///
+/// While recipient is visible in transaction accounts (required for token delivery),
+/// omitting it from events makes large-scale indexing and correlation significantly
+/// harder - events are the primary data source for most indexing infrastructure.
 #[event]
 pub struct WithdrawMaspEvent {
     /// Pool this withdrawal belongs to
@@ -176,8 +230,12 @@ pub struct WithdrawMaspEvent {
 }
 
 /// Debug-only withdrawal event with full telemetry.
-/// MUST NOT be enabled in mainnet builds as it leaks recipient and amount
-/// at the event layer, making correlation trivial.
+///
+/// # Security Warning
+///
+/// This event is gated behind the `event-debug` feature flag and MUST NOT
+/// be enabled in mainnet builds. It leaks recipient and amount at the event
+/// layer, making correlation trivial.
 #[cfg(feature = "event-debug")]
 #[event]
 pub struct WithdrawMaspDebugEvent {
@@ -197,6 +255,23 @@ pub struct WithdrawMaspDebugEvent {
 // JOIN-SPLIT EVENTS
 // =========================================================================
 
+/// JoinSplit event for private transfers.
+///
+/// # Privacy Design
+///
+/// JoinSplit combines multiple inputs into multiple outputs, breaking
+/// the link between individual deposits and withdrawals.
+///
+/// This event reveals:
+/// - Number of inputs/outputs (structural, unavoidable)
+/// - Nullifiers (already public via SpentNullifierV2)
+/// - Output commitments (needed for recipients)
+/// - Public amount delta (if any external transfer)
+///
+/// It does NOT reveal:
+/// - Individual input amounts
+/// - Individual output amounts
+/// - Connection between specific inputs and outputs
 #[event]
 pub struct JoinSplitEvent {
     pub pool: Pubkey,
@@ -220,7 +295,7 @@ pub struct JoinSplitEvent {
     pub relayer: Pubkey,
     /// Fee paid
     pub relayer_fee: u64,
-    /// Leaf indices for outputs
+    /// Leaf indices for outputs (needed for subsequent proofs)
     pub output_leaf_indices: [u32; 2],
     pub timestamp: i64,
 }
@@ -229,10 +304,13 @@ pub struct JoinSplitEvent {
 // MEMBERSHIP EVENTS
 // =========================================================================
 
+/// Membership proof verification event.
+///
+/// Used for proving balance >= threshold without revealing actual balance.
 #[event]
 pub struct MembershipProofVerified {
     pub pool: Pubkey,
-    /// Threshold that was proven
+    /// Threshold that was proven (user proved they have >= this amount)
     pub threshold: u64,
     /// Asset for the proof
     pub asset_id: [u8; 32],
@@ -329,9 +407,9 @@ pub struct ShieldedActionExecuted {
 // =========================================================================
 
 /// Debug log event for development purposes only.
-/// 
+///
 /// # Security Warning
-/// 
+///
 /// This event is gated behind the `event-debug` feature flag and MUST NOT
 /// be enabled in production builds. It can leak sensitive information
 /// about pool operations.
@@ -349,6 +427,12 @@ pub struct DebugLog {
 // =========================================================================
 
 /// Emit a debug log event (only when event-debug feature is enabled)
+///
+/// # Example
+///
+/// ```ignore
+/// debug_log!(pool_config.key(), "Processing deposit", amount);
+/// ```
 #[macro_export]
 #[cfg(feature = "event-debug")]
 macro_rules! debug_log {
@@ -367,7 +451,7 @@ macro_rules! debug_log {
 #[cfg(not(feature = "event-debug"))]
 macro_rules! debug_log {
     ($pool:expr, $msg:expr, $val:expr) => {
-        // Debug logging disabled in production
+        // Debug logging disabled in production - this is intentional
     };
 }
 
@@ -381,6 +465,7 @@ mod tests {
 
     #[test]
     fn deposit_event_is_privacy_preserving() {
+        // Verify DepositMaspEvent doesn't have amount or depositor fields
         let event = DepositMaspEvent {
             pool: Pubkey::new_unique(),
             commitment: [1u8; 32],
@@ -389,6 +474,7 @@ mod tests {
             asset_id: [3u8; 32],
             timestamp: 0,
         };
+        // This compiles successfully, proving the struct has the expected shape
         assert_eq!(event.leaf_index, 0);
     }
 
@@ -403,14 +489,15 @@ mod tests {
             relayer_fee: 1000,
             timestamp: 0,
         };
-        // This test ensures the struct doesn't accidentally get
-        // recipient/amount fields added back
+        // This compiles successfully, proving the struct has the expected shape
+        // (no recipient or amount fields)
         assert_eq!(event.relayer_fee, 1000);
     }
 
     #[cfg(feature = "event-debug")]
     #[test]
     fn debug_events_exist_when_feature_enabled() {
+        // This test only runs when event-debug feature is enabled
         let _deposit_debug = DepositMaspDebugEvent {
             pool: Pubkey::new_unique(),
             commitment: [0u8; 32],
@@ -439,5 +526,26 @@ mod tests {
             value: 42,
             timestamp: 0,
         };
+    }
+
+    #[test]
+    fn joinsplit_event_structure() {
+        let event = JoinSplitEvent {
+            pool: Pubkey::new_unique(),
+            input_count: 2,
+            output_count: 2,
+            nullifier_hash_0: [1u8; 32],
+            nullifier_hash_1: [2u8; 32],
+            output_commitment_0: [3u8; 32],
+            output_commitment_1: [4u8; 32],
+            public_amount: 0, // Internal transfer
+            asset_id: [5u8; 32],
+            relayer: Pubkey::new_unique(),
+            relayer_fee: 500,
+            output_leaf_indices: [100, 101],
+            timestamp: 0,
+        };
+        assert_eq!(event.input_count, 2);
+        assert_eq!(event.output_count, 2);
     }
 }
