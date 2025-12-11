@@ -1,254 +1,327 @@
 //! Error Types for pSOL Privacy Pool v2
+//!
+//! Error codes are automatically assigned by Anchor starting at 6000.
+//! This module organizes errors by category for maintainability.
+//!
+//! # Categories
+//! - Proof/Cryptography errors
+//! - Merkle tree errors
+//! - Nullifier errors
+//! - Amount/value errors
+//! - Asset errors
+//! - Commitment errors
+//! - Authorization errors
+//! - Relayer errors
+//! - State errors
+//! - Feature errors
+//! - Compliance errors
+//! - Input validation errors
+//! - CPI errors
 
 use anchor_lang::prelude::*;
 
 #[error_code]
 pub enum PrivacyErrorV2 {
     // =========================================================================
-    // PROOF ERRORS (6000-6019)
+    // PROOF & CRYPTOGRAPHY ERRORS
     // =========================================================================
     
     #[msg("Invalid proof: verification failed")]
-    InvalidProof, // 6000
+    InvalidProof,
 
     #[msg("Invalid proof format: expected 256 bytes")]
-    InvalidProofFormat, // 6001
+    InvalidProofFormat,
 
     #[msg("Invalid public inputs for proof verification")]
-    InvalidPublicInputs, // 6002
+    InvalidPublicInputs,
 
     #[msg("Verification key not configured for this proof type")]
-    VerificationKeyNotSet, // 6003
+    VerificationKeyNotSet,
 
     #[msg("Verification key is locked and cannot be modified")]
-    VerificationKeyLocked, // 6004
+    VerificationKeyLocked,
 
     #[msg("Proof type not supported")]
-    UnsupportedProofType, // 6005
+    UnsupportedProofType,
 
     #[msg("Circuit not implemented: proof verification unavailable")]
-    ProofNotImplemented, // 6006
+    ProofNotImplemented,
 
     #[msg("VK IC length mismatch for proof type")]
-    VkIcLengthMismatch, // 6007
+    VkIcLengthMismatch,
+
+    #[msg("Cryptographic operation failed")]
+    CryptographyError,
+
+    #[msg("Invalid verification key pool reference")]
+    InvalidVerificationKeyPool,
+
+    #[msg("Invalid verification key type for this operation")]
+    InvalidVerificationKeyType,
 
     // =========================================================================
-    // MERKLE TREE ERRORS (6020-6039)
+    // MERKLE TREE ERRORS
     // =========================================================================
 
     #[msg("Merkle root not in recent history")]
-    InvalidMerkleRoot, // 6020
+    InvalidMerkleRoot,
 
     #[msg("Merkle tree is full")]
-    MerkleTreeFull, // 6021
+    MerkleTreeFull,
 
     #[msg("Tree depth must be between 4 and 24")]
-    InvalidTreeDepth, // 6022
+    InvalidTreeDepth,
 
     #[msg("Root history size must be at least 30")]
-    InvalidRootHistorySize, // 6023
+    InvalidRootHistorySize,
+
+    #[msg("Invalid Merkle tree pool reference")]
+    InvalidMerkleTreePool,
 
     // =========================================================================
-    // NULLIFIER ERRORS (6040-6049)
+    // NULLIFIER ERRORS
     // =========================================================================
 
     #[msg("Nullifier already spent")]
-    NullifierAlreadySpent, // 6040
+    NullifierAlreadySpent,
 
     #[msg("Invalid nullifier: cannot be all zeros")]
-    InvalidNullifier, // 6041
+    InvalidNullifier,
 
-    #[msg("Too many nullifiers for join-split (max 2)")]
-    TooManyNullifiers, // 6042
+    #[msg("Too many nullifiers for join-split (max 4)")]
+    TooManyNullifiers,
 
     #[msg("Duplicate nullifier in input set")]
-    DuplicateNullifier, // 6043
+    DuplicateNullifier,
 
     // =========================================================================
-    // AMOUNT/VALUE ERRORS (6050-6069)
+    // AMOUNT/VALUE ERRORS
     // =========================================================================
 
     #[msg("Invalid amount: must be greater than zero")]
-    InvalidAmount, // 6050
+    InvalidAmount,
 
     #[msg("Insufficient vault balance")]
-    InsufficientBalance, // 6051
+    InsufficientBalance,
 
     #[msg("Relayer fee exceeds withdrawal amount")]
-    RelayerFeeExceedsAmount, // 6052
+    RelayerFeeExceedsAmount,
 
     #[msg("Amount below minimum deposit")]
-    BelowMinimumDeposit, // 6053
+    BelowMinimumDeposit,
 
     #[msg("Amount exceeds maximum deposit")]
-    ExceedsMaximumDeposit, // 6054
+    ExceedsMaximumDeposit,
 
     #[msg("Arithmetic overflow")]
-    ArithmeticOverflow, // 6055
+    ArithmeticOverflow,
 
     #[msg("Join-split value conservation failed")]
-    ValueConservationFailed, // 6056
+    ValueConservationFailed,
 
     // =========================================================================
-    // ASSET ERRORS (6070-6089)
+    // ASSET ERRORS
     // =========================================================================
 
     #[msg("Token mint does not match pool configuration")]
-    InvalidMint, // 6070
+    InvalidMint,
 
     #[msg("Asset not registered with pool")]
-    AssetNotRegistered, // 6071
+    AssetNotRegistered,
 
     #[msg("Asset is not active")]
-    AssetNotActive, // 6072
+    AssetNotActive,
 
     #[msg("Too many assets registered")]
-    TooManyAssets, // 6073
+    TooManyAssets,
 
     #[msg("Asset ID mismatch")]
-    AssetIdMismatch, // 6074
+    AssetIdMismatch,
 
     #[msg("Deposits are disabled for this asset")]
-    DepositsDisabled, // 6075
+    DepositsDisabled,
 
     #[msg("Withdrawals are disabled for this asset")]
-    WithdrawalsDisabled, // 6076
+    WithdrawalsDisabled,
+
+    #[msg("Invalid asset ID: cannot be all zeros")]
+    InvalidAssetId,
+
+    #[msg("Invalid vault pool reference")]
+    InvalidVaultPool,
+
+    #[msg("Invalid vault token account")]
+    InvalidVaultTokenAccount,
 
     // =========================================================================
-    // COMMITMENT ERRORS (6090-6099)
+    // COMMITMENT ERRORS
     // =========================================================================
 
     #[msg("Invalid commitment: cannot be all zeros")]
-    InvalidCommitment, // 6090
+    InvalidCommitment,
 
-    #[msg("Too many output commitments for join-split (max 2)")]
-    TooManyOutputs, // 6091
+    #[msg("Too many output commitments for join-split (max 4)")]
+    TooManyOutputs,
+
+    #[msg("Duplicate commitment in output set")]
+    DuplicateCommitment,
 
     // =========================================================================
-    // AUTHORIZATION ERRORS (6100-6119)
+    // AUTHORIZATION ERRORS
     // =========================================================================
 
     #[msg("Unauthorized: caller is not pool authority")]
-    Unauthorized, // 6100
+    Unauthorized,
 
     #[msg("Invalid authority address")]
-    InvalidAuthority, // 6101
+    InvalidAuthority,
 
     #[msg("No pending authority transfer")]
-    NoPendingAuthority, // 6102
+    NoPendingAuthority,
 
     #[msg("Recipient does not match proof public inputs")]
-    RecipientMismatch, // 6103
+    RecipientMismatch,
+
+    #[msg("Invalid token owner")]
+    InvalidTokenOwner,
 
     // =========================================================================
-    // RELAYER ERRORS (6120-6139)
+    // RELAYER ERRORS
     // =========================================================================
 
     #[msg("Relayer not registered")]
-    RelayerNotRegistered, // 6120
+    RelayerNotRegistered,
 
     #[msg("Relayer not active")]
-    RelayerNotActive, // 6121
+    RelayerNotActive,
 
     #[msg("Relayer fee out of allowed range")]
-    RelayerFeeOutOfRange, // 6122
+    RelayerFeeOutOfRange,
 
     #[msg("Invalid fee configuration")]
-    InvalidFeeConfiguration, // 6123
+    InvalidFeeConfiguration,
 
     #[msg("Relayer registrations are closed")]
-    RegistrationsClosed, // 6124
+    RegistrationsClosed,
 
     #[msg("Insufficient relayer stake")]
-    InsufficientStake, // 6125
+    InsufficientStake,
 
     // =========================================================================
-    // STATE ERRORS (6140-6159)
+    // STATE ERRORS
     // =========================================================================
 
     #[msg("Pool is paused")]
-    PoolPaused, // 6140
+    PoolPaused,
 
     #[msg("Pool is not paused")]
-    PoolNotPaused, // 6141
+    PoolNotPaused,
+
+    #[msg("Pool is not active")]
+    PoolInactive,
 
     #[msg("Account already initialized")]
-    AlreadyInitialized, // 6142
+    AlreadyInitialized,
 
     #[msg("Account data corrupted")]
-    CorruptedData, // 6143
+    CorruptedData,
 
     #[msg("Operation exceeds safe limits")]
-    LimitExceeded, // 6144
+    LimitExceeded,
 
     #[msg("Invalid timestamp")]
-    InvalidTimestamp, // 6145
+    InvalidTimestamp,
 
     // =========================================================================
-    // FEATURE ERRORS (6160-6179)
+    // FEATURE ERRORS
     // =========================================================================
 
     #[msg("Feature not enabled for this pool")]
-    FeatureDisabled, // 6160
+    FeatureDisabled,
 
     #[msg("Feature not implemented in this version")]
-    NotImplemented, // 6161
+    NotImplemented,
 
     #[msg("Join-split not enabled")]
-    JoinSplitDisabled, // 6162
+    JoinSplitDisabled,
 
     #[msg("Membership proofs not enabled")]
-    MembershipProofsDisabled, // 6163
+    MembershipProofsDisabled,
 
     #[msg("Shielded CPI not enabled")]
-    ShieldedCpiDisabled, // 6164
+    ShieldedCpiDisabled,
 
     // =========================================================================
-    // COMPLIANCE ERRORS (6180-6199)
+    // COMPLIANCE ERRORS
     // =========================================================================
 
     #[msg("Encrypted note required for this pool")]
-    EncryptedNoteRequired, // 6180
+    EncryptedNoteRequired,
 
     #[msg("Invalid encrypted note format")]
-    InvalidEncryptedNote, // 6181
+    InvalidEncryptedNote,
 
     #[msg("Audit metadata already attached")]
-    MetadataAlreadyAttached, // 6182
+    MetadataAlreadyAttached,
 
     // =========================================================================
-    // INPUT VALIDATION (6200-6219)
+    // INPUT VALIDATION
     // =========================================================================
 
     #[msg("Input exceeds maximum allowed length")]
-    InputTooLarge, // 6200
+    InputTooLarge,
 
     #[msg("Invalid account owner")]
-    InvalidOwner, // 6201
+    InvalidOwner,
 
     #[msg("Invalid account discriminator")]
-    InvalidDiscriminator, // 6202
+    InvalidDiscriminator,
 
     // =========================================================================
-    // CPI ERRORS (6220-6239)
+    // CPI ERRORS
     // =========================================================================
 
     #[msg("Shielded action not supported")]
-    UnsupportedShieldedAction, // 6220
+    UnsupportedShieldedAction,
 
     #[msg("CPI call failed")]
-    CpiCallFailed, // 6221
+    CpiCallFailed,
 
     #[msg("Invalid action data")]
-    InvalidActionData, // 6222
+    InvalidActionData,
 }
 
 impl PrivacyErrorV2 {
-    /// Get numeric error code
-    /// Note: Anchor assigns error codes starting at 6000 based on enum variant order
-    pub fn error_code(&self) -> u32 {
-        // Just return the discriminant offset for reference
-        // Actual error code assignment is handled by Anchor's #[error_code]
-        *self as u32
+    /// Check if error is related to proof verification
+    pub fn is_proof_error(&self) -> bool {
+        matches!(
+            self,
+            PrivacyErrorV2::InvalidProof
+                | PrivacyErrorV2::InvalidProofFormat
+                | PrivacyErrorV2::InvalidPublicInputs
+                | PrivacyErrorV2::VerificationKeyNotSet
+                | PrivacyErrorV2::CryptographyError
+        )
+    }
+
+    /// Check if error is related to authorization
+    pub fn is_auth_error(&self) -> bool {
+        matches!(
+            self,
+            PrivacyErrorV2::Unauthorized
+                | PrivacyErrorV2::InvalidAuthority
+                | PrivacyErrorV2::InvalidTokenOwner
+        )
+    }
+
+    /// Check if error is related to pool state
+    pub fn is_state_error(&self) -> bool {
+        matches!(
+            self,
+            PrivacyErrorV2::PoolPaused
+                | PrivacyErrorV2::PoolNotPaused
+                | PrivacyErrorV2::PoolInactive
+                | PrivacyErrorV2::AlreadyInitialized
+        )
     }
 }
