@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+echo "=== Setting Rust to 1.79.0 ==="
+rustup default 1.79.0
+
 echo "=== Installing Solana CLI 1.18.17 ==="
 sh -c "$(curl -sSfL https://release.anza.xyz/v1.18.17/install)"
 export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
