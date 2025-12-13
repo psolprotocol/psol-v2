@@ -1,0 +1,13 @@
+{
+  "name": "pSOL v2 - Solana Dev",
+  "image": "mcr.microsoft.com/devcontainers/rust:1.79-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": { "version": "18" }
+  },
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": ["rust-lang.rust-analyzer"]
+    }
+  }
+}
