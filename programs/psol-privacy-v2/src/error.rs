@@ -207,6 +207,12 @@ pub enum PrivacyErrorV2 {
     #[msg("Insufficient relayer stake")]
     InsufficientStake,
 
+    #[msg("Invalid RelayerNode PDA: derivation does not match expected seeds")]
+    InvalidRelayerNodePda,
+
+    #[msg("RelayerNode registry mismatch: node does not belong to expected registry")]
+    RelayerNodeRegistryMismatch,
+
     // =========================================================================
     // STATE ERRORS
     // =========================================================================
