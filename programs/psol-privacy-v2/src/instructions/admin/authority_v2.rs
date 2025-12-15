@@ -7,31 +7,12 @@
 
 use anchor_lang::prelude::*;
 
-use crate::error::PrivacyErrorV2;
 use crate::events::{
     AuthorityTransferInitiatedV2,
     AuthorityTransferCompletedV2,
     AuthorityTransferCancelledV2,
 };
-use crate::state::PoolConfigV2;
-
-// ============================================================================
-// INITIATE TRANSFER
-// ============================================================================
-
-/// Accounts for initiating authority transfer
-#[derive(Accounts)]
-pub struct InitiateAuthorityTransferV2<'info> {
-    /// Current pool authority (must be signer)
-    pub authority: Signer<'info>,
-
-    /// Pool configuration account
-    #[account(
-        mut,
-        has_one = authority @ PrivacyErrorV2::Unauthorized,
-    )]
-    pub pool_config: Account<'info, PoolConfigV2>,
-}
+use crate::{InitiateAuthorityTransferV2, AcceptAuthorityTransferV2, CancelAuthorityTransferV2};
 
 /// Handler for initiate_authority_transfer_v2 instruction
 pub fn initiate_handler(
@@ -64,25 +45,6 @@ pub fn initiate_handler(
     Ok(())
 }
 
-// ============================================================================
-// ACCEPT TRANSFER
-// ============================================================================
-
-/// Accounts for accepting authority transfer
-#[derive(Accounts)]
-pub struct AcceptAuthorityTransferV2<'info> {
-    /// New authority accepting the transfer (must be signer)
-    pub new_authority: Signer<'info>,
-
-    /// Pool configuration account
-    #[account(
-        mut,
-        constraint = pool_config.pending_authority == new_authority.key() @ PrivacyErrorV2::Unauthorized,
-        constraint = pool_config.has_pending_transfer() @ PrivacyErrorV2::NoPendingAuthority,
-    )]
-    pub pool_config: Account<'info, PoolConfigV2>,
-}
-
 /// Handler for accept_authority_transfer_v2 instruction
 pub fn accept_handler(ctx: Context<AcceptAuthorityTransferV2>) -> Result<()> {
     let pool_config = &mut ctx.accounts.pool_config;
@@ -111,25 +73,6 @@ pub fn accept_handler(ctx: Context<AcceptAuthorityTransferV2>) -> Result<()> {
     );
 
     Ok(())
-}
-
-// ============================================================================
-// CANCEL TRANSFER
-// ============================================================================
-
-/// Accounts for cancelling authority transfer
-#[derive(Accounts)]
-pub struct CancelAuthorityTransferV2<'info> {
-    /// Current pool authority (must be signer)
-    pub authority: Signer<'info>,
-
-    /// Pool configuration account
-    #[account(
-        mut,
-        has_one = authority @ PrivacyErrorV2::Unauthorized,
-        constraint = pool_config.has_pending_transfer() @ PrivacyErrorV2::NoPendingAuthority,
-    )]
-    pub pool_config: Account<'info, PoolConfigV2>,
 }
 
 /// Handler for cancel_authority_transfer_v2 instruction

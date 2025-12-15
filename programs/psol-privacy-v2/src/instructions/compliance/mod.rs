@@ -6,6 +6,3 @@
 
 pub mod configure_compliance;
 pub mod attach_metadata;
-
-pub use configure_compliance::ConfigureCompliance;
-pub use attach_metadata::AttachAuditMetadata;

@@ -4,27 +4,8 @@
 
 use anchor_lang::prelude::*;
 
-use crate::error::PrivacyErrorV2;
 use crate::events::RelayerRegistryConfigured;
-use crate::state::{PoolConfigV2, RelayerRegistry};
-
-/// Accounts for configuring the relayer registry
-#[derive(Accounts)]
-pub struct ConfigureRelayerRegistry<'info> {
-    /// Pool authority (must be signer)
-    pub authority: Signer<'info>,
-
-    /// Pool configuration account
-    #[account(
-        has_one = authority @ PrivacyErrorV2::Unauthorized,
-        has_one = relayer_registry,
-    )]
-    pub pool_config: Account<'info, PoolConfigV2>,
-
-    /// Relayer registry account
-    #[account(mut)]
-    pub relayer_registry: Account<'info, RelayerRegistry>,
-}
+use crate::ConfigureRelayerRegistry;
 
 /// Handler for configure_relayer_registry instruction
 pub fn handler(

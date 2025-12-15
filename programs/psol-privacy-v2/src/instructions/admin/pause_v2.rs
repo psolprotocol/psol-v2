@@ -5,24 +5,8 @@
 
 use anchor_lang::prelude::*;
 
-use crate::error::PrivacyErrorV2;
 use crate::events::PoolPausedV2;
-use crate::state::PoolConfigV2;
-
-/// Accounts for pausing the pool
-#[derive(Accounts)]
-pub struct PausePoolV2<'info> {
-    /// Pool authority (must be signer)
-    pub authority: Signer<'info>,
-
-    /// Pool configuration account
-    #[account(
-        mut,
-        has_one = authority @ PrivacyErrorV2::Unauthorized,
-        constraint = !pool_config.is_paused @ PrivacyErrorV2::PoolPaused,
-    )]
-    pub pool_config: Account<'info, PoolConfigV2>,
-}
+use crate::PausePoolV2;
 
 /// Handler for pause_pool_v2 instruction
 pub fn handler(ctx: Context<PausePoolV2>) -> Result<()> {

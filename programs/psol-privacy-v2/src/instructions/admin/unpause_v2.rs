@@ -4,24 +4,8 @@
 
 use anchor_lang::prelude::*;
 
-use crate::error::PrivacyErrorV2;
 use crate::events::PoolUnpausedV2;
-use crate::state::PoolConfigV2;
-
-/// Accounts for unpausing the pool
-#[derive(Accounts)]
-pub struct UnpausePoolV2<'info> {
-    /// Pool authority (must be signer)
-    pub authority: Signer<'info>,
-
-    /// Pool configuration account
-    #[account(
-        mut,
-        has_one = authority @ PrivacyErrorV2::Unauthorized,
-        constraint = pool_config.is_paused @ PrivacyErrorV2::PoolNotPaused,
-    )]
-    pub pool_config: Account<'info, PoolConfigV2>,
-}
+use crate::UnpausePoolV2;
 
 /// Handler for unpause_pool_v2 instruction
 pub fn handler(ctx: Context<UnpausePoolV2>) -> Result<()> {

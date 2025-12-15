@@ -3,7 +3,7 @@
 //! Provides curve operations using Solana's alt_bn128 precompiles.
 
 use anchor_lang::prelude::*;
-use solana_program::alt_bn128::prelude::*;
+use anchor_lang::solana_program::alt_bn128::prelude::*;
 
 use crate::error::PrivacyErrorV2;
 

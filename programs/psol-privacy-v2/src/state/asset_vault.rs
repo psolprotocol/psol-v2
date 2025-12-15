@@ -47,10 +47,10 @@ pub struct AssetVault {
     pub withdrawals_enabled: bool,
 
     /// Minimum deposit amount (in token base units)
-    pub min_deposit: u64,
+    pub min_deposit_amount: u64,
 
     /// Maximum deposit amount per transaction
-    pub max_deposit: u64,
+    pub max_deposit_amount: u64,
 
     /// Total value deposited (lifetime)
     pub total_deposited: u64,
@@ -87,7 +87,7 @@ pub struct AssetVault {
 }
 
 impl AssetVault {
-    pub fn space(metadata_uri_len: usize) -> usize {
+    pub const fn space(metadata_uri_len: usize) -> usize {
         8                           // discriminator
             + 32                    // pool
             + 32                    // asset_id
@@ -97,8 +97,8 @@ impl AssetVault {
             + 1                     // is_active
             + 1                     // deposits_enabled
             + 1                     // withdrawals_enabled
-            + 8                     // min_deposit
-            + 8                     // max_deposit
+            + 8                     // min_deposit_amount
+            + 8                     // max_deposit_amount
             + 8                     // total_deposited
             + 8                     // total_withdrawn
             + 8                     // shielded_balance
@@ -140,8 +140,8 @@ impl AssetVault {
         self.is_active = true;
         self.deposits_enabled = true;
         self.withdrawals_enabled = true;
-        self.min_deposit = 0;
-        self.max_deposit = u64::MAX;
+        self.min_deposit_amount = 0;
+        self.max_deposit_amount = u64::MAX;
         self.total_deposited = 0;
         self.total_withdrawn = 0;
         self.shielded_balance = 0;
@@ -178,8 +178,8 @@ impl AssetVault {
     }
 
     pub fn validate_deposit_amount(&self, amount: u64) -> Result<()> {
-        require!(amount >= self.min_deposit, PrivacyErrorV2::BelowMinimumDeposit);
-        require!(amount <= self.max_deposit, PrivacyErrorV2::ExceedsMaximumDeposit);
+        require!(amount >= self.min_deposit_amount, PrivacyErrorV2::BelowMinimumDeposit);
+        require!(amount <= self.max_deposit_amount, PrivacyErrorV2::ExceedsMaximumDeposit);
         Ok(())
     }
 
@@ -253,8 +253,8 @@ impl AssetVault {
 
     pub fn set_deposit_limits(&mut self, min: u64, max: u64) -> Result<()> {
         require!(min <= max, PrivacyErrorV2::InvalidAmount);
-        self.min_deposit = min;
-        self.max_deposit = max;
+        self.min_deposit_amount = min;
+        self.max_deposit_amount = max;
         Ok(())
     }
 
@@ -287,7 +287,7 @@ impl AssetVault {
 
 /// Helper to compute asset_id from mint address
 pub fn compute_asset_id(mint: &Pubkey) -> [u8; 32] {
-    use solana_program::keccak;
+    use anchor_lang::solana_program::keccak;
     keccak::hash(mint.as_ref()).to_bytes()
 }
 

@@ -6,121 +6,50 @@
 use anchor_lang::prelude::*;
 
 use crate::error::PrivacyErrorV2;
-use crate::events::ShieldedActionExecuted;
-use crate::state::{MerkleTreeV2, PoolConfigV2, VerificationKeyAccountV2};
 use crate::ShieldedActionType;
-use crate::ProofType;
-
-/// Accounts for executing a shielded action
-#[derive(Accounts)]
-#[instruction(
-    action_type: ShieldedActionType,
-    proof_data: Vec<u8>,
-    action_data: Vec<u8>,
-)]
-pub struct ExecuteShieldedAction<'info> {
-    /// Relayer executing the action
-    #[account(mut)]
-    pub relayer: Signer<'info>,
-
-    /// Pool configuration account
-    #[account(
-        mut,
-        constraint = !pool_config.is_paused @ PrivacyErrorV2::PoolPaused,
-        has_one = merkle_tree,
-    )]
-    pub pool_config: Account<'info, PoolConfigV2>,
-
-    /// Merkle tree account
-    #[account(mut)]
-    pub merkle_tree: Account<'info, MerkleTreeV2>,
-
-    /// Verification key for the action proof
-    /// Note: Shielded CPI uses JoinSplit VK for now
-    #[account(
-        seeds = [ProofType::JoinSplit.as_seed(), pool_config.key().as_ref()],
-        bump = vk_account.bump,
-        constraint = vk_account.is_initialized @ PrivacyErrorV2::VerificationKeyNotSet,
-    )]
-    pub vk_account: Account<'info, VerificationKeyAccountV2>,
-
-    /// Target program for CPI
-    /// CHECK: Validated based on action_type
-    pub target_program: UncheckedAccount<'info>,
-
-    /// System program
-    pub system_program: Program<'info, System>,
-    // Additional accounts passed via remaining_accounts
-}
+use crate::ExecuteShieldedAction;
 
 /// Handler for execute_shielded_action instruction
 pub fn handler(
     ctx: Context<ExecuteShieldedAction>,
     action_type: ShieldedActionType,
-    proof_data: Vec<u8>,
-    action_data: Vec<u8>,
+    _proof_data: Vec<u8>,
+    _action_data: Vec<u8>,
 ) -> Result<()> {
     // Check shielded CPI is enabled
     ctx.accounts.pool_config.require_shielded_cpi_enabled()?;
 
-    let clock = Clock::get()?;
-    let timestamp = clock.unix_timestamp;
-
-    // Validate action type is supported
-    match action_type {
-        ShieldedActionType::DexSwap => {
-            // TODO: Implement DEX swap integration
-            msg!("Shielded DEX swap not yet implemented");
-            return Err(error!(PrivacyErrorV2::NotImplemented));
-        }
-        ShieldedActionType::LendingDeposit => {
-            // TODO: Implement lending deposit
-            msg!("Shielded lending deposit not yet implemented");
-            return Err(error!(PrivacyErrorV2::NotImplemented));
-        }
-        ShieldedActionType::LendingBorrow => {
-            // TODO: Implement lending borrow
-            msg!("Shielded lending borrow not yet implemented");
-            return Err(error!(PrivacyErrorV2::NotImplemented));
-        }
-        ShieldedActionType::Stake => {
-            // TODO: Implement staking
-            msg!("Shielded staking not yet implemented");
-            return Err(error!(PrivacyErrorV2::NotImplemented));
-        }
-        ShieldedActionType::Unstake => {
-            // TODO: Implement unstaking
-            msg!("Shielded unstaking not yet implemented");
-            return Err(error!(PrivacyErrorV2::NotImplemented));
-        }
-        ShieldedActionType::Custom => {
-            // TODO: Implement custom action parsing
-            msg!("Custom shielded action not yet implemented");
-            return Err(error!(PrivacyErrorV2::NotImplemented));
-        }
-    }
-
-    // Placeholder: In a real implementation, we would:
+    // All shielded CPI actions are not yet implemented
+    // When implemented, this will:
     // 1. Verify the ZK proof authorizing this action
     // 2. Parse action_data to get action-specific parameters
     // 3. Execute CPI to target_program
     // 4. Handle the result and update state
     // 5. Insert any new commitments
+    // 6. Emit ShieldedActionExecuted event
+    
+    match action_type {
+        ShieldedActionType::DexSwap => {
+            msg!("Shielded DEX swap not yet implemented");
+        }
+        ShieldedActionType::LendingDeposit => {
+            msg!("Shielded lending deposit not yet implemented");
+        }
+        ShieldedActionType::LendingBorrow => {
+            msg!("Shielded lending borrow not yet implemented");
+        }
+        ShieldedActionType::Stake => {
+            msg!("Shielded staking not yet implemented");
+        }
+        ShieldedActionType::Unstake => {
+            msg!("Shielded unstaking not yet implemented");
+        }
+        ShieldedActionType::Custom => {
+            msg!("Custom shielded action not yet implemented");
+        }
+    }
 
-    // Emit event (placeholder values)
-    emit!(ShieldedActionExecuted {
-        pool: ctx.accounts.pool_config.key(),
-        action_type: action_type as u8,
-        nullifier_hash: [0u8; 32], // Would come from proof
-        output_commitment: [0u8; 32], // Would be computed
-        target_program: ctx.accounts.target_program.key(),
-        relayer: ctx.accounts.relayer.key(),
-        timestamp,
-    });
-
-    // This should not be reached due to NotImplemented returns above
-    // but keeping for future implementation
-    Ok(())
+    Err(error!(PrivacyErrorV2::NotImplemented))
 }
 
 /// Decode action data for DEX swap

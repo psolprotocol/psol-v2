@@ -7,62 +7,8 @@ use anchor_lang::prelude::*;
 
 use crate::error::PrivacyErrorV2;
 use crate::events::PoolInitializedV2;
-use crate::state::{
-    ComplianceConfig, MerkleTreeV2, PoolConfigV2, RelayerRegistry,
-    MAX_TREE_DEPTH, MIN_TREE_DEPTH, MIN_ROOT_HISTORY_SIZE,
-};
-
-/// Accounts for initializing a new MASP pool
-#[derive(Accounts)]
-#[instruction(tree_depth: u8, root_history_size: u16)]
-pub struct InitializePoolV2<'info> {
-    /// Pool authority (admin)
-    #[account(mut)]
-    pub authority: Signer<'info>,
-
-    /// Pool configuration account (PDA)
-    #[account(
-        init,
-        payer = authority,
-        space = PoolConfigV2::LEN,
-        seeds = [PoolConfigV2::SEED_PREFIX, authority.key().as_ref()],
-        bump,
-    )]
-    pub pool_config: Account<'info, PoolConfigV2>,
-
-    /// Merkle tree account (PDA)
-    #[account(
-        init,
-        payer = authority,
-        space = MerkleTreeV2::space(tree_depth, root_history_size),
-        seeds = [MerkleTreeV2::SEED_PREFIX, pool_config.key().as_ref()],
-        bump,
-    )]
-    pub merkle_tree: Account<'info, MerkleTreeV2>,
-
-    /// Relayer registry account (PDA)
-    #[account(
-        init,
-        payer = authority,
-        space = RelayerRegistry::LEN,
-        seeds = [RelayerRegistry::SEED_PREFIX, pool_config.key().as_ref()],
-        bump,
-    )]
-    pub relayer_registry: Account<'info, RelayerRegistry>,
-
-    /// Compliance configuration account (PDA)
-    #[account(
-        init,
-        payer = authority,
-        space = ComplianceConfig::LEN,
-        seeds = [ComplianceConfig::SEED_PREFIX, pool_config.key().as_ref()],
-        bump,
-    )]
-    pub compliance_config: Account<'info, ComplianceConfig>,
-
-    /// System program
-    pub system_program: Program<'info, System>,
-}
+use crate::state::{MAX_TREE_DEPTH, MIN_TREE_DEPTH, MIN_ROOT_HISTORY_SIZE};
+use crate::InitializePoolV2;
 
 /// Handler for initialize_pool_v2 instruction
 pub fn handler(

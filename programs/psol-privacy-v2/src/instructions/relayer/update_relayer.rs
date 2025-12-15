@@ -4,44 +4,8 @@
 
 use anchor_lang::prelude::*;
 
-use crate::error::PrivacyErrorV2;
 use crate::events::RelayerUpdated;
-use crate::state::{PoolConfigV2, RelayerRegistry, RelayerNode};
-
-/// Accounts for updating a relayer
-#[derive(Accounts)]
-pub struct UpdateRelayer<'info> {
-    /// Relayer operator (must be signer)
-    pub operator: Signer<'info>,
-
-    /// Pool configuration account
-    #[account(
-        has_one = relayer_registry,
-    )]
-    pub pool_config: Account<'info, PoolConfigV2>,
-
-    /// Relayer registry account
-    #[account(mut)]
-    pub relayer_registry: Account<'info, RelayerRegistry>,
-
-    /// Relayer node account
-    #[account(
-        mut,
-        has_one = operator @ PrivacyErrorV2::Unauthorized,
-        has_one = registry @ PrivacyErrorV2::Unauthorized,
-        seeds = [
-            RelayerNode::SEED_PREFIX,
-            relayer_registry.key().as_ref(),
-            operator.key().as_ref(),
-        ],
-        bump = relayer_node.bump,
-    )]
-    pub relayer_node: Account<'info, RelayerNode>,
-
-    /// The registry this relayer belongs to
-    /// CHECK: Validated via has_one constraint
-    pub registry: UncheckedAccount<'info>,
-}
+use crate::UpdateRelayer;
 
 /// Handler for update_relayer instruction
 pub fn handler(

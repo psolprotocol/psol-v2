@@ -23,129 +23,21 @@
 //! 4. Relayer receives fee for submitting transaction
 
 use anchor_lang::prelude::*;
-use anchor_spl::token::{self, Token, TokenAccount, Transfer};
+use anchor_spl::token::{self, Transfer};
 
 use crate::crypto::{verify_proof_bytes, WithdrawPublicInputs};
 use crate::error::PrivacyErrorV2;
 use crate::events::WithdrawMaspEvent;
 #[cfg(feature = "event-debug")]
 use crate::events::WithdrawMaspDebugEvent;
-use crate::state::{
-    AssetVault, MerkleTreeV2, PoolConfigV2, RelayerNode, RelayerRegistry,
-    SpentNullifierV2, SpendType, VerificationKeyAccountV2,
-};
-use crate::ProofType;
+use crate::state::{AssetVault, RelayerNode, SpendType};
+use crate::WithdrawMasp;
 
 /// Minimum withdrawal amount to prevent dust attacks
 pub const MIN_WITHDRAWAL_AMOUNT: u64 = 100;
 
 /// Maximum relayer fee in basis points (10% = 1000 bps)
 pub const MAX_RELAYER_FEE_BPS: u64 = 1000;
-
-/// Accounts for withdrawing from the MASP
-#[derive(Accounts)]
-#[instruction(
-    proof_data: Vec<u8>,
-    merkle_root: [u8; 32],
-    nullifier_hash: [u8; 32],
-    recipient: Pubkey,
-    amount: u64,
-    asset_id: [u8; 32],
-    relayer_fee: u64,
-)]
-pub struct WithdrawMasp<'info> {
-    /// Relayer submitting the transaction (pays gas, receives fee)
-    #[account(mut)]
-    pub relayer: Signer<'info>,
-
-    /// Pool configuration account
-    #[account(
-        mut,
-        constraint = !pool_config.is_paused @ PrivacyErrorV2::PoolPaused,
-        has_one = merkle_tree,
-        has_one = relayer_registry,
-    )]
-    pub pool_config: Account<'info, PoolConfigV2>,
-
-    /// Merkle tree account
-    #[account(
-        constraint = merkle_tree.is_known_root(&merkle_root) @ PrivacyErrorV2::InvalidMerkleRoot,
-    )]
-    pub merkle_tree: Account<'info, MerkleTreeV2>,
-
-    /// Verification key for withdraw proofs
-    #[account(
-        seeds = [ProofType::Withdraw.as_seed(), pool_config.key().as_ref()],
-        bump = vk_account.bump,
-        constraint = vk_account.is_initialized @ PrivacyErrorV2::VerificationKeyNotSet,
-        constraint = vk_account.proof_type == ProofType::Withdraw as u8
-            @ PrivacyErrorV2::InvalidVerificationKeyType,
-    )]
-    pub vk_account: Account<'info, VerificationKeyAccountV2>,
-
-    /// Asset vault account
-    #[account(
-        mut,
-        seeds = [
-            AssetVault::SEED_PREFIX,
-            pool_config.key().as_ref(),
-            asset_id.as_ref(),
-        ],
-        bump = asset_vault.bump,
-        constraint = asset_vault.is_active @ PrivacyErrorV2::AssetNotActive,
-        constraint = asset_vault.withdrawals_enabled @ PrivacyErrorV2::WithdrawalsDisabled,
-    )]
-    pub asset_vault: Account<'info, AssetVault>,
-
-    /// Vault's token account (source)
-    #[account(
-        mut,
-        constraint = vault_token_account.key() == asset_vault.token_account 
-            @ PrivacyErrorV2::InvalidVaultTokenAccount,
-    )]
-    pub vault_token_account: Account<'info, TokenAccount>,
-
-    /// Recipient's token account (destination)
-    /// CHECK: We verify the mint matches, recipient can be any valid token account
-    #[account(
-        mut,
-        constraint = recipient_token_account.mint == asset_vault.mint @ PrivacyErrorV2::InvalidMint,
-    )]
-    pub recipient_token_account: Account<'info, TokenAccount>,
-
-    /// Relayer's token account for fee (if relayer_fee > 0)
-    #[account(
-        mut,
-        constraint = relayer_token_account.mint == asset_vault.mint @ PrivacyErrorV2::InvalidMint,
-    )]
-    pub relayer_token_account: Account<'info, TokenAccount>,
-
-    /// Spent nullifier account (PDA, created on first use)
-    #[account(
-        init,
-        payer = relayer,
-        space = SpentNullifierV2::LEN,
-        seeds = [
-            SpentNullifierV2::SEED_PREFIX,
-            pool_config.key().as_ref(),
-            nullifier_hash.as_ref(),
-        ],
-        bump,
-    )]
-    pub spent_nullifier: Account<'info, SpentNullifierV2>,
-
-    /// Relayer registry
-    pub relayer_registry: Account<'info, RelayerRegistry>,
-
-    /// Relayer node (optional, for registered relayers)
-    pub relayer_node: Option<Account<'info, RelayerNode>>,
-
-    /// Token program
-    pub token_program: Program<'info, Token>,
-
-    /// System program
-    pub system_program: Program<'info, System>,
-}
 
 /// Handler for withdraw_masp instruction
 #[allow(clippy::too_many_arguments)]
@@ -311,12 +203,14 @@ pub fn handler(
     // Create vault signer seeds for CPI
     let pool_key = ctx.accounts.pool_config.key();
     let vault_bump = ctx.accounts.asset_vault.bump;
+    let vault_bump_slice = &[vault_bump];
     let vault_seeds: &[&[u8]] = &[
         AssetVault::SEED_PREFIX,
         pool_key.as_ref(),
         asset_id.as_ref(),
-        &[vault_bump],
+        vault_bump_slice,
     ];
+    let signer_seeds: &[&[&[u8]]] = &[vault_seeds];
 
     // Transfer tokens to recipient
     if recipient_amount > 0 {
@@ -327,7 +221,7 @@ pub fn handler(
                 to: ctx.accounts.recipient_token_account.to_account_info(),
                 authority: ctx.accounts.asset_vault.to_account_info(),
             },
-            &[vault_seeds],
+            signer_seeds,
         );
         token::transfer(transfer_ctx, recipient_amount)?;
     }
@@ -341,7 +235,7 @@ pub fn handler(
                 to: ctx.accounts.relayer_token_account.to_account_info(),
                 authority: ctx.accounts.asset_vault.to_account_info(),
             },
-            &[vault_seeds],
+            signer_seeds,
         );
         token::transfer(transfer_ctx, relayer_fee)?;
     }

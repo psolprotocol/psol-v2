@@ -4,40 +4,8 @@
 
 use anchor_lang::prelude::*;
 
-use crate::error::PrivacyErrorV2;
 use crate::events::RelayerDeactivated;
-use crate::state::{PoolConfigV2, RelayerRegistry, RelayerNode};
-
-/// Accounts for deactivating a relayer
-#[derive(Accounts)]
-pub struct DeactivateRelayer<'info> {
-    /// Relayer operator (must be signer)
-    pub operator: Signer<'info>,
-
-    /// Pool configuration account
-    #[account(
-        has_one = relayer_registry,
-    )]
-    pub pool_config: Account<'info, PoolConfigV2>,
-
-    /// Relayer registry account
-    #[account(mut)]
-    pub relayer_registry: Account<'info, RelayerRegistry>,
-
-    /// Relayer node account
-    #[account(
-        mut,
-        has_one = operator @ PrivacyErrorV2::Unauthorized,
-        constraint = relayer_node.is_active @ PrivacyErrorV2::RelayerNotActive,
-        seeds = [
-            RelayerNode::SEED_PREFIX,
-            relayer_registry.key().as_ref(),
-            operator.key().as_ref(),
-        ],
-        bump = relayer_node.bump,
-    )]
-    pub relayer_node: Account<'info, RelayerNode>,
-}
+use crate::DeactivateRelayer;
 
 /// Handler for deactivate_relayer instruction
 pub fn handler(ctx: Context<DeactivateRelayer>) -> Result<()> {

@@ -7,47 +7,8 @@ use anchor_lang::prelude::*;
 
 use crate::error::PrivacyErrorV2;
 use crate::events::AuditMetadataAttached;
-use crate::state::{AuditMetadata, ComplianceConfig, PoolConfigV2, MAX_ENCRYPTED_METADATA_LEN};
-
-/// Accounts for attaching audit metadata
-#[derive(Accounts)]
-#[instruction(commitment: [u8; 32], encrypted_metadata: Vec<u8>)]
-pub struct AttachAuditMetadata<'info> {
-    /// Payer for the metadata account
-    #[account(mut)]
-    pub payer: Signer<'info>,
-
-    /// Pool configuration account
-    #[account(
-        constraint = !pool_config.is_paused @ PrivacyErrorV2::PoolPaused,
-        has_one = compliance_config,
-    )]
-    pub pool_config: Account<'info, PoolConfigV2>,
-
-    /// Compliance configuration account
-    #[account(
-        mut,
-        constraint = compliance_config.audit_enabled @ PrivacyErrorV2::FeatureDisabled,
-    )]
-    pub compliance_config: Account<'info, ComplianceConfig>,
-
-    /// Audit metadata account (PDA)
-    #[account(
-        init,
-        payer = payer,
-        space = AuditMetadata::space(encrypted_metadata.len()),
-        seeds = [
-            AuditMetadata::SEED_PREFIX,
-            pool_config.key().as_ref(),
-            commitment.as_ref(),
-        ],
-        bump,
-    )]
-    pub audit_metadata: Account<'info, AuditMetadata>,
-
-    /// System program
-    pub system_program: Program<'info, System>,
-}
+use crate::state::MAX_ENCRYPTED_METADATA_LEN;
+use crate::AttachAuditMetadata;
 
 /// Handler for attach_audit_metadata instruction
 pub fn handler(

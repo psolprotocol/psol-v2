@@ -6,43 +6,8 @@ use anchor_lang::prelude::*;
 
 use crate::error::PrivacyErrorV2;
 use crate::events::RelayerRegistered;
-use crate::state::{PoolConfigV2, RelayerRegistry, RelayerNode, MAX_RELAYER_METADATA_URI_LEN};
-
-/// Accounts for registering a new relayer
-#[derive(Accounts)]
-pub struct RegisterRelayer<'info> {
-    /// Relayer operator (owner of the relayer node)
-    #[account(mut)]
-    pub operator: Signer<'info>,
-
-    /// Pool configuration account
-    #[account(
-        constraint = !pool_config.is_paused @ PrivacyErrorV2::PoolPaused,
-        has_one = relayer_registry,
-    )]
-    pub pool_config: Account<'info, PoolConfigV2>,
-
-    /// Relayer registry account
-    #[account(mut)]
-    pub relayer_registry: Account<'info, RelayerRegistry>,
-
-    /// Relayer node account (PDA)
-    #[account(
-        init,
-        payer = operator,
-        space = RelayerNode::DEFAULT_SPACE,
-        seeds = [
-            RelayerNode::SEED_PREFIX,
-            relayer_registry.key().as_ref(),
-            operator.key().as_ref(),
-        ],
-        bump,
-    )]
-    pub relayer_node: Account<'info, RelayerNode>,
-
-    /// System program
-    pub system_program: Program<'info, System>,
-}
+use crate::state::MAX_RELAYER_METADATA_URI_LEN;
+use crate::RegisterRelayer;
 
 /// Handler for register_relayer instruction
 pub fn handler(

@@ -214,7 +214,7 @@ pub struct AuditMetadata {
 }
 
 impl AuditMetadata {
-    pub fn space(data_len: usize) -> usize {
+    pub const fn space(data_len: usize) -> usize {
         8                   // discriminator
             + 32            // pool
             + 32            // commitment

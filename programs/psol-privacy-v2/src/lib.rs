@@ -66,19 +66,26 @@
 
 use anchor_lang::prelude::*;
 
+pub mod account_structs;
 pub mod crypto;
 pub mod error;
 pub mod events;
 pub mod instructions;
 pub mod state;
+pub mod types;
 
-use instructions::*;
+// Re-export shared types at crate root
+pub use types::{ProofType, ShieldedActionType};
 
-declare_id!("pSoL2xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+// Re-export all account structs at crate level for Context<...> usage
+pub use account_structs::*;
+
+declare_id!("PsoL2zwoN2xC4X4Qr8MJLnkNPt7aFWfpTdKnpRxHGxd");
 
 #[program]
 pub mod psol_privacy_v2 {
     use super::*;
+    use crate::instructions;
 
     // =========================================================================
     // POOL ADMINISTRATION
@@ -226,6 +233,7 @@ pub mod psol_privacy_v2 {
     /// * `amount` - Amount to deposit
     /// * `commitment` - Poseidon commitment = hash(secret, nullifier, amount, asset_id)
     /// * `asset_id` - Asset identifier (derived from mint)
+    /// * `proof_data` - Groth16 proof bytes (256 bytes)
     /// * `encrypted_note` - Optional encrypted note for recipient
     #[allow(clippy::too_many_arguments)]
     pub fn deposit_masp(
@@ -233,9 +241,10 @@ pub mod psol_privacy_v2 {
         amount: u64,
         commitment: [u8; 32],
         asset_id: [u8; 32],
+        proof_data: Vec<u8>,
         encrypted_note: Option<Vec<u8>>,
     ) -> Result<()> {
-        instructions::deposit_masp::handler(ctx, amount, commitment, asset_id, encrypted_note)
+        instructions::deposit_masp::handler(ctx, amount, commitment, asset_id, proof_data, encrypted_note)
     }
 
     /// Withdraw assets from the shielded pool (MASP)
@@ -375,51 +384,6 @@ pub mod psol_privacy_v2 {
     ) -> Result<()> {
         instructions::shielded_cpi::execute_action::handler(ctx, action_type, proof_data, action_data)
     }
-}
-
-// =========================================================================
-// SHARED TYPES
-// =========================================================================
-
-/// Proof types supported by pSOL v2
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug)]
-pub enum ProofType {
-    /// Deposit proof (proves valid commitment)
-    Deposit = 0,
-    /// Withdrawal proof (proves valid nullifier and membership)
-    Withdraw = 1,
-    /// Join-Split proof (proves value conservation in internal transfer)
-    JoinSplit = 2,
-    /// Membership proof (proves stake ≥ threshold without spending)
-    Membership = 3,
-}
-
-impl ProofType {
-    pub fn as_seed(&self) -> &[u8] {
-        match self {
-            ProofType::Deposit => b"vk_deposit",
-            ProofType::Withdraw => b"vk_withdraw",
-            ProofType::JoinSplit => b"vk_joinsplit",
-            ProofType::Membership => b"vk_membership",
-        }
-    }
-}
-
-/// Shielded action types for CPI
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug)]
-pub enum ShieldedActionType {
-    /// Swap via DEX (e.g., Jupiter)
-    DexSwap = 0,
-    /// Deposit to lending protocol
-    LendingDeposit = 1,
-    /// Borrow from lending protocol
-    LendingBorrow = 2,
-    /// Stake tokens
-    Stake = 3,
-    /// Unstake tokens
-    Unstake = 4,
-    /// Custom action (protocol-specific)
-    Custom = 255,
 }
 
 // Re-exports

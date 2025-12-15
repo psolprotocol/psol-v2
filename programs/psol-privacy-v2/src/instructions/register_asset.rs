@@ -4,65 +4,11 @@
 //! Creates an AssetVault account to hold shielded tokens.
 
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Mint, Token, TokenAccount};
 
 use crate::error::PrivacyErrorV2;
 use crate::events::AssetRegistered;
-use crate::state::{AssetVault, PoolConfigV2};
-
-/// Accounts for registering a new asset with the pool
-#[derive(Accounts)]
-#[instruction(asset_id: [u8; 32])]
-pub struct RegisterAsset<'info> {
-    /// Pool authority (must be signer)
-    #[account(mut)]
-    pub authority: Signer<'info>,
-
-    /// Pool configuration account
-    #[account(
-        mut,
-        has_one = authority @ PrivacyErrorV2::Unauthorized,
-        constraint = !pool_config.is_paused @ PrivacyErrorV2::PoolPaused,
-    )]
-    pub pool_config: Account<'info, PoolConfigV2>,
-
-    /// Token mint for the asset being registered
-    pub mint: Account<'info, Mint>,
-
-    /// Asset vault account (PDA)
-    #[account(
-        init,
-        payer = authority,
-        space = AssetVault::DEFAULT_SPACE,
-        seeds = [
-            AssetVault::SEED_PREFIX,
-            pool_config.key().as_ref(),
-            asset_id.as_ref(),
-        ],
-        bump,
-    )]
-    pub asset_vault: Account<'info, AssetVault>,
-
-    /// Token account for the vault (PDA)
-    #[account(
-        init,
-        payer = authority,
-        token::mint = mint,
-        token::authority = asset_vault,
-        seeds = [
-            b"vault_token",
-            asset_vault.key().as_ref(),
-        ],
-        bump,
-    )]
-    pub vault_token_account: Account<'info, TokenAccount>,
-
-    /// Token program
-    pub token_program: Program<'info, Token>,
-
-    /// System program
-    pub system_program: Program<'info, System>,
-}
+use crate::state::AssetVault;
+use crate::RegisterAsset;
 
 /// Handler for register_asset instruction
 pub fn handler(ctx: Context<RegisterAsset>, asset_id: [u8; 32]) -> Result<()> {

@@ -21,108 +21,14 @@
 //! 5. Commitment is inserted into shared Merkle tree
 
 use anchor_lang::prelude::*;
-use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
+use anchor_spl::token::{self, Transfer};
 
 use crate::crypto::{verify_proof_bytes, DepositPublicInputs};
 use crate::error::PrivacyErrorV2;
 use crate::events::DepositMaspEvent;
 #[cfg(feature = "event-debug")]
 use crate::events::DepositMaspDebugEvent;
-use crate::state::{AssetVault, MerkleTreeV2, PoolConfigV2, VerificationKeyAccountV2};
-use crate::ProofType;
-
-/// Accounts required for a MASP deposit.
-#[derive(Accounts)]
-#[instruction(
-    amount: u64,
-    commitment: [u8; 32],
-    asset_id: [u8; 32],
-    proof_data: Vec<u8>,
-)]
-pub struct DepositMasp<'info> {
-    /// User funding the deposit and paying tx fees
-    #[account(mut)]
-    pub depositor: Signer<'info>,
-
-    /// Global pool configuration
-    #[account(
-        mut,
-        has_one = authority,
-        has_one = merkle_tree,
-        constraint = !pool_config.is_paused @ PrivacyErrorV2::PoolPaused
-    )]
-    pub pool_config: Account<'info, PoolConfigV2>,
-
-    /// Pool authority (validated via has_one constraint)
-    /// CHECK: Validated by has_one constraint on pool_config
-    pub authority: UncheckedAccount<'info>,
-
-    /// Merkle tree for commitments belonging to this pool
-    #[account(
-        mut,
-        constraint = merkle_tree.pool == pool_config.key() @ PrivacyErrorV2::InvalidMerkleTreePool
-    )]
-    pub merkle_tree: Account<'info, MerkleTreeV2>,
-
-    /// Asset vault configuration for this asset
-    #[account(
-        mut,
-        seeds = [
-            AssetVault::SEED_PREFIX,
-            pool_config.key().as_ref(),
-            asset_id.as_ref(),
-        ],
-        bump = asset_vault.bump,
-        constraint = asset_vault.pool == pool_config.key() @ PrivacyErrorV2::InvalidVaultPool,
-        constraint = asset_vault.is_active @ PrivacyErrorV2::AssetNotActive,
-        constraint = asset_vault.deposits_enabled @ PrivacyErrorV2::DepositsDisabled,
-    )]
-    pub asset_vault: Account<'info, AssetVault>,
-
-    /// Vault token account that receives deposited tokens
-    #[account(
-        mut,
-        constraint = vault_token_account.key() == asset_vault.token_account
-            @ PrivacyErrorV2::InvalidVaultTokenAccount
-    )]
-    pub vault_token_account: Account<'info, TokenAccount>,
-
-    /// User token account providing funds
-    #[account(
-        mut,
-        constraint = user_token_account.mint == asset_vault.mint
-            @ PrivacyErrorV2::InvalidMint,
-        constraint = user_token_account.owner == depositor.key()
-            @ PrivacyErrorV2::InvalidTokenOwner
-    )]
-    pub user_token_account: Account<'info, TokenAccount>,
-
-    /// Mint for this asset
-    #[account(
-        constraint = mint.key() == asset_vault.mint
-            @ PrivacyErrorV2::InvalidMint
-    )]
-    pub mint: Account<'info, Mint>,
-
-    /// Verification key account for the deposit circuit
-    #[account(
-        seeds = [ProofType::Deposit.as_seed(), pool_config.key().as_ref()],
-        bump = deposit_vk.bump,
-        constraint = deposit_vk.pool == pool_config.key()
-            @ PrivacyErrorV2::InvalidVerificationKeyPool,
-        constraint = deposit_vk.proof_type == ProofType::Deposit as u8
-            @ PrivacyErrorV2::InvalidVerificationKeyType,
-        constraint = deposit_vk.is_initialized
-            @ PrivacyErrorV2::VerificationKeyNotSet,
-    )]
-    pub deposit_vk: Account<'info, VerificationKeyAccountV2>,
-
-    /// SPL token program
-    pub token_program: Program<'info, Token>,
-
-    /// System program
-    pub system_program: Program<'info, System>,
-}
+use crate::DepositMasp;
 
 /// Handler for deposit_masp instruction
 ///

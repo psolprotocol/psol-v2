@@ -7,37 +7,9 @@ use anchor_lang::prelude::*;
 
 use crate::error::PrivacyErrorV2;
 use crate::events::{VerificationKeySetV2, VerificationKeyLockedV2};
-use crate::state::{PoolConfigV2, VerificationKeyAccountV2};
+use crate::state::VerificationKeyAccountV2;
 use crate::ProofType;
-
-/// Accounts for setting a verification key
-#[derive(Accounts)]
-#[instruction(proof_type: ProofType)]
-pub struct SetVerificationKeyV2<'info> {
-    /// Pool authority (must be signer)
-    #[account(mut)]
-    pub authority: Signer<'info>,
-
-    /// Pool configuration account
-    #[account(
-        mut,
-        has_one = authority @ PrivacyErrorV2::Unauthorized,
-    )]
-    pub pool_config: Account<'info, PoolConfigV2>,
-
-    /// Verification key account (PDA based on proof type)
-    #[account(
-        init_if_needed,
-        payer = authority,
-        space = VerificationKeyAccountV2::space(VerificationKeyAccountV2::DEFAULT_MAX_IC_POINTS),
-        seeds = [proof_type.as_seed(), pool_config.key().as_ref()],
-        bump,
-    )]
-    pub vk_account: Account<'info, VerificationKeyAccountV2>,
-
-    /// System program
-    pub system_program: Program<'info, System>,
-}
+use crate::{SetVerificationKeyV2, LockVerificationKeyV2};
 
 /// Handler for set_verification_key_v2 instruction
 #[allow(clippy::too_many_arguments)]
@@ -105,30 +77,6 @@ pub fn handler(
     );
 
     Ok(())
-}
-
-/// Accounts for locking a verification key
-#[derive(Accounts)]
-#[instruction(proof_type: ProofType)]
-pub struct LockVerificationKeyV2<'info> {
-    /// Pool authority (must be signer)
-    pub authority: Signer<'info>,
-
-    /// Pool configuration account
-    #[account(
-        mut,
-        has_one = authority @ PrivacyErrorV2::Unauthorized,
-    )]
-    pub pool_config: Account<'info, PoolConfigV2>,
-
-    /// Verification key account
-    #[account(
-        mut,
-        seeds = [proof_type.as_seed(), pool_config.key().as_ref()],
-        bump = vk_account.bump,
-        constraint = vk_account.is_initialized @ PrivacyErrorV2::VerificationKeyNotSet,
-    )]
-    pub vk_account: Account<'info, VerificationKeyAccountV2>,
 }
 
 /// Handler for lock_verification_key_v2 instruction

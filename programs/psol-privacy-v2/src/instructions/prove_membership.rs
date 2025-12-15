@@ -18,45 +18,8 @@
 use anchor_lang::prelude::*;
 
 use crate::error::PrivacyErrorV2;
-use crate::state::{MerkleTreeV2, PoolConfigV2, VerificationKeyAccountV2};
 use crate::ProofType;
-
-/// Accounts for proving pool membership
-///
-/// The account structure is complete and ready for when the circuit is deployed.
-/// All accounts are validated per the v2 design specification.
-#[derive(Accounts)]
-#[instruction(
-    proof_data: Vec<u8>,
-    merkle_root: [u8; 32],
-    threshold: u64,
-    asset_id: [u8; 32],
-)]
-pub struct ProveMembership<'info> {
-    /// Prover (anyone can submit)
-    pub prover: Signer<'info>,
-
-    /// Pool configuration account
-    #[account(
-        mut,
-        constraint = !pool_config.is_paused @ PrivacyErrorV2::PoolPaused,
-        has_one = merkle_tree,
-    )]
-    pub pool_config: Account<'info, PoolConfigV2>,
-
-    /// Merkle tree account
-    #[account(
-        constraint = merkle_tree.is_known_root(&merkle_root) @ PrivacyErrorV2::InvalidMerkleRoot,
-    )]
-    pub merkle_tree: Account<'info, MerkleTreeV2>,
-
-    /// Verification key for membership proofs
-    #[account(
-        seeds = [ProofType::Membership.as_seed(), pool_config.key().as_ref()],
-        bump = vk_account.bump,
-    )]
-    pub vk_account: Account<'info, VerificationKeyAccountV2>,
-}
+use crate::ProveMembership;
 
 /// Handler for prove_membership instruction
 ///

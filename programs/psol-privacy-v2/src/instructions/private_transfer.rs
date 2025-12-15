@@ -16,101 +16,16 @@
 //! - Multi-party private payments
 
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Token, TokenAccount};
 
 use crate::error::PrivacyErrorV2;
-use crate::state::{
-    AssetVault, MerkleTreeV2, PoolConfigV2, RelayerRegistry,
-    VerificationKeyAccountV2,
-};
 use crate::ProofType;
+use crate::PrivateTransferJoinSplit;
 
 /// Maximum number of input nullifiers (design target)
 pub const MAX_INPUTS: usize = 2;
 
 /// Maximum number of output commitments (design target)
 pub const MAX_OUTPUTS: usize = 2;
-
-/// Accounts for private transfer (join-split)
-///
-/// The account structure is complete and ready for when the circuit is deployed.
-/// All accounts are validated per the v2 design specification.
-#[derive(Accounts)]
-#[instruction(
-    proof_data: Vec<u8>,
-    merkle_root: [u8; 32],
-    input_nullifiers: Vec<[u8; 32]>,
-    output_commitments: Vec<[u8; 32]>,
-    public_amount: i64,
-    asset_id: [u8; 32],
-    relayer_fee: u64,
-)]
-pub struct PrivateTransferJoinSplit<'info> {
-    /// Relayer submitting the transaction
-    #[account(mut)]
-    pub relayer: Signer<'info>,
-
-    /// Pool configuration account
-    #[account(
-        mut,
-        constraint = !pool_config.is_paused @ PrivacyErrorV2::PoolPaused,
-        has_one = merkle_tree,
-        has_one = relayer_registry,
-    )]
-    pub pool_config: Account<'info, PoolConfigV2>,
-
-    /// Merkle tree account
-    #[account(
-        mut,
-        constraint = merkle_tree.is_known_root(&merkle_root) @ PrivacyErrorV2::InvalidMerkleRoot,
-    )]
-    pub merkle_tree: Account<'info, MerkleTreeV2>,
-
-    /// Verification key for join-split proofs
-    #[account(
-        seeds = [ProofType::JoinSplit.as_seed(), pool_config.key().as_ref()],
-        bump = vk_account.bump,
-    )]
-    pub vk_account: Account<'info, VerificationKeyAccountV2>,
-
-    /// Asset vault account (needed for public flows)
-    #[account(
-        mut,
-        seeds = [
-            AssetVault::SEED_PREFIX,
-            pool_config.key().as_ref(),
-            asset_id.as_ref(),
-        ],
-        bump = asset_vault.bump,
-        constraint = asset_vault.is_active @ PrivacyErrorV2::AssetNotActive,
-    )]
-    pub asset_vault: Account<'info, AssetVault>,
-
-    /// Vault token account
-    #[account(
-        mut,
-        constraint = vault_token_account.key() == asset_vault.token_account @ PrivacyErrorV2::InvalidOwner,
-    )]
-    pub vault_token_account: Account<'info, TokenAccount>,
-
-    /// Relayer's token account for fee
-    #[account(
-        mut,
-        constraint = relayer_token_account.mint == asset_vault.mint @ PrivacyErrorV2::InvalidMint,
-    )]
-    pub relayer_token_account: Account<'info, TokenAccount>,
-
-    /// Relayer registry
-    pub relayer_registry: Account<'info, RelayerRegistry>,
-
-    /// Token program
-    pub token_program: Program<'info, Token>,
-
-    /// System program
-    pub system_program: Program<'info, System>,
-    // Note: Spent nullifier accounts will be passed as remaining_accounts
-    // when the circuit is deployed
-}
 
 /// Handler for private_transfer_join_split instruction
 ///

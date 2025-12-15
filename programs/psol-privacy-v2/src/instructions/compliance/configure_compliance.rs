@@ -4,27 +4,8 @@
 
 use anchor_lang::prelude::*;
 
-use crate::error::PrivacyErrorV2;
 use crate::events::ComplianceConfigured;
-use crate::state::{ComplianceConfig, PoolConfigV2};
-
-/// Accounts for configuring compliance settings
-#[derive(Accounts)]
-pub struct ConfigureCompliance<'info> {
-    /// Pool authority (must be signer)
-    pub authority: Signer<'info>,
-
-    /// Pool configuration account
-    #[account(
-        has_one = authority @ PrivacyErrorV2::Unauthorized,
-        has_one = compliance_config,
-    )]
-    pub pool_config: Account<'info, PoolConfigV2>,
-
-    /// Compliance configuration account
-    #[account(mut)]
-    pub compliance_config: Account<'info, ComplianceConfig>,
-}
+use crate::ConfigureCompliance;
 
 /// Handler for configure_compliance instruction
 pub fn handler(
