@@ -15,6 +15,9 @@
     "build:relayer": "cd relayer && npm run build",
     "test": "anchor test",
     "test:sdk": "cd sdk && npm test",
+    "test:e2e": "ts-mocha -p tests/tsconfig.json tests/**/*.ts --timeout 120000 --exit",
+    "test:e2e:merkle": "ts-mocha -p tests/tsconfig.json tests/**/*.ts --grep 'SDK Merkle Tree' --timeout 60000 --exit",
+    "test:ci": "npm run test:e2e",
     "deploy:devnet": "anchor deploy --provider.cluster devnet",
     "deploy:mainnet": "anchor deploy --provider.cluster mainnet",
     "setup": "npm install && cd sdk && npm install && cd ../relayer && npm install",
@@ -22,9 +25,18 @@
     "generate-constants": "node scripts/generate-poseidon-constants.js"
   },
   "devDependencies": {
-    "@coral-xyz/anchor-cli": "^0.30.1",
-    "circom": "^2.1.6",
-    "snarkjs": "^0.7.3"
+    "@coral-xyz/anchor": "^0.30.1",
+    "@solana/spl-token": "^0.4.6",
+    "@solana/web3.js": "^1.91.0",
+    "@types/chai": "^4.3.11",
+    "@types/mocha": "^10.0.6",
+    "@types/node": "^20.11.0",
+    "chai": "^4.3.10",
+    "circomlibjs": "^0.1.7",
+    "mocha": "^10.2.0",
+    "snarkjs": "^0.7.3",
+    "ts-mocha": "^10.0.0",
+    "typescript": "^5.3.3"
   },
   "engines": {
     "node": ">=18.0.0"
