@@ -1,27 +1,70 @@
 /**
  * pSOL v2 SDK - Proof Generation
- * 
+ *
  * Generates ZK proofs for deposits, withdrawals, and transfers.
  * Uses snarkjs for Groth16 proof generation.
- * 
+ *
+ * ## Circuit Configuration
+ *
+ * The Prover requires circuit artifacts (WASM and zkey files) to be configured.
+ * This can be done in several ways depending on your environment:
+ *
+ * ### Node.js with file paths
+ * ```typescript
+ * import { Prover, createNodeCircuitProvider } from '@psol/sdk';
+ *
+ * const provider = createNodeCircuitProvider('/path/to/circuits');
+ * const prover = new Prover(provider);
+ * ```
+ *
+ * ### Browser with URLs
+ * ```typescript
+ * import { Prover, createBrowserCircuitProvider } from '@psol/sdk';
+ *
+ * const provider = createBrowserCircuitProvider('https://cdn.example.com/circuits');
+ * const prover = new Prover(provider);
+ * ```
+ *
+ * ### Environment variables (Node.js)
+ * ```typescript
+ * // Set PSOL_CIRCUIT_PATH=/path/to/circuits
+ * import { Prover, createEnvCircuitProvider } from '@psol/sdk';
+ *
+ * const provider = createEnvCircuitProvider();
+ * const prover = new Prover(provider);
+ * ```
+ *
+ * ### Pre-loaded buffers (bundlers)
+ * ```typescript
+ * import { Prover, createBufferCircuitProvider, ProofType } from '@psol/sdk';
+ * import depositWasm from './circuits/deposit.wasm';
+ * import depositZkey from './circuits/deposit.zkey';
+ *
+ * const provider = createBufferCircuitProvider({
+ *   [ProofType.Deposit]: { wasm: depositWasm, zkey: depositZkey },
+ * });
+ * const prover = new Prover(provider);
+ * ```
+ *
  * @module proof/prover
  */
 
 import * as snarkjs from 'snarkjs';
-import { Note, NoteWithNullifier, computeNoteNullifier } from '../note/note';
-import { MerkleProof, MerkleTree } from '../merkle/tree';
-import { bigIntToBytes, initPoseidon, computeCommitment } from '../crypto/poseidon';
+import { Note, NoteWithNullifier } from '../note/note';
+import { MerkleProof } from '../merkle/tree';
 import { PublicKey } from '@solana/web3.js';
+import { ProofType } from '../types';
+import {
+  CircuitArtifactProvider,
+  CircuitArtifacts,
+  createNodeCircuitProvider,
+  createBrowserCircuitProvider,
+  createBufferCircuitProvider,
+  createEnvCircuitProvider,
+} from './circuit-provider';
 
-/**
- * Proof type enumeration
- */
-export enum ProofType {
-  Deposit = 0,
-  Withdraw = 1,
-  JoinSplit = 2,
-  Membership = 3,
-}
+// Re-export ProofType for convenience
+export { ProofType };
 
 /**
  * Groth16 proof structure
@@ -96,7 +139,8 @@ export interface JoinSplitProofInputs {
 }
 
 /**
- * Circuit files paths
+ * @deprecated Use CircuitArtifacts from './circuit-provider' instead.
+ * This interface is kept for backward compatibility.
  */
 export interface CircuitPaths {
   wasmPath: string;
@@ -104,38 +148,91 @@ export interface CircuitPaths {
 }
 
 /**
- * Default circuit paths (relative to project root)
+ * Options for creating a Prover instance
  */
-export const DEFAULT_CIRCUIT_PATHS: Record<ProofType, CircuitPaths> = {
-  [ProofType.Deposit]: {
-    wasmPath: 'circuits/deposit/deposit_js/deposit.wasm',
-    zkeyPath: 'circuits/deposit/deposit_final.zkey',
-  },
-  [ProofType.Withdraw]: {
-    wasmPath: 'circuits/withdraw/withdraw_js/withdraw.wasm',
-    zkeyPath: 'circuits/withdraw/withdraw_final.zkey',
-  },
-  [ProofType.JoinSplit]: {
-    wasmPath: 'circuits/joinsplit/joinsplit_js/joinsplit.wasm',
-    zkeyPath: 'circuits/joinsplit/joinsplit_final.zkey',
-  },
-  [ProofType.Membership]: {
-    wasmPath: 'circuits/membership/membership_js/membership.wasm',
-    zkeyPath: 'circuits/membership/membership_final.zkey',
-  },
-};
+export interface ProverOptions {
+  /**
+   * Circuit artifact provider for loading WASM and zkey files.
+   * Use one of the factory functions to create a provider:
+   * - createNodeCircuitProvider() for Node.js file paths
+   * - createBrowserCircuitProvider() for browser URLs
+   * - createBufferCircuitProvider() for pre-loaded buffers
+   * - createEnvCircuitProvider() for environment variables
+   */
+  circuitProvider: CircuitArtifactProvider;
+}
 
 /**
- * Prover class for generating ZK proofs
+ * Prover class for generating ZK proofs.
+ *
+ * @example
+ * ```typescript
+ * import { Prover, createNodeCircuitProvider } from '@psol/sdk';
+ *
+ * const provider = createNodeCircuitProvider('./circuits');
+ * const prover = new Prover(provider);
+ *
+ * const proof = await prover.generateDepositProof({
+ *   commitment: 123n,
+ *   amount: 1000000n,
+ *   assetId: 1n,
+ *   secret: randomBigInt(),
+ *   nullifier: randomBigInt(),
+ * });
+ * ```
  */
 export class Prover {
-  private circuitPaths: Record<ProofType, CircuitPaths>;
-  
-  constructor(circuitPaths?: Partial<Record<ProofType, CircuitPaths>>) {
-    this.circuitPaths = {
-      ...DEFAULT_CIRCUIT_PATHS,
-      ...circuitPaths,
-    };
+  private readonly circuitProvider: CircuitArtifactProvider;
+
+  /**
+   * Create a new Prover instance.
+   *
+   * @param providerOrOptions - Circuit artifact provider or options object.
+   *   For backward compatibility, accepts a CircuitArtifactProvider directly,
+   *   or a ProverOptions object with the provider.
+   *
+   * @throws Error if no circuit provider is configured
+   *
+   * @example
+   * ```typescript
+   * // Recommended: Using a circuit provider
+   * const provider = createNodeCircuitProvider('./circuits');
+   * const prover = new Prover(provider);
+   *
+   * // Alternative: Using options object
+   * const prover = new Prover({ circuitProvider: provider });
+   * ```
+   */
+  constructor(providerOrOptions: CircuitArtifactProvider | ProverOptions) {
+    if (!providerOrOptions) {
+      throw new Error(
+        'Circuit provider is required. Use createNodeCircuitProvider(), ' +
+          'createBrowserCircuitProvider(), createBufferCircuitProvider(), ' +
+          'or createEnvCircuitProvider() to create a provider.'
+      );
+    }
+
+    // Check if it's an options object or a provider directly
+    if ('circuitProvider' in providerOrOptions) {
+      this.circuitProvider = providerOrOptions.circuitProvider;
+    } else if ('getArtifacts' in providerOrOptions) {
+      this.circuitProvider = providerOrOptions;
+    } else {
+      throw new Error(
+        'Invalid argument: expected CircuitArtifactProvider or ProverOptions. ' +
+          'Use createNodeCircuitProvider(), createBrowserCircuitProvider(), ' +
+          'createBufferCircuitProvider(), or createEnvCircuitProvider() to create a provider.'
+      );
+    }
+  }
+
+  /**
+   * Get circuit artifacts for a proof type.
+   * Resolves the provider's artifacts (which may be async).
+   */
+  private async getArtifacts(proofType: ProofType): Promise<CircuitArtifacts> {
+    const artifacts = await this.circuitProvider.getArtifacts(proofType);
+    return artifacts;
   }
   
   /**
@@ -149,15 +246,15 @@ export class Prover {
       secret: inputs.secret.toString(),
       nullifier: inputs.nullifier.toString(),
     };
-    
-    const paths = this.circuitPaths[ProofType.Deposit];
+
+    const artifacts = await this.getArtifacts(ProofType.Deposit);
     const { proof, publicSignals } = await snarkjs.groth16.fullProve(
       circuitInputs,
-      paths.wasmPath,
-      paths.zkeyPath
+      artifacts.wasm,
+      artifacts.zkey
     );
-    
-    return this.serializeProof(proof, publicSignals);
+
+    return this.serializeProof(proof as unknown as Groth16Proof, publicSignals);
   }
   
   /**
@@ -178,20 +275,20 @@ export class Prover {
       secret: inputs.secret.toString(),
       nullifier: inputs.nullifier.toString(),
       leaf_index: inputs.leafIndex.toString(),
-      merkle_path: inputs.merkleProof.pathElements.map(e => e.toString()),
-      merkle_path_indices: inputs.merkleProof.pathIndices.map(i => i.toString()),
+      merkle_path: inputs.merkleProof.pathElements.map((e) => e.toString()),
+      merkle_path_indices: inputs.merkleProof.pathIndices.map((i) => i.toString()),
     };
-    
-    const paths = this.circuitPaths[ProofType.Withdraw];
+
+    const artifacts = await this.getArtifacts(ProofType.Withdraw);
     const { proof, publicSignals } = await snarkjs.groth16.fullProve(
       circuitInputs,
-      paths.wasmPath,
-      paths.zkeyPath
+      artifacts.wasm,
+      artifacts.zkey
     );
-    
-    return this.serializeProof(proof, publicSignals);
+
+    return this.serializeProof(proof as unknown as Groth16Proof, publicSignals);
   }
-  
+
   /**
    * Generate JoinSplit proof
    */
@@ -199,41 +296,41 @@ export class Prover {
     if (inputs.inputNotes.length !== 2 || inputs.outputNotes.length !== 2) {
       throw new Error('JoinSplit requires exactly 2 inputs and 2 outputs');
     }
-    
+
     const circuitInputs = {
       merkle_root: inputs.merkleRoot.toString(),
       asset_id: inputs.assetId.toString(),
-      input_nullifiers: inputs.inputNotes.map(n => n.nullifierHash.toString()),
-      output_commitments: inputs.outputNotes.map(n => n.commitment.toString()),
+      input_nullifiers: inputs.inputNotes.map((n) => n.nullifierHash.toString()),
+      output_commitments: inputs.outputNotes.map((n) => n.commitment.toString()),
       public_amount: inputs.publicAmount.toString(),
       relayer: pubkeyToScalar(inputs.relayer).toString(),
       relayer_fee: inputs.relayerFee.toString(),
       // Private inputs
-      input_secrets: inputs.inputNotes.map(n => n.secret.toString()),
-      input_nullifier_preimages: inputs.inputNotes.map(n => n.nullifier.toString()),
-      input_amounts: inputs.inputNotes.map(n => n.amount.toString()),
-      input_leaf_indices: inputs.inputNotes.map(n => n.leafIndex!.toString()),
-      input_merkle_paths: inputs.inputMerkleProofs.map(p => 
-        p.pathElements.map(e => e.toString())
+      input_secrets: inputs.inputNotes.map((n) => n.secret.toString()),
+      input_nullifier_preimages: inputs.inputNotes.map((n) => n.nullifier.toString()),
+      input_amounts: inputs.inputNotes.map((n) => n.amount.toString()),
+      input_leaf_indices: inputs.inputNotes.map((n) => n.leafIndex!.toString()),
+      input_merkle_paths: inputs.inputMerkleProofs.map((p) =>
+        p.pathElements.map((e) => e.toString())
       ),
-      input_path_indices: inputs.inputMerkleProofs.map(p =>
-        p.pathIndices.map(i => i.toString())
+      input_path_indices: inputs.inputMerkleProofs.map((p) =>
+        p.pathIndices.map((i) => i.toString())
       ),
-      output_secrets: inputs.outputNotes.map(n => n.secret.toString()),
-      output_nullifier_preimages: inputs.outputNotes.map(n => n.nullifier.toString()),
-      output_amounts: inputs.outputNotes.map(n => n.amount.toString()),
+      output_secrets: inputs.outputNotes.map((n) => n.secret.toString()),
+      output_nullifier_preimages: inputs.outputNotes.map((n) => n.nullifier.toString()),
+      output_amounts: inputs.outputNotes.map((n) => n.amount.toString()),
     };
-    
-    const paths = this.circuitPaths[ProofType.JoinSplit];
+
+    const artifacts = await this.getArtifacts(ProofType.JoinSplit);
     const { proof, publicSignals } = await snarkjs.groth16.fullProve(
       circuitInputs,
-      paths.wasmPath,
-      paths.zkeyPath
+      artifacts.wasm,
+      artifacts.zkey
     );
-    
-    return this.serializeProof(proof, publicSignals);
+
+    return this.serializeProof(proof as unknown as Groth16Proof, publicSignals);
   }
-  
+
   /**
    * Serialize Groth16 proof to 256 bytes for on-chain verification
    */
@@ -324,3 +421,18 @@ export async function verifyProofLocally(
 export async function exportVerificationKey(zkeyPath: string): Promise<any> {
   return snarkjs.zKey.exportVerificationKey(zkeyPath);
 }
+
+// Re-export circuit provider types and factories
+export {
+  CircuitArtifactProvider,
+  CircuitArtifacts,
+  CircuitArtifactConfig,
+  StaticCircuitProvider,
+  PathCircuitProvider,
+  PathProviderOptions,
+  CIRCUIT_ENV_VARS,
+  createNodeCircuitProvider,
+  createBrowserCircuitProvider,
+  createBufferCircuitProvider,
+  createEnvCircuitProvider,
+} from './circuit-provider';
