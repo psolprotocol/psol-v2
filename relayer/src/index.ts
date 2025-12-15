@@ -31,6 +31,11 @@ import {
 } from '@solana/web3.js';
 import { AnchorProvider, Program, BN } from '@coral-xyz/anchor';
 import { getAssociatedTokenAddressSync } from '@solana/spl-token';
+import {
+  NullifierCache,
+  NullifierCacheConfig,
+  createDisabledCache,
+} from './nullifier-cache';
 
 // =============================================================================
 // CONSTANTS
@@ -71,6 +76,8 @@ interface RelayerConfig {
   port: number;
   /** Path to withdraw verification key JSON (snarkjs vkey) */
   withdrawVkPath: string;
+  /** Optional Redis cache configuration */
+  cacheConfig?: NullifierCacheConfig;
 }
 
 /** Withdrawal request interface */
@@ -107,6 +114,12 @@ interface RelayerStatus {
   totalFeesEarned: string;
   supportedAssets: string[];
   proofVerificationEnabled: boolean;
+  nullifierCache: {
+    enabled: boolean;
+    connected: boolean;
+    hits: number;
+    misses: number;
+  };
 }
 
 /** Groth16 proof structure for snarkjs */
@@ -154,7 +167,7 @@ export class RelayerService {
   private config: RelayerConfig;
   private connection: Connection;
   private provider: AnchorProvider;
-  private program: Program;
+  private program!: Program;
   private app: express.Application;
   private totalTransactions: number = 0;
   private totalFeesEarned: bigint = BigInt(0);
@@ -163,9 +176,20 @@ export class RelayerService {
   /** Verification key for withdraw circuit (snarkjs format) */
   private withdrawVk: any;
   
+  /** Optional Redis-backed nullifier cache */
+  private nullifierCache: NullifierCache;
+  
+  /** Cache hit/miss statistics */
+  private cacheStats = { hits: 0, misses: 0 };
+  
   constructor(config: RelayerConfig) {
     this.config = config;
     this.connection = new Connection(config.rpcEndpoint, 'confirmed');
+    
+    // Initialize nullifier cache (disabled by default)
+    this.nullifierCache = config.cacheConfig
+      ? new NullifierCache(config.cacheConfig)
+      : createDisabledCache();
     
     // Load withdraw verification key at startup (fail fast if missing)
     this.loadWithdrawVerificationKey();
@@ -341,6 +365,7 @@ export class RelayerService {
    * Get relayer status
    */
   async getStatus(): Promise<RelayerStatus> {
+    const cacheStats = await this.nullifierCache.getStats();
     return {
       active: true,
       feeBps: this.config.feeBps,
@@ -349,6 +374,12 @@ export class RelayerService {
       totalFeesEarned: this.totalFeesEarned.toString(),
       supportedAssets: Array.from(this.supportedAssets),
       proofVerificationEnabled: !!this.withdrawVk,
+      nullifierCache: {
+        enabled: cacheStats.enabled,
+        connected: cacheStats.connected,
+        hits: this.cacheStats.hits,
+        misses: this.cacheStats.misses,
+      },
     };
   }
   
@@ -579,9 +610,25 @@ export class RelayerService {
   }
   
   /**
-   * Check if nullifier has been spent on-chain
+   * Check if nullifier has been spent on-chain.
+   * Uses Redis cache if available to reduce RPC load.
+   *
+   * Cache strategy:
+   * - Only spent nullifiers are cached (positive results)
+   * - Unspent nullifiers are NOT cached (they could become spent any time)
+   * - Cache has no TTL since spent nullifiers are permanent
    */
   private async checkNullifierSpent(nullifierHash: Uint8Array): Promise<boolean> {
+    // 1. Check cache first (if available)
+    const cached = await this.nullifierCache.get(nullifierHash);
+    if (cached === true) {
+      this.cacheStats.hits++;
+      console.log(`Nullifier cache HIT: ${bytesToHex(nullifierHash).slice(0, 16)}...`);
+      return true; // Cached as spent
+    }
+    this.cacheStats.misses++;
+    
+    // 2. Query RPC for on-chain state
     const [nullifierPda] = PublicKey.findProgramAddressSync(
       [
         Buffer.from('nullifier_v2'),
@@ -593,8 +640,15 @@ export class RelayerService {
     
     try {
       const accountInfo = await this.connection.getAccountInfo(nullifierPda);
-      // Account exists => nullifier is spent
-      return accountInfo !== null;
+      const isSpent = accountInfo !== null;
+      
+      // 3. If spent, cache the result for future lookups
+      if (isSpent) {
+        await this.nullifierCache.markSpent(nullifierHash);
+        console.log(`Nullifier cached as spent: ${bytesToHex(nullifierHash).slice(0, 16)}...`);
+      }
+      
+      return isSpent;
     } catch (err) {
       // RPC/network error, do not silently treat as spent or unspent
       console.error('RPC error checking nullifier status', {
@@ -775,7 +829,10 @@ export class RelayerService {
   /**
    * Start the relayer service
    */
-  start(): void {
+  async start(): Promise<void> {
+    // Connect nullifier cache if enabled
+    await this.nullifierCache.connect();
+    
     this.app.listen(this.config.port, () => {
       console.log('========================================');
       console.log('pSOL v2 Relayer Service Started');
@@ -786,9 +843,17 @@ export class RelayerService {
       console.log(`Min withdrawal: ${this.config.minWithdrawalAmount}`);
       console.log(`Max withdrawal: ${this.config.maxWithdrawalAmount}`);
       console.log(`Proof verification: ${this.withdrawVk ? 'ENABLED' : 'DISABLED'}`);
+      console.log(`Nullifier cache: ${this.nullifierCache.isAvailable() ? 'ENABLED' : 'DISABLED'}`);
       console.log(`Supported assets: ${this.supportedAssets.size}`);
       console.log('========================================');
     });
+  }
+  
+  /**
+   * Stop the relayer service (cleanup)
+   */
+  async stop(): Promise<void> {
+    await this.nullifierCache.disconnect();
   }
 }
 
@@ -917,6 +982,17 @@ export function createRelayer(config: RelayerConfig): RelayerService {
  * Example usage / entry point
  */
 export async function main(): Promise<void> {
+  // Load Redis configuration from environment
+  const redisEnabled = process.env.REDIS_ENABLED === 'true';
+  const cacheConfig: NullifierCacheConfig | undefined = redisEnabled
+    ? {
+        enabled: true,
+        redisUrl: process.env.REDIS_URL || 'redis://localhost:6379',
+        keyPrefix: process.env.REDIS_KEY_PREFIX || 'psol:nullifier:',
+        connectTimeout: parseInt(process.env.REDIS_CONNECT_TIMEOUT || '5000', 10),
+      }
+    : undefined;
+  
   // Load configuration from environment
   const config: RelayerConfig = {
     rpcEndpoint: process.env.RPC_ENDPOINT || 'https://api.devnet.solana.com',
@@ -930,6 +1006,7 @@ export async function main(): Promise<void> {
     maxWithdrawalAmount: BigInt(process.env.MAX_WITHDRAWAL || '1000000000000'),
     port: parseInt(process.env.PORT || '3000', 10),
     withdrawVkPath: process.env.WITHDRAW_VK_PATH || './circuits/withdraw/withdraw.vkey.json',
+    cacheConfig,
   };
   
   const relayer = createRelayer(config);
@@ -942,7 +1019,7 @@ export async function main(): Promise<void> {
     }
   }
   
-  relayer.start();
+  await relayer.start();
 }
 
 // Run if executed directly
