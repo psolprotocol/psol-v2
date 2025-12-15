@@ -186,20 +186,10 @@ pub fn handler(
         PrivacyErrorV2::AssetIdMismatch
     );
 
-    // Check vault deposit limits if configured
-    if asset_vault.max_deposit_amount > 0 {
-        require!(
-            amount <= asset_vault.max_deposit_amount,
-            PrivacyErrorV2::ExceedsMaximumDeposit
-        );
-    }
-
-    if asset_vault.min_deposit_amount > 0 {
-        require!(
-            amount >= asset_vault.min_deposit_amount,
-            PrivacyErrorV2::BelowMinimumDeposit
-        );
-    }
+    // Validate deposit amount (handles both fixed denomination and flexible limits)
+    // For fixed denomination pools, this enforces exact amount match.
+    // For flexible pools, this enforces min/max limits.
+    asset_vault.validate_deposit_amount(amount)?;
 
     // Check Merkle tree has space
     require!(

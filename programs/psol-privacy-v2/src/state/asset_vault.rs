@@ -6,6 +6,26 @@
 //! - Deposit/withdrawal statistics
 //! - Asset-specific configuration
 //!
+//! # Fixed Denomination Pools
+//! Vaults can be configured as fixed-denomination pools for stronger privacy.
+//! When `is_fixed_denomination` is true, all deposits and withdrawals MUST
+//! use exactly `fixed_denomination` amount. This eliminates amount-based
+//! correlation attacks by ensuring all transactions are indistinguishable
+//! by value.
+//!
+//! ## Privacy Trade-offs
+//! - **Flexible amounts**: More convenient, supports any amount, but easier
+//!   to correlate deposits/withdrawals by matching amounts.
+//! - **Fixed denomination**: Stronger anonymity set (all txs look identical),
+//!   but requires multiple transactions for larger amounts.
+//!
+//! ## Common Denominations
+//! For SPL tokens with 6 decimals (e.g., USDC), common fixed denominations:
+//! - 1_000_000 (1 unit)
+//! - 10_000_000 (10 units)
+//! - 100_000_000 (100 units)
+//! - 1_000_000_000 (1000 units)
+//!
 //! # Asset ID
 //! asset_id = Keccak256(mint_address)[0..32]
 //! This provides a consistent 32-byte identifier for use in commitments.
@@ -79,11 +99,24 @@ pub struct AssetVault {
     /// Asset type (0 = SPL Token, 1 = Native SOL wrapped, 2 = Token-2022)
     pub asset_type: u8,
 
+    /// Whether this vault enforces fixed denomination for stronger privacy
+    ///
+    /// When true, all deposits and withdrawals MUST use exactly `fixed_denomination`
+    /// amount. This provides stronger privacy by making all transactions
+    /// indistinguishable by value, increasing the effective anonymity set.
+    pub is_fixed_denomination: bool,
+
+    /// Fixed denomination amount (only used when `is_fixed_denomination` is true)
+    ///
+    /// All deposits and withdrawals must be exactly this amount.
+    /// Set to 0 when flexible amounts are allowed.
+    pub fixed_denomination: u64,
+
     /// Optional metadata URI for asset info
     pub metadata_uri: String,
 
     /// Reserved for future use
-    pub _reserved: [u8; 32],
+    pub _reserved: [u8; 23],
 }
 
 impl AssetVault {
@@ -108,8 +141,10 @@ impl AssetVault {
             + 8                     // last_activity_at
             + 1                     // decimals
             + 1                     // asset_type
+            + 1                     // is_fixed_denomination
+            + 8                     // fixed_denomination
             + 4 + metadata_uri_len  // metadata_uri (String)
-            + 32                    // reserved
+            + 23                    // reserved (reduced from 32)
     }
 
     pub const DEFAULT_SPACE: usize = Self::space(MAX_METADATA_URI_LEN);
@@ -151,8 +186,10 @@ impl AssetVault {
         self.last_activity_at = timestamp;
         self.decimals = decimals;
         self.asset_type = asset_type;
+        self.is_fixed_denomination = false;
+        self.fixed_denomination = 0;
         self.metadata_uri = String::new();
-        self._reserved = [0u8; 32];
+        self._reserved = [0u8; 23];
     }
 
     // =========================================================================
@@ -178,17 +215,50 @@ impl AssetVault {
     }
 
     pub fn validate_deposit_amount(&self, amount: u64) -> Result<()> {
-        require!(amount >= self.min_deposit, PrivacyErrorV2::BelowMinimumDeposit);
-        require!(amount <= self.max_deposit, PrivacyErrorV2::ExceedsMaximumDeposit);
+        // If fixed denomination is enabled, amount must match exactly
+        if self.is_fixed_denomination {
+            require!(
+                amount == self.fixed_denomination,
+                PrivacyErrorV2::DenominationMismatch
+            );
+        } else {
+            // Otherwise, use flexible min/max validation
+            require!(amount >= self.min_deposit, PrivacyErrorV2::BelowMinimumDeposit);
+            require!(amount <= self.max_deposit, PrivacyErrorV2::ExceedsMaximumDeposit);
+        }
         Ok(())
     }
 
     pub fn validate_withdrawal_amount(&self, amount: u64) -> Result<()> {
+        // If fixed denomination is enabled, amount must match exactly
+        if self.is_fixed_denomination {
+            require!(
+                amount == self.fixed_denomination,
+                PrivacyErrorV2::DenominationMismatch
+            );
+        }
+        
         require!(
             amount <= self.shielded_balance,
             PrivacyErrorV2::InsufficientBalance
         );
         Ok(())
+    }
+
+    /// Check if the vault uses fixed denomination for stronger privacy
+    #[inline]
+    pub fn is_fixed_denomination_pool(&self) -> bool {
+        self.is_fixed_denomination
+    }
+
+    /// Get the required denomination amount (0 if flexible)
+    #[inline]
+    pub fn get_required_denomination(&self) -> u64 {
+        if self.is_fixed_denomination {
+            self.fixed_denomination
+        } else {
+            0
+        }
     }
 
     // =========================================================================
@@ -263,6 +333,33 @@ impl AssetVault {
         self.metadata_uri = uri;
         Ok(())
     }
+
+    /// Configure fixed denomination mode for stronger privacy
+    ///
+    /// When enabled, all deposits and withdrawals must use exactly the
+    /// specified denomination amount. This eliminates amount-based
+    /// correlation attacks.
+    ///
+    /// # Arguments
+    /// * `enabled` - Whether to enable fixed denomination mode
+    /// * `denomination` - The exact amount required (must be > 0 if enabled)
+    ///
+    /// # Errors
+    /// * `InvalidAmount` - If enabled but denomination is 0
+    pub fn set_fixed_denomination(&mut self, enabled: bool, denomination: u64) -> Result<()> {
+        if enabled {
+            require!(denomination > 0, PrivacyErrorV2::InvalidAmount);
+        }
+        self.is_fixed_denomination = enabled;
+        self.fixed_denomination = if enabled { denomination } else { 0 };
+        Ok(())
+    }
+
+    /// Disable fixed denomination mode (revert to flexible amounts)
+    pub fn disable_fixed_denomination(&mut self) {
+        self.is_fixed_denomination = false;
+        self.fixed_denomination = 0;
+    }
 }
 
 /// PDA seeds for AssetVault
@@ -319,5 +416,86 @@ mod tests {
     fn test_space_calculation() {
         let space = AssetVault::DEFAULT_SPACE;
         assert!(space < 1000); // Should be reasonably small
+    }
+
+    #[test]
+    fn test_fixed_denomination_enable_disable() {
+        let mut vault = AssetVault {
+            pool: Pubkey::default(),
+            asset_id: [0u8; 32],
+            mint: Pubkey::default(),
+            token_account: Pubkey::default(),
+            bump: 0,
+            is_active: true,
+            deposits_enabled: true,
+            withdrawals_enabled: true,
+            min_deposit: 0,
+            max_deposit: u64::MAX,
+            total_deposited: 0,
+            total_withdrawn: 0,
+            shielded_balance: 1000000,
+            deposit_count: 0,
+            withdrawal_count: 0,
+            registered_at: 0,
+            last_activity_at: 0,
+            decimals: 6,
+            asset_type: AssetVault::ASSET_TYPE_SPL,
+            is_fixed_denomination: false,
+            fixed_denomination: 0,
+            metadata_uri: String::new(),
+            _reserved: [0u8; 23],
+        };
+
+        // Initially flexible mode
+        assert!(!vault.is_fixed_denomination_pool());
+        assert_eq!(vault.get_required_denomination(), 0);
+
+        // Enable fixed denomination of 100 units
+        let denomination = 100_000_000u64; // 100 tokens with 6 decimals
+        vault.set_fixed_denomination(true, denomination).unwrap();
+        
+        assert!(vault.is_fixed_denomination_pool());
+        assert_eq!(vault.get_required_denomination(), denomination);
+        assert_eq!(vault.fixed_denomination, denomination);
+
+        // Disable fixed denomination
+        vault.disable_fixed_denomination();
+        
+        assert!(!vault.is_fixed_denomination_pool());
+        assert_eq!(vault.get_required_denomination(), 0);
+        assert_eq!(vault.fixed_denomination, 0);
+    }
+
+    #[test]
+    fn test_fixed_denomination_zero_rejected() {
+        let mut vault = AssetVault {
+            pool: Pubkey::default(),
+            asset_id: [0u8; 32],
+            mint: Pubkey::default(),
+            token_account: Pubkey::default(),
+            bump: 0,
+            is_active: true,
+            deposits_enabled: true,
+            withdrawals_enabled: true,
+            min_deposit: 0,
+            max_deposit: u64::MAX,
+            total_deposited: 0,
+            total_withdrawn: 0,
+            shielded_balance: 0,
+            deposit_count: 0,
+            withdrawal_count: 0,
+            registered_at: 0,
+            last_activity_at: 0,
+            decimals: 6,
+            asset_type: AssetVault::ASSET_TYPE_SPL,
+            is_fixed_denomination: false,
+            fixed_denomination: 0,
+            metadata_uri: String::new(),
+            _reserved: [0u8; 23],
+        };
+
+        // Enabling with 0 denomination should fail
+        let result = vault.set_fixed_denomination(true, 0);
+        assert!(result.is_err());
     }
 }

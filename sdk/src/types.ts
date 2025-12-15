@@ -277,6 +277,43 @@ export interface ConfigureComplianceRequest {
   metadataSchemaVersion: number;
 }
 
+/**
+ * Arguments for configuring asset settings
+ * 
+ * Supports configuring fixed denomination mode for stronger privacy.
+ * When fixed denomination is enabled, all deposits and withdrawals
+ * must use exactly the specified amount.
+ */
+export interface ConfigureAssetRequest {
+  /** Optional: enable/disable deposits */
+  depositsEnabled?: boolean;
+  /** Optional: enable/disable withdrawals */
+  withdrawalsEnabled?: boolean;
+  /** Optional: minimum deposit amount (only used in flexible mode) */
+  minDeposit?: BN | number;
+  /** Optional: maximum deposit amount (only used in flexible mode) */
+  maxDeposit?: BN | number;
+  /** 
+   * Optional: enable/disable fixed denomination mode
+   * 
+   * When enabled, all deposits and withdrawals must use exactly
+   * the `fixedDenomination` amount, providing stronger privacy
+   * by making all transactions indistinguishable by value.
+   */
+  isFixedDenomination?: boolean;
+  /** 
+   * Optional: the exact amount required for all transactions
+   * 
+   * Must be greater than 0 if enabling fixed denomination mode.
+   * Common denominations for USDC (6 decimals):
+   * - 1_000_000 (1 USDC)
+   * - 10_000_000 (10 USDC)
+   * - 100_000_000 (100 USDC)
+   * - 1_000_000_000 (1000 USDC)
+   */
+  fixedDenomination?: BN | number;
+}
+
 // ============================================================================
 // ACCOUNT TYPES
 // ============================================================================
@@ -375,9 +412,9 @@ export interface AssetVault {
   depositsEnabled: boolean;
   /** Whether withdrawals are enabled */
   withdrawalsEnabled: boolean;
-  /** Minimum deposit amount */
+  /** Minimum deposit amount (only used in flexible mode) */
   minDeposit: BN;
-  /** Maximum deposit amount per transaction */
+  /** Maximum deposit amount per transaction (only used in flexible mode) */
   maxDeposit: BN;
   /** Total value deposited (lifetime) */
   totalDeposited: BN;
@@ -397,6 +434,19 @@ export interface AssetVault {
   decimals: number;
   /** Asset type */
   assetType: number;
+  /**
+   * Whether this vault uses fixed denomination for stronger privacy
+   * 
+   * When true, all deposits and withdrawals must use exactly
+   * `fixedDenomination` amount to eliminate amount-based correlation.
+   */
+  isFixedDenomination: boolean;
+  /**
+   * The fixed denomination amount (only used when isFixedDenomination is true)
+   * 
+   * Set to 0 when flexible amounts are allowed.
+   */
+  fixedDenomination: BN;
   /** Optional metadata URI */
   metadataUri: string;
 }
@@ -584,6 +634,23 @@ export interface WithdrawMaspEvent {
   assetId: Uint8Array;
   relayer: PublicKey;
   relayerFee: BN;
+  timestamp: BN;
+}
+
+/**
+ * Asset configuration update event
+ * 
+ * Emitted when asset settings change, including fixed denomination mode.
+ */
+export interface AssetConfigUpdatedEvent {
+  pool: PublicKey;
+  assetId: Uint8Array;
+  depositsEnabled: boolean;
+  withdrawalsEnabled: boolean;
+  /** Whether fixed denomination mode is enabled */
+  isFixedDenomination: boolean;
+  /** The required fixed denomination amount (0 if flexible mode) */
+  fixedDenomination: BN;
   timestamp: BN;
 }
 

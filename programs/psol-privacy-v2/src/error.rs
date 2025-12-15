@@ -113,6 +113,9 @@ pub enum PrivacyErrorV2 {
     #[msg("Amount exceeds maximum deposit")]
     ExceedsMaximumDeposit,
 
+    #[msg("Amount does not match required fixed denomination")]
+    DenominationMismatch,
+
     #[msg("Arithmetic overflow")]
     ArithmeticOverflow,
 

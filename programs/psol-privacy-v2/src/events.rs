@@ -107,6 +107,10 @@ pub struct AssetConfigUpdated {
     pub asset_id: [u8; 32],
     pub deposits_enabled: bool,
     pub withdrawals_enabled: bool,
+    /// Whether fixed denomination mode is enabled for stronger privacy
+    pub is_fixed_denomination: bool,
+    /// The required fixed denomination amount (0 if flexible mode)
+    pub fixed_denomination: u64,
     pub timestamp: i64,
 }
 

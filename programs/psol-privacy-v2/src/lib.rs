@@ -171,6 +171,40 @@ pub mod psol_privacy_v2 {
         instructions::admin::authority_v2::cancel_handler(ctx)
     }
 
+    /// Configure asset settings including fixed denomination mode
+    ///
+    /// Fixed denomination mode provides stronger privacy by requiring all
+    /// deposits and withdrawals to use exactly the same amount, eliminating
+    /// amount-based correlation attacks.
+    ///
+    /// # Arguments
+    /// * `deposits_enabled` - Optional: enable/disable deposits
+    /// * `withdrawals_enabled` - Optional: enable/disable withdrawals  
+    /// * `min_deposit` - Optional: minimum deposit amount (flexible mode only)
+    /// * `max_deposit` - Optional: maximum deposit amount (flexible mode only)
+    /// * `is_fixed_denomination` - Optional: enable/disable fixed denomination mode
+    /// * `fixed_denomination` - Optional: the exact amount required (must be > 0 if enabling)
+    #[allow(clippy::too_many_arguments)]
+    pub fn configure_asset(
+        ctx: Context<ConfigureAsset>,
+        deposits_enabled: Option<bool>,
+        withdrawals_enabled: Option<bool>,
+        min_deposit: Option<u64>,
+        max_deposit: Option<u64>,
+        is_fixed_denomination: Option<bool>,
+        fixed_denomination: Option<u64>,
+    ) -> Result<()> {
+        instructions::admin::configure_asset::handler(
+            ctx,
+            deposits_enabled,
+            withdrawals_enabled,
+            min_deposit,
+            max_deposit,
+            is_fixed_denomination,
+            fixed_denomination,
+        )
+    }
+
     // =========================================================================
     // RELAYER REGISTRY
     // =========================================================================
@@ -429,3 +463,4 @@ pub use state::{
     AssetVault, ComplianceConfig, MerkleTreeV2, PoolConfigV2, RelayerNode, RelayerRegistry,
     SpentNullifierV2, VerificationKeyAccountV2,
 };
+pub use instructions::admin::ConfigureAsset;

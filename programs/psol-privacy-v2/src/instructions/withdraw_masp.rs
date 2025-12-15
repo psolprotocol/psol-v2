@@ -208,6 +208,10 @@ pub fn handler(
         PrivacyErrorV2::AssetIdMismatch
     );
 
+    // Validate withdrawal amount (handles both fixed denomination and balance check)
+    // For fixed denomination pools, this enforces exact amount match.
+    ctx.accounts.asset_vault.validate_withdrawal_amount(amount)?;
+
     // Validate sufficient vault balance
     require!(
         ctx.accounts.vault_token_account.amount >= amount,

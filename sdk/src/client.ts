@@ -27,6 +27,7 @@ import {
   UpdateRelayerRequest,
   ConfigureRelayerRegistryRequest,
   ConfigureComplianceRequest,
+  ConfigureAssetRequest,
   PoolConfigV2,
   MerkleTreeV2,
   AssetVault,
@@ -579,6 +580,118 @@ export class PsolV2Client {
         complianceConfig,
       })
       .rpc();
+  }
+
+  // ============================================
+  // Asset Configuration
+  // ============================================
+
+  /**
+   * Configure asset settings including fixed denomination mode
+   *
+   * Fixed denomination pools provide stronger privacy by requiring all
+   * deposits and withdrawals to use exactly the same amount, eliminating
+   * amount-based correlation attacks.
+   *
+   * @param poolConfig - Pool configuration account
+   * @param mint - Asset mint address
+   * @param args - Configuration parameters
+   *
+   * @example
+   * ```ts
+   * // Enable fixed denomination of 100 USDC (6 decimals)
+   * await client.configureAsset(poolConfig, usdcMint, {
+   *   isFixedDenomination: true,
+   *   fixedDenomination: 100_000_000, // 100 USDC
+   * });
+   *
+   * // Disable fixed denomination (revert to flexible mode)
+   * await client.configureAsset(poolConfig, usdcMint, {
+   *   isFixedDenomination: false,
+   * });
+   * ```
+   */
+  async configureAsset(
+    poolConfig: PublicKey,
+    mint: PublicKey,
+    args: ConfigureAssetRequest
+  ): Promise<TransactionSignature> {
+    const assetId = computeAssetId(mint);
+    const [assetVault] = findAssetVaultPda(poolConfig, assetId, this.programId);
+
+    return await this.program.methods
+      .configureAsset(
+        args.depositsEnabled ?? null,
+        args.withdrawalsEnabled ?? null,
+        args.minDeposit ? toBN(args.minDeposit) : null,
+        args.maxDeposit ? toBN(args.maxDeposit) : null,
+        args.isFixedDenomination ?? null,
+        args.fixedDenomination ? toBN(args.fixedDenomination) : null
+      )
+      .accounts({
+        authority: this.provider.publicKey,
+        poolConfig,
+        assetVault,
+      })
+      .rpc();
+  }
+
+  /**
+   * Enable fixed denomination mode for an asset
+   *
+   * Convenience method for enabling fixed denomination with a specific amount.
+   *
+   * @param poolConfig - Pool configuration account
+   * @param mint - Asset mint address
+   * @param denomination - The exact amount required for all transactions
+   */
+  async enableFixedDenomination(
+    poolConfig: PublicKey,
+    mint: PublicKey,
+    denomination: bigint | BN | number
+  ): Promise<TransactionSignature> {
+    return this.configureAsset(poolConfig, mint, {
+      isFixedDenomination: true,
+      fixedDenomination: toBN(denomination.toString()),
+    });
+  }
+
+  /**
+   * Disable fixed denomination mode for an asset
+   *
+   * Reverts to flexible deposit/withdrawal amounts.
+   *
+   * @param poolConfig - Pool configuration account
+   * @param mint - Asset mint address
+   */
+  async disableFixedDenomination(
+    poolConfig: PublicKey,
+    mint: PublicKey
+  ): Promise<TransactionSignature> {
+    return this.configureAsset(poolConfig, mint, {
+      isFixedDenomination: false,
+    });
+  }
+
+  /**
+   * Check if an asset uses fixed denomination mode
+   *
+   * @param poolConfig - Pool configuration account
+   * @param mint - Asset mint address
+   * @returns Object with isFixed and denomination amount
+   */
+  async getAssetDenominationInfo(
+    poolConfig: PublicKey,
+    mint: PublicKey
+  ): Promise<{ isFixed: boolean; denomination: bigint }> {
+    const vault = await this.getAssetVaultByMint(poolConfig, mint);
+    if (!vault) {
+      throw new Error('Asset not registered');
+    }
+    return {
+      isFixed: vault.isFixedDenomination,
+      denomination: BigInt(vault.fixedDenomination.toString()),
+    };
   }
 
   /**

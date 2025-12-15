@@ -49,6 +49,65 @@ Anchor-based Solana program that maintains a multi-asset shielded pool backed by
 
 Stores verification keys, pool configuration, Merkle roots, nullifiers, and asset vaults.
 
+## Fixed Denomination Pools
+
+pSOL v2 supports **fixed denomination pools** as an optional privacy-enhancing feature. When enabled for an asset, all deposits and withdrawals must use exactly the specified denomination amount.
+
+### Why Fixed Denominations?
+
+In traditional mixer-like systems, variable transaction amounts create correlation opportunities. For example, if someone deposits 1.234 SOL and later withdraws 1.234 SOL, the unique amount creates a strong link between the transactions.
+
+Fixed denomination pools eliminate this attack vector by ensuring all transactions use identical amounts:
+
+| Approach | Privacy | Convenience | Use Case |
+|----------|---------|-------------|----------|
+| **Flexible amounts** | Lower (amount correlation possible) | High (any amount) | General use, DeFi integration |
+| **Fixed denomination** | Higher (all txs identical) | Lower (multiple txs needed) | Maximum privacy, mixer-style |
+
+### Common Denominations
+
+For SPL tokens with 6 decimals (e.g., USDC):
+
+| Amount | Token Units | Use Case |
+|--------|-------------|----------|
+| 1,000,000 | 1 USDC | Small transactions |
+| 10,000,000 | 10 USDC | Medium transactions |
+| 100,000,000 | 100 USDC | Large transactions |
+| 1,000,000,000 | 1,000 USDC | Whale transactions |
+
+### Configuring Fixed Denomination
+
+Pool administrators can enable fixed denomination mode per asset:
+
+```typescript
+// Enable fixed denomination of 100 USDC
+await client.configureAsset(poolConfig, usdcMint, {
+  isFixedDenomination: true,
+  fixedDenomination: 100_000_000, // 100 USDC (6 decimals)
+});
+
+// Or use the convenience method
+await client.enableFixedDenomination(poolConfig, usdcMint, 100_000_000);
+
+// Disable fixed denomination (revert to flexible)
+await client.disableFixedDenomination(poolConfig, usdcMint);
+```
+
+### Privacy Trade-offs
+
+**Flexible amounts (default):**
+- ✅ More convenient for users
+- ✅ Supports arbitrary deposit/withdrawal amounts
+- ✅ Better for DeFi integrations
+- ❌ Easier to correlate by matching amounts
+
+**Fixed denomination:**
+- ✅ Stronger anonymity set (all transactions look identical)
+- ✅ Eliminates amount-based correlation attacks
+- ✅ Proven pattern (used by Tornado Cash, etc.)
+- ❌ Requires multiple transactions for larger amounts
+- ❌ Less flexible for users
+
 ZK circuits (Circom)
 
 Deposit, withdraw, joinsplit, and membership circuits targeting Groth16 on BN254.
