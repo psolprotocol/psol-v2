@@ -216,6 +216,24 @@ pub fn handler(
 
     // Validate relayer if registered
     if let Some(ref relayer_node) = ctx.accounts.relayer_node {
+        // Validate RelayerNode belongs to the expected RelayerRegistry
+        require!(
+            relayer_node.registry == ctx.accounts.relayer_registry.key(),
+            PrivacyErrorV2::RelayerNodeRegistryMismatch
+        );
+
+        // Validate PDA derivation: RelayerNode must be derived from correct seeds
+        // Seeds: [b"relayer", registry.key().as_ref(), operator.key().as_ref()]
+        let (expected_pda, _bump) = RelayerNode::find_pda(
+            ctx.program_id,
+            &ctx.accounts.relayer_registry.key(),
+            &relayer_node.operator,
+        );
+        require!(
+            relayer_node.key() == expected_pda,
+            PrivacyErrorV2::InvalidRelayerNodePda
+        );
+
         require!(
             relayer_node.is_active,
             PrivacyErrorV2::RelayerNotActive
