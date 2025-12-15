@@ -87,7 +87,7 @@ pub struct AssetVault {
 }
 
 impl AssetVault {
-    pub fn space(metadata_uri_len: usize) -> usize {
+    pub const fn space(metadata_uri_len: usize) -> usize {
         8                           // discriminator
             + 32                    // pool
             + 32                    // asset_id
@@ -287,7 +287,7 @@ impl AssetVault {
 
 /// Helper to compute asset_id from mint address
 pub fn compute_asset_id(mint: &Pubkey) -> [u8; 32] {
-    use solana_program::keccak;
+    use anchor_lang::solana_program::keccak;
     keccak::hash(mint.as_ref()).to_bytes()
 }
 

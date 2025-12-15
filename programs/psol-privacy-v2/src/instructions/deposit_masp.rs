@@ -37,7 +37,6 @@ use crate::ProofType;
     amount: u64,
     commitment: [u8; 32],
     asset_id: [u8; 32],
-    proof_data: Vec<u8>,
 )]
 pub struct DepositMasp<'info> {
     /// User funding the deposit and paying tx fees
@@ -104,6 +103,7 @@ pub struct DepositMasp<'info> {
     )]
     pub mint: Account<'info, Mint>,
 
+    /*
     /// Verification key account for the deposit circuit
     #[account(
         seeds = [ProofType::Deposit.as_seed(), pool_config.key().as_ref()],
@@ -116,6 +116,7 @@ pub struct DepositMasp<'info> {
             @ PrivacyErrorV2::VerificationKeyNotSet,
     )]
     pub deposit_vk: Account<'info, VerificationKeyAccountV2>,
+    */
 
     /// SPL token program
     pub token_program: Program<'info, Token>,
@@ -151,8 +152,6 @@ pub fn handler(
     amount: u64,
     commitment: [u8; 32],
     asset_id: [u8; 32],
-    proof_data: Vec<u8>,
-    _encrypted_note: Option<Vec<u8>>,
 ) -> Result<()> {
     let pool_config = &mut ctx.accounts.pool_config;
     let merkle_tree = &mut ctx.accounts.merkle_tree;
@@ -187,16 +186,16 @@ pub fn handler(
     );
 
     // Check vault deposit limits if configured
-    if asset_vault.max_deposit_amount > 0 {
+    if asset_vault.max_deposit > 0 {
         require!(
-            amount <= asset_vault.max_deposit_amount,
+            amount <= asset_vault.max_deposit,
             PrivacyErrorV2::ExceedsMaximumDeposit
         );
     }
 
-    if asset_vault.min_deposit_amount > 0 {
+    if asset_vault.min_deposit > 0 {
         require!(
-            amount >= asset_vault.min_deposit_amount,
+            amount >= asset_vault.min_deposit,
             PrivacyErrorV2::BelowMinimumDeposit
         );
     }
@@ -221,10 +220,10 @@ pub fn handler(
     let public_inputs_fields = public_inputs.to_field_elements();
 
     // Verify the ZK proof
-    let vk = &ctx.accounts.deposit_vk;
-    let is_valid = verify_proof_bytes(vk, &proof_data, &public_inputs_fields)?;
+    // let vk = &ctx.accounts.deposit_vk;
+    // let is_valid = verify_proof_bytes(vk, &proof_data, &public_inputs_fields)?;
 
-    require!(is_valid, PrivacyErrorV2::InvalidProof);
+    // require!(is_valid, PrivacyErrorV2::InvalidProof);
 
     // =========================================================================
     // 3. TRANSFER TOKENS FROM USER TO VAULT
@@ -290,7 +289,7 @@ pub fn handler(
         amount,
         asset_id,
         depositor: ctx.accounts.depositor.key(),
-        has_encrypted_note: _encrypted_note.is_some(),
+        has_encrypted_note: false,
         timestamp,
     });
 

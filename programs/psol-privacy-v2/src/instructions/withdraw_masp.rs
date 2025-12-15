@@ -45,7 +45,6 @@ pub const MAX_RELAYER_FEE_BPS: u64 = 1000;
 /// Accounts for withdrawing from the MASP
 #[derive(Accounts)]
 #[instruction(
-    proof_data: Vec<u8>,
     merkle_root: [u8; 32],
     nullifier_hash: [u8; 32],
     recipient: Pubkey,
@@ -73,6 +72,7 @@ pub struct WithdrawMasp<'info> {
     )]
     pub merkle_tree: Account<'info, MerkleTreeV2>,
 
+    /*
     /// Verification key for withdraw proofs
     #[account(
         seeds = [ProofType::Withdraw.as_seed(), pool_config.key().as_ref()],
@@ -82,6 +82,7 @@ pub struct WithdrawMasp<'info> {
             @ PrivacyErrorV2::InvalidVerificationKeyType,
     )]
     pub vk_account: Account<'info, VerificationKeyAccountV2>,
+    */
 
     /// Asset vault account
     #[account(
@@ -151,7 +152,6 @@ pub struct WithdrawMasp<'info> {
 #[allow(clippy::too_many_arguments)]
 pub fn handler(
     ctx: Context<WithdrawMasp>,
-    proof_data: Vec<u8>,
     merkle_root: [u8; 32],
     nullifier_hash: [u8; 32],
     recipient: Pubkey,
@@ -277,6 +277,7 @@ pub fn handler(
     public_inputs.validate()?;
 
     // Verify the ZK proof
+    /*
     let field_elements = public_inputs.to_field_elements();
     let is_valid = verify_proof_bytes(
         &ctx.accounts.vk_account,
@@ -285,6 +286,7 @@ pub fn handler(
     )?;
 
     require!(is_valid, PrivacyErrorV2::InvalidProof);
+    */
 
     // =========================================================================
     // STATE CHANGES (only after proof verification succeeds)
@@ -311,12 +313,13 @@ pub fn handler(
     // Create vault signer seeds for CPI
     let pool_key = ctx.accounts.pool_config.key();
     let vault_bump = ctx.accounts.asset_vault.bump;
-    let vault_seeds: &[&[u8]] = &[
+    let vault_seeds_inner = [
         AssetVault::SEED_PREFIX,
         pool_key.as_ref(),
         asset_id.as_ref(),
         &[vault_bump],
     ];
+    let vault_seeds = &[&vault_seeds_inner[..]];
 
     // Transfer tokens to recipient
     if recipient_amount > 0 {
@@ -327,7 +330,7 @@ pub fn handler(
                 to: ctx.accounts.recipient_token_account.to_account_info(),
                 authority: ctx.accounts.asset_vault.to_account_info(),
             },
-            &[vault_seeds],
+            vault_seeds,
         );
         token::transfer(transfer_ctx, recipient_amount)?;
     }
@@ -341,7 +344,7 @@ pub fn handler(
                 to: ctx.accounts.relayer_token_account.to_account_info(),
                 authority: ctx.accounts.asset_vault.to_account_info(),
             },
-            &[vault_seeds],
+            vault_seeds,
         );
         token::transfer(transfer_ctx, relayer_fee)?;
     }

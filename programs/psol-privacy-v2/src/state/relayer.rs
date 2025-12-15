@@ -262,7 +262,7 @@ pub struct RelayerNode {
 }
 
 impl RelayerNode {
-    pub fn space(metadata_uri_len: usize) -> usize {
+    pub const fn space(metadata_uri_len: usize) -> usize {
         8                           // discriminator
             + 32                    // registry
             + 32                    // operator
