@@ -30,17 +30,44 @@
 //! - `configure_relayer_registry` - Set relayer rules
 //! - `register_relayer` - Add new relayer
 //! - `update_relayer` - Modify relayer settings
+//! - `deactivate_relayer` - Deactivate relayer
 
+// ============================================================================
+// Pool administration / configuration
+// ============================================================================
+pub mod initialize_pool_v2;
+pub mod register_asset;
+pub mod set_verification_key_v2;
+
+pub mod admin;
+pub mod compliance;
+pub mod relayer;
+
+// ============================================================================
+// Core MASP instructions
+// ============================================================================
 pub mod deposit_masp;
 pub mod withdraw_masp;
 
-// Re-export for convenience
-pub use deposit_masp::{handler as deposit_masp_handler, DepositMasp};
-pub use withdraw_masp::{handler as withdraw_masp_handler, WithdrawMasp};
+// ============================================================================
+// Reserved (not live yet, but account wiring exists)
+// ============================================================================
+pub mod private_transfer;
+pub mod prove_membership;
+pub mod shielded_cpi;
 
-// Placeholder modules - implement as needed
-// pub mod initialize_pool;
-// pub mod register_asset;
-// pub mod set_verification_key;
-// pub mod joinsplit;
-// pub mod membership_proof;
+// ============================================================================
+// Re-exports (used by `use instructions::*;` in lib.rs)
+// ============================================================================
+pub use admin::*;
+pub use compliance::*;
+pub use initialize_pool_v2::InitializePoolV2;
+pub use private_transfer::PrivateTransferJoinSplit;
+pub use prove_membership::ProveMembership;
+pub use register_asset::RegisterAsset;
+pub use relayer::*;
+pub use set_verification_key_v2::{LockVerificationKeyV2, SetVerificationKeyV2};
+pub use shielded_cpi::*;
+
+pub use deposit_masp::DepositMasp;
+pub use withdraw_masp::WithdrawMasp;

@@ -28,7 +28,7 @@ pub struct InitializePoolV2<'info> {
         seeds = [PoolConfigV2::SEED_PREFIX, authority.key().as_ref()],
         bump,
     )]
-    pub pool_config: Account<'info, PoolConfigV2>,
+    pub pool_config: Box<Account<'info, PoolConfigV2>>,
 
     /// Merkle tree account (PDA)
     #[account(
@@ -38,7 +38,7 @@ pub struct InitializePoolV2<'info> {
         seeds = [MerkleTreeV2::SEED_PREFIX, pool_config.key().as_ref()],
         bump,
     )]
-    pub merkle_tree: Account<'info, MerkleTreeV2>,
+    pub merkle_tree: Box<Account<'info, MerkleTreeV2>>,
 
     /// Relayer registry account (PDA)
     #[account(
@@ -48,7 +48,7 @@ pub struct InitializePoolV2<'info> {
         seeds = [RelayerRegistry::SEED_PREFIX, pool_config.key().as_ref()],
         bump,
     )]
-    pub relayer_registry: Account<'info, RelayerRegistry>,
+    pub relayer_registry: Box<Account<'info, RelayerRegistry>>,
 
     /// Compliance configuration account (PDA)
     #[account(
@@ -58,7 +58,7 @@ pub struct InitializePoolV2<'info> {
         seeds = [ComplianceConfig::SEED_PREFIX, pool_config.key().as_ref()],
         bump,
     )]
-    pub compliance_config: Account<'info, ComplianceConfig>,
+    pub compliance_config: Box<Account<'info, ComplianceConfig>>,
 
     /// System program
     pub system_program: Program<'info, System>,

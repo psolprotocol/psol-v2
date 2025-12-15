@@ -3,7 +3,22 @@
 // Constants per round: 3
 // Total constants: 195
 
-pub const ROUND_CONSTANTS_T3: [[u8; 32]; 195] = [
+// Helper macro to convert hex strings to byte arrays
+macro_rules! hex {
+    ($s:expr) => {{
+        let mut arr = [0u8; 32];
+        let bytes = hex::decode($s).unwrap();
+        arr.copy_from_slice(&bytes);
+        arr
+    }};
+}
+
+/// Poseidon round constants for t=3.
+///
+/// Note: these constants are currently placeholders / truncated. They are **not**
+/// used by the on-chain Poseidon implementation (which relies on the syscall),
+/// but we keep them here for reference and potential future non-syscall builds.
+pub const ROUND_CONSTANTS_T3: &[[u8; 32]] = &[
     // Round 0
     hex!("0ee9a592ba9a9518d05986d656f40c2114c4993c11bb29938d21d47304cd8e6e"),
     hex!("00f1445235f2148c5986587169fc1bcd887b08d4d00868df5696fff40956e864"),
@@ -34,13 +49,3 @@ pub const ROUND_CONSTANTS_T3: [[u8; 32]; 195] = [
     // ... (186 more constants needed)
     // Full list from: https://github.com/iden3/circomlib/blob/master/circuits/poseidon_constants.circom
 ];
-
-// Helper macro to convert hex strings to byte arrays
-macro_rules! hex {
-    ($s:expr) => {{
-        let mut arr = [0u8; 32];
-        let bytes = hex::decode($s).unwrap();
-        arr.copy_from_slice(&bytes);
-        arr
-    }};
-}

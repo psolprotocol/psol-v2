@@ -37,10 +37,10 @@ pub mod verification_key;
 
 // Re-export all account types
 pub use asset_vault::AssetVault;
-pub use compliance::ComplianceConfig;
+pub use compliance::{AuditMetadata, ComplianceConfig, MAX_ENCRYPTED_METADATA_LEN};
 pub use merkle_tree::MerkleTreeV2;
 pub use pool_config::PoolConfigV2;
-pub use relayer::{RelayerNode, RelayerRegistry};
+pub use relayer::{RelayerNode, RelayerRegistry, MAX_RELAYER_METADATA_URI_LEN};
 pub use spent_nullifier::{SpendType, SpentNullifierV2};
 pub use verification_key::{VerificationKeyAccountV2, VerificationKeyV2};
 

@@ -65,13 +65,13 @@ pub struct WithdrawMasp<'info> {
         has_one = merkle_tree,
         has_one = relayer_registry,
     )]
-    pub pool_config: Account<'info, PoolConfigV2>,
+    pub pool_config: Box<Account<'info, PoolConfigV2>>,
 
     /// Merkle tree account
     #[account(
         constraint = merkle_tree.is_known_root(&merkle_root) @ PrivacyErrorV2::InvalidMerkleRoot,
     )]
-    pub merkle_tree: Account<'info, MerkleTreeV2>,
+    pub merkle_tree: Box<Account<'info, MerkleTreeV2>>,
 
     /// Verification key for withdraw proofs
     #[account(
@@ -81,7 +81,7 @@ pub struct WithdrawMasp<'info> {
         constraint = vk_account.proof_type == ProofType::Withdraw as u8
             @ PrivacyErrorV2::InvalidVerificationKeyType,
     )]
-    pub vk_account: Account<'info, VerificationKeyAccountV2>,
+    pub vk_account: Box<Account<'info, VerificationKeyAccountV2>>,
 
     /// Asset vault account
     #[account(
@@ -95,7 +95,7 @@ pub struct WithdrawMasp<'info> {
         constraint = asset_vault.is_active @ PrivacyErrorV2::AssetNotActive,
         constraint = asset_vault.withdrawals_enabled @ PrivacyErrorV2::WithdrawalsDisabled,
     )]
-    pub asset_vault: Account<'info, AssetVault>,
+    pub asset_vault: Box<Account<'info, AssetVault>>,
 
     /// Vault's token account (source)
     #[account(
@@ -103,7 +103,7 @@ pub struct WithdrawMasp<'info> {
         constraint = vault_token_account.key() == asset_vault.token_account 
             @ PrivacyErrorV2::InvalidVaultTokenAccount,
     )]
-    pub vault_token_account: Account<'info, TokenAccount>,
+    pub vault_token_account: Box<Account<'info, TokenAccount>>,
 
     /// Recipient's token account (destination)
     /// CHECK: We verify the mint matches, recipient can be any valid token account
@@ -111,14 +111,14 @@ pub struct WithdrawMasp<'info> {
         mut,
         constraint = recipient_token_account.mint == asset_vault.mint @ PrivacyErrorV2::InvalidMint,
     )]
-    pub recipient_token_account: Account<'info, TokenAccount>,
+    pub recipient_token_account: Box<Account<'info, TokenAccount>>,
 
     /// Relayer's token account for fee (if relayer_fee > 0)
     #[account(
         mut,
         constraint = relayer_token_account.mint == asset_vault.mint @ PrivacyErrorV2::InvalidMint,
     )]
-    pub relayer_token_account: Account<'info, TokenAccount>,
+    pub relayer_token_account: Box<Account<'info, TokenAccount>>,
 
     /// Spent nullifier account (PDA, created on first use)
     #[account(
@@ -132,13 +132,13 @@ pub struct WithdrawMasp<'info> {
         ],
         bump,
     )]
-    pub spent_nullifier: Account<'info, SpentNullifierV2>,
+    pub spent_nullifier: Box<Account<'info, SpentNullifierV2>>,
 
     /// Relayer registry
-    pub relayer_registry: Account<'info, RelayerRegistry>,
+    pub relayer_registry: Box<Account<'info, RelayerRegistry>>,
 
     /// Relayer node (optional, for registered relayers)
-    pub relayer_node: Option<Account<'info, RelayerNode>>,
+    pub relayer_node: Option<Box<Account<'info, RelayerNode>>>,
 
     /// Token program
     pub token_program: Program<'info, Token>,
@@ -320,6 +320,7 @@ pub fn handler(
 
     // Transfer tokens to recipient
     if recipient_amount > 0 {
+        let signer_seeds = &[vault_seeds];
         let transfer_ctx = CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
             Transfer {
@@ -327,13 +328,14 @@ pub fn handler(
                 to: ctx.accounts.recipient_token_account.to_account_info(),
                 authority: ctx.accounts.asset_vault.to_account_info(),
             },
-            &[vault_seeds],
+            signer_seeds,
         );
         token::transfer(transfer_ctx, recipient_amount)?;
     }
 
     // Transfer fee to relayer
     if relayer_fee > 0 {
+        let signer_seeds = &[vault_seeds];
         let transfer_ctx = CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
             Transfer {
@@ -341,7 +343,7 @@ pub fn handler(
                 to: ctx.accounts.relayer_token_account.to_account_info(),
                 authority: ctx.accounts.asset_vault.to_account_info(),
             },
-            &[vault_seeds],
+            signer_seeds,
         );
         token::transfer(transfer_ctx, relayer_fee)?;
     }

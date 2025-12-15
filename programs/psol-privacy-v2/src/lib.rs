@@ -74,7 +74,92 @@ pub mod state;
 
 use instructions::*;
 
-declare_id!("pSoL2xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+// Anchor's `#[program]` macro generates client/account helpers that pull types
+// from `crate::*`. Re-export the **accounts structs only** (not instruction
+// modules) to avoid name collisions with the macro-generated `crate::<ix_name>`
+// modules.
+pub use instructions::{
+    // Pool / admin
+    InitializePoolV2,
+    PausePoolV2,
+    UnpausePoolV2,
+    InitiateAuthorityTransferV2,
+    AcceptAuthorityTransferV2,
+    CancelAuthorityTransferV2,
+    // Assets / VKs
+    RegisterAsset,
+    SetVerificationKeyV2,
+    LockVerificationKeyV2,
+    // Relayer registry
+    ConfigureRelayerRegistry,
+    RegisterRelayer,
+    UpdateRelayer,
+    DeactivateRelayer,
+    // Core MASP
+    DepositMasp,
+    WithdrawMasp,
+    // Compliance
+    ConfigureCompliance,
+    AttachAuditMetadata,
+    // Reserved / future
+    PrivateTransferJoinSplit,
+    ProveMembership,
+    ExecuteShieldedAction,
+};
+
+// ---------------------------------------------------------------------------
+// Anchor client accounts shims (private)
+//
+// Anchor's program codegen expects `crate::__client_accounts_<ix_name>` modules
+// to exist at the crate root. `#[derive(Accounts)]` generates these modules in
+// the same module as the account struct; in this codebase they live under
+// `instructions/*`.
+//
+// We create *private* crate-root aliases so Anchor's generated `accounts` module
+// can resolve them without changing the public API surface.
+// ---------------------------------------------------------------------------
+#[allow(unused_imports)]
+use instructions::admin::authority_v2::__client_accounts_accept_authority_transfer_v2 as __client_accounts_accept_authority_transfer_v2;
+#[allow(unused_imports)]
+use instructions::admin::authority_v2::__client_accounts_cancel_authority_transfer_v2 as __client_accounts_cancel_authority_transfer_v2;
+#[allow(unused_imports)]
+use instructions::admin::authority_v2::__client_accounts_initiate_authority_transfer_v2 as __client_accounts_initiate_authority_transfer_v2;
+#[allow(unused_imports)]
+use instructions::admin::pause_v2::__client_accounts_pause_pool_v2 as __client_accounts_pause_pool_v2;
+#[allow(unused_imports)]
+use instructions::admin::unpause_v2::__client_accounts_unpause_pool_v2 as __client_accounts_unpause_pool_v2;
+#[allow(unused_imports)]
+use instructions::compliance::attach_metadata::__client_accounts_attach_audit_metadata as __client_accounts_attach_audit_metadata;
+#[allow(unused_imports)]
+use instructions::compliance::configure_compliance::__client_accounts_configure_compliance as __client_accounts_configure_compliance;
+#[allow(unused_imports)]
+use instructions::deposit_masp::__client_accounts_deposit_masp as __client_accounts_deposit_masp;
+#[allow(unused_imports)]
+use instructions::initialize_pool_v2::__client_accounts_initialize_pool_v2 as __client_accounts_initialize_pool_v2;
+#[allow(unused_imports)]
+use instructions::private_transfer::__client_accounts_private_transfer_join_split as __client_accounts_private_transfer_join_split;
+#[allow(unused_imports)]
+use instructions::prove_membership::__client_accounts_prove_membership as __client_accounts_prove_membership;
+#[allow(unused_imports)]
+use instructions::register_asset::__client_accounts_register_asset as __client_accounts_register_asset;
+#[allow(unused_imports)]
+use instructions::relayer::configure_registry::__client_accounts_configure_relayer_registry as __client_accounts_configure_relayer_registry;
+#[allow(unused_imports)]
+use instructions::relayer::deactivate_relayer::__client_accounts_deactivate_relayer as __client_accounts_deactivate_relayer;
+#[allow(unused_imports)]
+use instructions::relayer::register_relayer::__client_accounts_register_relayer as __client_accounts_register_relayer;
+#[allow(unused_imports)]
+use instructions::relayer::update_relayer::__client_accounts_update_relayer as __client_accounts_update_relayer;
+#[allow(unused_imports)]
+use instructions::set_verification_key_v2::__client_accounts_lock_verification_key_v2 as __client_accounts_lock_verification_key_v2;
+#[allow(unused_imports)]
+use instructions::set_verification_key_v2::__client_accounts_set_verification_key_v2 as __client_accounts_set_verification_key_v2;
+#[allow(unused_imports)]
+use instructions::shielded_cpi::execute_action::__client_accounts_execute_shielded_action as __client_accounts_execute_shielded_action;
+#[allow(unused_imports)]
+use instructions::withdraw_masp::__client_accounts_withdraw_masp as __client_accounts_withdraw_masp;
+
+declare_id!("AVZtXxwfwJyi9bHyHkn9B1whL5nafYerY28F8qcwkYWX");
 
 #[program]
 pub mod psol_privacy_v2 {
@@ -226,6 +311,7 @@ pub mod psol_privacy_v2 {
     /// * `amount` - Amount to deposit
     /// * `commitment` - Poseidon commitment = hash(secret, nullifier, amount, asset_id)
     /// * `asset_id` - Asset identifier (derived from mint)
+    /// * `proof_data` - Groth16 proof bytes (256 bytes)
     /// * `encrypted_note` - Optional encrypted note for recipient
     #[allow(clippy::too_many_arguments)]
     pub fn deposit_masp(
@@ -233,9 +319,10 @@ pub mod psol_privacy_v2 {
         amount: u64,
         commitment: [u8; 32],
         asset_id: [u8; 32],
+        proof_data: Vec<u8>,
         encrypted_note: Option<Vec<u8>>,
     ) -> Result<()> {
-        instructions::deposit_masp::handler(ctx, amount, commitment, asset_id, encrypted_note)
+        instructions::deposit_masp::handler(ctx, amount, commitment, asset_id, proof_data, encrypted_note)
     }
 
     /// Withdraw assets from the shielded pool (MASP)
@@ -326,7 +413,7 @@ pub mod psol_privacy_v2 {
         merkle_root: [u8; 32],
         threshold: u64,
         asset_id: [u8; 32],
-    ) -> Result<bool> {
+    ) -> Result<()> {
         instructions::prove_membership::handler(ctx, proof_data, merkle_root, threshold, asset_id)
     }
 

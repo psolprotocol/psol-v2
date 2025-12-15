@@ -27,7 +27,6 @@ pub mod curve_utils;
 pub mod groth16_verifier;
 pub mod poseidon;
 pub mod poseidon_constants;
-pub mod poseidon_constants_t3;
 pub mod public_inputs;
 
 // ============================================================================

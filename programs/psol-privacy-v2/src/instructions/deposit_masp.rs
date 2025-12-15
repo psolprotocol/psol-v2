@@ -186,20 +186,9 @@ pub fn handler(
         PrivacyErrorV2::AssetIdMismatch
     );
 
-    // Check vault deposit limits if configured
-    if asset_vault.max_deposit_amount > 0 {
-        require!(
-            amount <= asset_vault.max_deposit_amount,
-            PrivacyErrorV2::ExceedsMaximumDeposit
-        );
-    }
-
-    if asset_vault.min_deposit_amount > 0 {
-        require!(
-            amount >= asset_vault.min_deposit_amount,
-            PrivacyErrorV2::BelowMinimumDeposit
-        );
-    }
+    // Enforce per-asset deposit limits
+    // (field names live on the AssetVault account, not instruction args)
+    asset_vault.validate_deposit_amount(amount)?;
 
     // Check Merkle tree has space
     require!(

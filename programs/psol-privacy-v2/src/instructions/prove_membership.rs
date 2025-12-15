@@ -80,7 +80,7 @@ pub fn handler(
     _merkle_root: [u8; 32],
     threshold: u64,
     asset_id: [u8; 32],
-) -> Result<bool> {
+) -> Result<()> {
     // =========================================================================
     // BASIC STATE VALIDATION
     // These checks verify the instruction could succeed if circuits were ready
