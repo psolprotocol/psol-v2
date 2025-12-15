@@ -47,6 +47,102 @@ const MAX_RETRY_ATTEMPTS = 3;
 /** Base delay for exponential backoff (ms) */
 const BASE_RETRY_DELAY_MS = 1000;
 
+/** Maximum jitter to add to backoff (ms) */
+const MAX_JITTER_MS = 500;
+
+/** Overall timeout for all retry attempts (ms) - 30 seconds */
+const RETRY_OVERALL_TIMEOUT_MS = 30000;
+
+// =============================================================================
+// ERROR CLASSIFICATION
+// =============================================================================
+
+/**
+ * Error categories for logging and retry decisions
+ */
+export enum ErrorCategory {
+  /** Validation failures - invalid proof, wrong inputs, etc. */
+  VALIDATION = 'VALIDATION',
+  /** Transient RPC/network errors - can retry */
+  TRANSIENT_RPC = 'TRANSIENT_RPC',
+  /** On-chain state conflicts - nullifier spent, etc. */
+  STATE_CONFLICT = 'STATE_CONFLICT',
+  /** Resource exhaustion - insufficient funds, etc. */
+  RESOURCE = 'RESOURCE',
+  /** Unknown errors */
+  UNKNOWN = 'UNKNOWN',
+}
+
+/**
+ * Patterns for identifying transient RPC errors that should be retried
+ */
+const TRANSIENT_ERROR_PATTERNS = [
+  'blockhash not found',
+  'block height exceeded',
+  'transaction expired',
+  'node is behind',
+  'node is unhealthy',
+  'service unavailable',
+  'connection refused',
+  'connection reset',
+  'connection timed out',
+  'timeout',
+  'etimedout',
+  'econnreset',
+  'econnrefused',
+  'enetunreach',
+  'socket hang up',
+  'network error',
+  '502',
+  '503',
+  '504',
+  'bad gateway',
+  'gateway timeout',
+  'too many requests',
+  '429',
+  'rate limit',
+  'server too busy',
+  'temporarily unavailable',
+];
+
+/**
+ * Patterns for validation errors that should NOT be retried
+ */
+const VALIDATION_ERROR_PATTERNS = [
+  'invalid proof',
+  'proof verification failed',
+  'invalid signature',
+  'simulation failed',
+  'instruction error',
+  'invalid program',
+  'invalid account',
+  'account not found',
+  'invalid mint',
+  'invalid owner',
+  'deserialization failed',
+  'constraint violation',
+  'custom program error',
+];
+
+/**
+ * Patterns for state conflict errors that should NOT be retried
+ */
+const STATE_CONFLICT_PATTERNS = [
+  'nullifier already spent',
+  'already processed',
+  'account already exists',
+  'duplicate',
+];
+
+/**
+ * Patterns for resource errors that should NOT be retried
+ */
+const RESOURCE_ERROR_PATTERNS = [
+  'insufficient funds',
+  'insufficient lamports',
+  'insufficient balance',
+];
+
 // =============================================================================
 // INTERFACES
 // =============================================================================
@@ -154,7 +250,7 @@ export class RelayerService {
   private config: RelayerConfig;
   private connection: Connection;
   private provider: AnchorProvider;
-  private program: Program;
+  private program!: Program; // Initialized lazily, but always before use
   private app: express.Application;
   private totalTransactions: number = 0;
   private totalFeesEarned: bigint = BigInt(0);
@@ -608,55 +704,131 @@ export class RelayerService {
   
   /**
    * Submit withdrawal transaction with retry logic
+   * 
+   * Features:
+   * - Exponential backoff with jitter
+   * - Overall timeout to prevent hanging
+   * - Smart error classification (only retries transient errors)
+   * - Detailed logging for debugging
    */
   private async submitWithdrawalWithRetry(params: SubmitWithdrawalParams): Promise<string> {
+    const overallStartTime = Date.now();
     let lastError: Error | null = null;
+    let lastErrorCategory: ErrorCategory = ErrorCategory.UNKNOWN;
     
     for (let attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
+      // Check overall timeout before each attempt
+      const elapsed = Date.now() - overallStartTime;
+      if (elapsed >= RETRY_OVERALL_TIMEOUT_MS) {
+        this.logRetryTimeout(attempt, elapsed, lastError);
+        throw new Error(
+          `Transaction submission timed out after ${elapsed}ms ` +
+          `(${attempt - 1} attempts). Last error: ${lastError?.message || 'unknown'}`
+        );
+      }
+      
+      const remainingTimeout = RETRY_OVERALL_TIMEOUT_MS - elapsed;
+      
       try {
-        console.log(`Submitting withdrawal transaction (attempt ${attempt}/${MAX_RETRY_ATTEMPTS})`);
+        this.logRetryAttempt(attempt, MAX_RETRY_ATTEMPTS, remainingTimeout);
         const signature = await this.submitWithdrawal(params);
+        this.logRetrySuccess(attempt, Date.now() - overallStartTime);
         return signature;
       } catch (err) {
         lastError = err instanceof Error ? err : new Error(String(err));
-        console.error(`Transaction attempt ${attempt} failed:`, lastError.message);
+        lastErrorCategory = classifyError(lastError);
         
-        // Don't retry on certain errors
-        if (this.isNonRetryableError(lastError)) {
-          console.error('Non-retryable error, aborting retry');
+        this.logRetryError(attempt, lastError, lastErrorCategory);
+        
+        // Don't retry on non-retryable errors
+        if (!isRetryableCategory(lastErrorCategory)) {
+          this.logNonRetryableError(lastErrorCategory, lastError);
           throw lastError;
         }
         
-        // Wait before retry with exponential backoff
+        // Calculate backoff delay and wait before retry
         if (attempt < MAX_RETRY_ATTEMPTS) {
-          const delay = BASE_RETRY_DELAY_MS * Math.pow(2, attempt - 1);
-          console.log(`Waiting ${delay}ms before retry...`);
-          await sleep(delay);
+          const delay = calculateBackoffDelay(attempt);
+          // Don't wait longer than the remaining timeout
+          const actualDelay = Math.min(delay, remainingTimeout);
+          
+          if (actualDelay <= 0) {
+            this.logRetryTimeout(attempt + 1, Date.now() - overallStartTime, lastError);
+            throw new Error(
+              `Transaction submission timed out after ${Date.now() - overallStartTime}ms ` +
+              `(${attempt} attempts). Last error: ${lastError.message}`
+            );
+          }
+          
+          this.logRetryBackoff(attempt, actualDelay);
+          await sleep(actualDelay);
         }
       }
     }
     
+    // All retries exhausted
+    this.logRetryExhausted(lastError, lastErrorCategory, Date.now() - overallStartTime);
     throw lastError || new Error('Transaction submission failed after all retries');
   }
   
+  // =========================================================================
+  // RETRY LOGGING HELPERS
+  // =========================================================================
+  
   /**
-   * Check if an error should not be retried
+   * Log a retry attempt start
    */
-  private isNonRetryableError(error: Error): boolean {
-    const message = error.message.toLowerCase();
-    
-    // Don't retry on these errors
-    const nonRetryablePatterns = [
-      'nullifier already spent',
-      'invalid proof',
-      'insufficient funds',
-      'account not found',
-      'invalid signature',
-      'simulation failed',
-      'instruction error',
-    ];
-    
-    return nonRetryablePatterns.some(pattern => message.includes(pattern));
+  private logRetryAttempt(attempt: number, maxAttempts: number, remainingTimeoutMs: number): void {
+    console.log(`[RETRY] Attempt ${attempt}/${maxAttempts} - Submitting transaction (timeout: ${remainingTimeoutMs}ms remaining)`);
+  }
+  
+  /**
+   * Log a successful retry
+   */
+  private logRetrySuccess(attempt: number, totalTimeMs: number): void {
+    console.log(`[RETRY] SUCCESS on attempt ${attempt} after ${totalTimeMs}ms`);
+  }
+  
+  /**
+   * Log a retry error with classification
+   */
+  private logRetryError(attempt: number, error: Error, category: ErrorCategory): void {
+    const categoryLabel = getCategoryLogLabel(category);
+    console.error(`[RETRY] Attempt ${attempt} FAILED [${categoryLabel}]: ${error.message}`);
+  }
+  
+  /**
+   * Log when not retrying due to error type
+   */
+  private logNonRetryableError(category: ErrorCategory, error: Error): void {
+    const categoryLabel = getCategoryLogLabel(category);
+    console.error(`[RETRY] Not retrying - ${categoryLabel} error: ${error.message}`);
+  }
+  
+  /**
+   * Log backoff delay before next retry
+   */
+  private logRetryBackoff(attempt: number, delayMs: number): void {
+    console.log(`[RETRY] Backoff: waiting ${delayMs}ms before attempt ${attempt + 1}`);
+  }
+  
+  /**
+   * Log overall timeout reached
+   */
+  private logRetryTimeout(attempt: number, elapsedMs: number, lastError: Error | null): void {
+    console.error(`[RETRY] TIMEOUT after ${elapsedMs}ms before attempt ${attempt}`);
+    if (lastError) {
+      console.error(`[RETRY] Last error was: ${lastError.message}`);
+    }
+  }
+  
+  /**
+   * Log all retries exhausted
+   */
+  private logRetryExhausted(lastError: Error | null, category: ErrorCategory, totalTimeMs: number): void {
+    const categoryLabel = getCategoryLogLabel(category);
+    console.error(`[RETRY] All ${MAX_RETRY_ATTEMPTS} attempts exhausted after ${totalTimeMs}ms`);
+    console.error(`[RETRY] Final error [${categoryLabel}]: ${lastError?.message || 'unknown'}`);
   }
   
   /**
@@ -900,6 +1072,88 @@ function deserializeGroth16Proof(proofData: Uint8Array): Groth16Proof {
  */
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Classify an error into a category for logging and retry decisions
+ */
+export function classifyError(error: Error): ErrorCategory {
+  const message = error.message.toLowerCase();
+  
+  // Check validation errors first (most specific)
+  for (const pattern of VALIDATION_ERROR_PATTERNS) {
+    if (message.includes(pattern)) {
+      return ErrorCategory.VALIDATION;
+    }
+  }
+  
+  // Check state conflict errors
+  for (const pattern of STATE_CONFLICT_PATTERNS) {
+    if (message.includes(pattern)) {
+      return ErrorCategory.STATE_CONFLICT;
+    }
+  }
+  
+  // Check resource errors
+  for (const pattern of RESOURCE_ERROR_PATTERNS) {
+    if (message.includes(pattern)) {
+      return ErrorCategory.RESOURCE;
+    }
+  }
+  
+  // Check transient errors
+  for (const pattern of TRANSIENT_ERROR_PATTERNS) {
+    if (message.includes(pattern)) {
+      return ErrorCategory.TRANSIENT_RPC;
+    }
+  }
+  
+  // Check for TransactionExpiredBlockheightExceededError
+  if (error.name === 'TransactionExpiredBlockheightExceededError' ||
+      error instanceof TransactionExpiredBlockheightExceededError) {
+    return ErrorCategory.TRANSIENT_RPC;
+  }
+  
+  return ErrorCategory.UNKNOWN;
+}
+
+/**
+ * Check if an error category is retryable
+ */
+export function isRetryableCategory(category: ErrorCategory): boolean {
+  // Only transient RPC errors and unknown errors are retryable
+  // Unknown errors are retried because they might be transient
+  return category === ErrorCategory.TRANSIENT_RPC || category === ErrorCategory.UNKNOWN;
+}
+
+/**
+ * Calculate backoff delay with jitter
+ */
+export function calculateBackoffDelay(attempt: number): number {
+  // Exponential backoff: base * 2^(attempt-1)
+  const exponentialDelay = BASE_RETRY_DELAY_MS * Math.pow(2, attempt - 1);
+  // Add random jitter to prevent thundering herd
+  const jitter = Math.floor(Math.random() * MAX_JITTER_MS);
+  return exponentialDelay + jitter;
+}
+
+/**
+ * Get a human-readable log label for an error category
+ */
+function getCategoryLogLabel(category: ErrorCategory): string {
+  switch (category) {
+    case ErrorCategory.VALIDATION:
+      return 'VALIDATION_ERROR';
+    case ErrorCategory.TRANSIENT_RPC:
+      return 'TRANSIENT_RPC';
+    case ErrorCategory.STATE_CONFLICT:
+      return 'STATE_CONFLICT';
+    case ErrorCategory.RESOURCE:
+      return 'RESOURCE_ERROR';
+    case ErrorCategory.UNKNOWN:
+    default:
+      return 'UNKNOWN_ERROR';
+  }
 }
 
 // =============================================================================
