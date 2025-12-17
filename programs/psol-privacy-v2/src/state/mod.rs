@@ -48,3 +48,6 @@ pub use verification_key::{VerificationKeyAccountV2, VerificationKeyV2};
 pub use merkle_tree::{
     DEFAULT_ROOT_HISTORY_SIZE, MAX_TREE_DEPTH, MIN_ROOT_HISTORY_SIZE, MIN_TREE_DEPTH,
 };
+
+pub use compliance::{AuditMetadata, MAX_ENCRYPTED_METADATA_LEN};
+pub use relayer::MAX_RELAYER_METADATA_URI_LEN;

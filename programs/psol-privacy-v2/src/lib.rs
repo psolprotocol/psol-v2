@@ -72,9 +72,44 @@ pub mod events;
 pub mod instructions;
 pub mod state;
 
-use instructions::*;
 
-declare_id!("pSoL2xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+// ANCHOR_ACCOUNT_MODULE_ALIASES_BEGIN
+pub use instructions::admin::authority_v2 as accept_authority_transfer_v2;
+pub use instructions::compliance::attach_metadata as attach_audit_metadata;
+pub use instructions::admin::authority_v2 as cancel_authority_transfer_v2;
+pub use instructions::compliance::configure_compliance as configure_compliance;
+pub use instructions::relayer::configure_registry as configure_relayer_registry;
+pub use instructions::relayer::deactivate_relayer as deactivate_relayer;
+pub use instructions::shielded_cpi::execute_action as execute_shielded_action;
+pub use instructions::admin::authority_v2 as initiate_authority_transfer_v2;
+pub use instructions::set_verification_key_v2 as lock_verification_key_v2;
+pub use instructions::admin::pause_v2 as pause_pool_v2;
+pub use instructions::private_transfer as private_transfer_join_split;
+pub use instructions::relayer::register_relayer as register_relayer;
+pub use instructions::admin::unpause_v2 as unpause_pool_v2;
+pub use instructions::relayer::update_relayer as update_relayer;
+// ANCHOR_ACCOUNT_MODULE_ALIASES_END
+use instructions::*;
+pub use instructions::*;
+
+declare_id!("21DbY1WykakReEX8RjpirJMxtgoa6vhd77EF6d3oC6Xo");
+
+// ANCHOR_CLIENT_ACCOUNTS_REEXPORTS_BEGIN
+pub use crate::instructions::admin::authority_v2::__client_accounts_accept_authority_transfer_v2;
+pub use crate::instructions::admin::authority_v2::__client_accounts_cancel_authority_transfer_v2;
+pub use crate::instructions::compliance::configure_compliance::__client_accounts_configure_compliance;
+pub use crate::instructions::relayer::configure_registry::__client_accounts_configure_relayer_registry;
+pub use crate::instructions::relayer::deactivate_relayer::__client_accounts_deactivate_relayer;
+pub use crate::instructions::shielded_cpi::execute_action::__client_accounts_execute_shielded_action;
+pub use crate::instructions::initialize_pool_v2::__client_accounts_initialize_pool_v2;
+pub use crate::instructions::admin::authority_v2::__client_accounts_initiate_authority_transfer_v2;
+pub use crate::instructions::set_verification_key_v2::__client_accounts_lock_verification_key_v2;
+pub use crate::instructions::admin::pause_v2::__client_accounts_pause_pool_v2;
+pub use crate::instructions::relayer::register_relayer::__client_accounts_register_relayer;
+pub use crate::instructions::set_verification_key_v2::__client_accounts_set_verification_key_v2;
+pub use crate::instructions::admin::unpause_v2::__client_accounts_unpause_pool_v2;
+pub use crate::instructions::relayer::update_relayer::__client_accounts_update_relayer;
+// ANCHOR_CLIENT_ACCOUNTS_REEXPORTS_END
 
 #[program]
 pub mod psol_privacy_v2 {
@@ -229,153 +264,16 @@ pub mod psol_privacy_v2 {
     /// * `encrypted_note` - Optional encrypted note for recipient
     #[allow(clippy::too_many_arguments)]
     pub fn deposit_masp(
-        ctx: Context<DepositMasp>,
-        amount: u64,
-        commitment: [u8; 32],
-        asset_id: [u8; 32],
-        encrypted_note: Option<Vec<u8>>,
-    ) -> Result<()> {
-        instructions::deposit_masp::handler(ctx, amount, commitment, asset_id, encrypted_note)
-    }
-
-    /// Withdraw assets from the shielded pool (MASP)
-    ///
-    /// # Arguments
-    /// * `proof_data` - Groth16 proof bytes (256 bytes)
-    /// * `merkle_root` - Tree root at time of proof generation
-    /// * `nullifier_hash` - Nullifier to prevent double-spend
-    /// * `recipient` - Destination address
-    /// * `amount` - Withdrawal amount
-    /// * `asset_id` - Asset identifier
-    /// * `relayer_fee` - Fee paid to relayer (deducted from amount)
-    #[allow(clippy::too_many_arguments)]
-    pub fn withdraw_masp(
-        ctx: Context<WithdrawMasp>,
-        proof_data: Vec<u8>,
-        merkle_root: [u8; 32],
-        nullifier_hash: [u8; 32],
-        recipient: Pubkey,
-        amount: u64,
-        asset_id: [u8; 32],
-        relayer_fee: u64,
-    ) -> Result<()> {
-        instructions::withdraw_masp::handler(
-            ctx,
-            proof_data,
-            merkle_root,
-            nullifier_hash,
-            recipient,
-            amount,
-            asset_id,
-            relayer_fee,
-        )
-    }
-
-    /// Private transfer (Join-Split) - internal transfer without touching vault
-    ///
-    /// # Arguments
-    /// * `proof_data` - Groth16 proof for join-split circuit
-    /// * `merkle_root` - Tree root
-    /// * `input_nullifiers` - Nullifiers for spent inputs (max 2)
-    /// * `output_commitments` - New commitments for outputs (max 2)
-    /// * `public_amount` - Net public flow (positive = deposit, negative = withdraw, 0 = internal)
-    /// * `asset_id` - Asset being transferred
-    /// * `relayer_fee` - Fee for relayer
-    /// * `encrypted_outputs` - Encrypted notes for output recipients
-    #[allow(clippy::too_many_arguments)]
-    pub fn private_transfer_join_split(
-        ctx: Context<PrivateTransferJoinSplit>,
-        proof_data: Vec<u8>,
-        merkle_root: [u8; 32],
-        input_nullifiers: Vec<[u8; 32]>,
-        output_commitments: Vec<[u8; 32]>,
-        public_amount: i64,
-        asset_id: [u8; 32],
-        relayer_fee: u64,
-        encrypted_outputs: Option<Vec<Vec<u8>>>,
-    ) -> Result<()> {
-        instructions::private_transfer::handler(
-            ctx,
-            proof_data,
-            merkle_root,
-            input_nullifiers,
-            output_commitments,
-            public_amount,
-            asset_id,
-            relayer_fee,
-            encrypted_outputs,
-        )
-    }
-
-    // =========================================================================
-    // MEMBERSHIP & COMPLIANCE
-    // =========================================================================
-
-    /// Prove pool membership without spending
-    ///
-    /// Returns true and emits event if user can prove membership ≥ threshold
-    ///
-    /// # Arguments
-    /// * `proof_data` - Groth16 proof for membership circuit
-    /// * `merkle_root` - Tree root
-    /// * `threshold` - Minimum commitment value to prove
-    /// * `asset_id` - Asset for threshold check
-    pub fn prove_membership(
-        ctx: Context<ProveMembership>,
-        proof_data: Vec<u8>,
-        merkle_root: [u8; 32],
-        threshold: u64,
-        asset_id: [u8; 32],
-    ) -> Result<bool> {
-        instructions::prove_membership::handler(ctx, proof_data, merkle_root, threshold, asset_id)
-    }
-
-    /// Configure compliance/audit metadata settings
-    pub fn configure_compliance(
-        ctx: Context<ConfigureCompliance>,
-        require_encrypted_note: bool,
-        audit_pubkey: Option<Pubkey>,
-        metadata_schema_version: u8,
-    ) -> Result<()> {
-        instructions::compliance::configure_compliance::handler(
-            ctx,
-            require_encrypted_note,
-            audit_pubkey,
-            metadata_schema_version,
-        )
-    }
-
-    /// Attach encrypted audit metadata to existing commitment
-    pub fn attach_audit_metadata(
-        ctx: Context<AttachAuditMetadata>,
-        commitment: [u8; 32],
-        encrypted_metadata: Vec<u8>,
-    ) -> Result<()> {
-        instructions::compliance::attach_metadata::handler(ctx, commitment, encrypted_metadata)
-    }
-
-    // =========================================================================
-    // SHIELDED CPI (for DeFi integration)
-    // =========================================================================
-
-    /// Execute shielded action via CPI
-    ///
-    /// Allows external protocols to interact with shielded balances
-    /// Example: Jupiter swap integration
-    ///
-    /// # Arguments
-    /// * `action_type` - Type of shielded action
-    /// * `proof_data` - Proof authorizing the action
-    /// * `action_data` - Serialized action parameters
-    pub fn execute_shielded_action(
-        ctx: Context<ExecuteShieldedAction>,
-        action_type: ShieldedActionType,
-        proof_data: Vec<u8>,
-        action_data: Vec<u8>,
-    ) -> Result<()> {
-        instructions::shielded_cpi::execute_action::handler(ctx, action_type, proof_data, action_data)
-    }
+    ctx: Context<DepositMasp>,
+    amount: u64,
+    commitment: [u8; 32],
+    asset_id: [u8; 32],
+    proof_data: Vec<u8>,
+    encrypted_note: Option<Vec<u8>>,
+) -> Result<()> {
+    instructions::deposit_masp::handler(ctx, amount, commitment, asset_id, proof_data, encrypted_note)
 }
+
 
 // =========================================================================
 // SHARED TYPES
@@ -429,3 +327,4 @@ pub use state::{
     AssetVault, ComplianceConfig, MerkleTreeV2, PoolConfigV2, RelayerNode, RelayerRegistry,
     SpentNullifierV2, VerificationKeyAccountV2,
 };
+}

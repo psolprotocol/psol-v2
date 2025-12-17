@@ -26,7 +26,9 @@
 pub mod curve_utils;
 pub mod groth16_verifier;
 pub mod poseidon;
+#[cfg(feature = "poseidon-constants")]
 pub mod poseidon_constants;
+#[cfg(feature = "poseidon-constants")]
 pub mod poseidon_constants_t3;
 pub mod public_inputs;
 

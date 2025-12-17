@@ -1,0 +1,16 @@
+target/
+core
+**/core
+.DS_Store
+
+# Build artifacts
+target/
+**/target/
+core
+**/core
+.anchor/
+node_modules/
+*.log
+programs/**/target/
+target/deploy/
+target/deploy/*-keypair.json

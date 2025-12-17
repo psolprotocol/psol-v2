@@ -283,7 +283,7 @@ impl VerificationKeyAccountV2 {
 
     /// Compute Keccak256 hash of VK for integrity verification
     fn compute_vk_hash(&self) -> [u8; 32] {
-        use solana_program::keccak;
+        use anchor_lang::solana_program::keccak;
 
         let mut data = Vec::with_capacity(512 + self.vk_ic.len() * 64);
         data.extend_from_slice(&self.vk_alpha_g1);
