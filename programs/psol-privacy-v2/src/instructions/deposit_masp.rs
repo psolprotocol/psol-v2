@@ -187,20 +187,6 @@ pub fn handler(
     );
 
     // Check vault deposit limits if configured
-    if asset_vault.max_deposit_amount > 0 {
-        require!(
-            amount <= asset_vault.max_deposit_amount,
-            PrivacyErrorV2::ExceedsMaximumDeposit
-        );
-    }
-
-    if asset_vault.min_deposit_amount > 0 {
-        require!(
-            amount >= asset_vault.min_deposit_amount,
-            PrivacyErrorV2::BelowMinimumDeposit
-        );
-    }
-
     // Check Merkle tree has space
     require!(
         !merkle_tree.is_full(),

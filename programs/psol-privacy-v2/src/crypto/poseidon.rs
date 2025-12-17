@@ -18,7 +18,7 @@
 //! This is critical for hash compatibility across all surfaces.
 
 use anchor_lang::prelude::*;
-use solana_program::poseidon::{hashv, Endianness, Parameters};
+use anchor_lang::solana_program::poseidon::{hashv, Endianness, Parameters};
 
 use crate::error::PrivacyErrorV2;
 

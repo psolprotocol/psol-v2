@@ -318,7 +318,9 @@ pub fn handler(
         &[vault_bump],
     ];
 
-    // Transfer tokens to recipient
+            let vault_signer_seeds: &[&[&[u8]]] = &[vault_seeds];
+let vault_signer_seeds: &[&[&[u8]]] = vault_signer_seeds;
+// Transfer tokens to recipient
     if recipient_amount > 0 {
         let transfer_ctx = CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
@@ -327,7 +329,7 @@ pub fn handler(
                 to: ctx.accounts.recipient_token_account.to_account_info(),
                 authority: ctx.accounts.asset_vault.to_account_info(),
             },
-            &[vault_seeds],
+            vault_signer_seeds,
         );
         token::transfer(transfer_ctx, recipient_amount)?;
     }
@@ -341,7 +343,7 @@ pub fn handler(
                 to: ctx.accounts.relayer_token_account.to_account_info(),
                 authority: ctx.accounts.asset_vault.to_account_info(),
             },
-            &[vault_seeds],
+            vault_signer_seeds,
         );
         token::transfer(transfer_ctx, relayer_fee)?;
     }

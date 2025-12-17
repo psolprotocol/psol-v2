@@ -3,13 +3,13 @@ seeds = false
 skip-lint = false
 
 [programs.localnet]
-psol_privacy_v2 = "pSoL2xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+psol_privacy_v2 = "21DbY1WykakReEX8RjpirJMxtgoa6vhd77EF6d3oC6Xo"
 
 [programs.devnet]
-psol_privacy_v2 = "pSoL2xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+psol_privacy_v2 = "21DbY1WykakReEX8RjpirJMxtgoa6vhd77EF6d3oC6Xo"
 
 [programs.mainnet]
-psol_privacy_v2 = "pSoL2xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+psol_privacy_v2 = "21DbY1WykakReEX8RjpirJMxtgoa6vhd77EF6d3oC6Xo"
 
 [registry]
 url = "https://api.apr.dev"
