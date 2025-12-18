@@ -57,14 +57,14 @@ pub struct ExecuteShieldedAction<'info> {
 pub fn handler(
     ctx: Context<ExecuteShieldedAction>,
     action_type: ShieldedActionType,
-    proof_data: Vec<u8>,
-    action_data: Vec<u8>,
+    _proof_data: Vec<u8>,
+    _action_data: Vec<u8>,
 ) -> Result<()> {
     // Check shielded CPI is enabled
     ctx.accounts.pool_config.require_shielded_cpi_enabled()?;
 
     let clock = Clock::get()?;
-    let timestamp = clock.unix_timestamp;
+    let _timestamp = clock.unix_timestamp;
 
     // Validate action type is supported
     match action_type {
@@ -100,6 +100,9 @@ pub fn handler(
         }
     }
 
+    // Note: The code below is unreachable until the above TODO items are implemented
+    // Keeping as reference for future implementation
+    
     // Placeholder: In a real implementation, we would:
     // 1. Verify the ZK proof authorizing this action
     // 2. Parse action_data to get action-specific parameters
@@ -107,6 +110,7 @@ pub fn handler(
     // 4. Handle the result and update state
     // 5. Insert any new commitments
 
+    /*
     // Emit event (placeholder values)
     emit!(ShieldedActionExecuted {
         pool: ctx.accounts.pool_config.key(),
@@ -118,9 +122,8 @@ pub fn handler(
         timestamp,
     });
 
-    // This should not be reached due to NotImplemented returns above
-    // but keeping for future implementation
     Ok(())
+    */
 }
 
 /// Decode action data for DEX swap
