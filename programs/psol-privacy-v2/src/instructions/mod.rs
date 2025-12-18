@@ -1,6 +1,7 @@
 //! Instructions for pSOL Privacy Pool v2
 
 pub mod initialize_pool_v2;
+pub mod initialize_pool_registries;
 pub mod register_asset;
 pub mod set_verification_key_v2;
 
@@ -17,6 +18,7 @@ pub mod shielded_cpi;
 
 // Re-export Accounts structs so `use instructions::*;` and Anchor-generated clients can find them at crate root.
 pub use initialize_pool_v2::InitializePoolV2;
+pub use initialize_pool_registries::InitializePoolRegistries;
 pub use register_asset::RegisterAsset;
 pub use set_verification_key_v2::{SetVerificationKeyV2, LockVerificationKeyV2};
 
