@@ -18,7 +18,7 @@ use crate::state::{
 pub struct InitializePoolV2<'info> {
     /// Pool authority (admin)
     #[account(mut)]
-    pub authority: Box<Signer<'info>>,
+    pub authority: Signer<'info>,
 
     /// Pool configuration account (PDA)
     #[account(
@@ -48,7 +48,7 @@ pub struct InitializePoolV2<'info> {
         seeds = [RelayerRegistry::SEED_PREFIX, pool_config.key().as_ref()],
         bump,
     )]
-    pub relayer_registry: Account<'info, RelayerRegistry>,
+    pub relayer_registry: Box<Account<'info, RelayerRegistry>>,
 
     /// Compliance configuration account (PDA)
     #[account(
@@ -58,7 +58,7 @@ pub struct InitializePoolV2<'info> {
         seeds = [ComplianceConfig::SEED_PREFIX, pool_config.key().as_ref()],
         bump,
     )]
-    pub compliance_config: Account<'info, ComplianceConfig>,
+    pub compliance_config: Box<Account<'info, ComplianceConfig>>,
 
     /// System program
     pub system_program: Program<'info, System>,
