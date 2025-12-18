@@ -81,6 +81,7 @@ declare_id!("21DbY1WykakReEX8RjpirJMxtgoa6vhd77EF6d3oC6Xo");
 // These must use pub(crate) visibility to avoid E0365 errors
 // Only include instructions that are actually defined in #[program] module below
 pub(crate) use crate::instructions::initialize_pool_v2::__client_accounts_initialize_pool_v2;
+pub(crate) use crate::instructions::initialize_pool_registries::__client_accounts_initialize_pool_registries;
 pub(crate) use crate::instructions::register_asset::__client_accounts_register_asset;
 pub(crate) use crate::instructions::set_verification_key_v2::__client_accounts_set_verification_key_v2;
 pub(crate) use crate::instructions::set_verification_key_v2::__client_accounts_lock_verification_key_v2;
@@ -114,6 +115,13 @@ pub mod psol_privacy_v2 {
         root_history_size: u16,
     ) -> Result<()> {
         instructions::initialize_pool_v2::handler(ctx, tree_depth, root_history_size)
+    }
+
+    /// Initialize pool registries (part 2)
+    ///
+    /// Must be called after initialize_pool_v2
+    pub fn initialize_pool_registries(ctx: Context<InitializePoolRegistries>) -> Result<()> {
+        instructions::initialize_pool_registries::handler(ctx)
     }
 
     /// Register a new asset (SPL token) with the pool
