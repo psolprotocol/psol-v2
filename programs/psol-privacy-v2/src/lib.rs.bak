@@ -72,28 +72,42 @@ pub mod events;
 pub mod instructions;
 pub mod state;
 
-// Re-export all instruction account structs
+
+// ANCHOR_ACCOUNT_MODULE_ALIASES_BEGIN
+pub use instructions::admin::authority_v2 as accept_authority_transfer_v2;
+pub use instructions::compliance::attach_metadata as attach_audit_metadata;
+pub use instructions::admin::authority_v2 as cancel_authority_transfer_v2;
+pub use instructions::compliance::configure_compliance as configure_compliance;
+pub use instructions::relayer::configure_registry as configure_relayer_registry;
+pub use instructions::relayer::deactivate_relayer as deactivate_relayer;
+pub use instructions::shielded_cpi::execute_action as execute_shielded_action;
+pub use instructions::admin::authority_v2 as initiate_authority_transfer_v2;
+pub use instructions::set_verification_key_v2 as lock_verification_key_v2;
+pub use instructions::admin::pause_v2 as pause_pool_v2;
+pub use instructions::private_transfer as private_transfer_join_split;
+pub use instructions::relayer::register_relayer as register_relayer;
+pub use instructions::admin::unpause_v2 as unpause_pool_v2;
+pub use instructions::relayer::update_relayer as update_relayer;
+// ANCHOR_ACCOUNT_MODULE_ALIASES_END
+use instructions::*;
 pub use instructions::*;
 
 declare_id!("21DbY1WykakReEX8RjpirJMxtgoa6vhd77EF6d3oC6Xo");
 
-// Client accounts bridge for #[program] macro
-// These must use pub(crate) visibility to avoid E0365 errors
-// Only include instructions that are actually defined in #[program] module below
-pub(crate) use crate::instructions::initialize_pool_v2::__client_accounts_initialize_pool_v2;
-pub(crate) use crate::instructions::register_asset::__client_accounts_register_asset;
-pub(crate) use crate::instructions::set_verification_key_v2::__client_accounts_set_verification_key_v2;
-pub(crate) use crate::instructions::set_verification_key_v2::__client_accounts_lock_verification_key_v2;
-pub(crate) use crate::instructions::admin::pause_v2::__client_accounts_pause_pool_v2;
-pub(crate) use crate::instructions::admin::unpause_v2::__client_accounts_unpause_pool_v2;
-pub(crate) use crate::instructions::admin::authority_v2::__client_accounts_initiate_authority_transfer_v2;
-pub(crate) use crate::instructions::admin::authority_v2::__client_accounts_accept_authority_transfer_v2;
-pub(crate) use crate::instructions::admin::authority_v2::__client_accounts_cancel_authority_transfer_v2;
-pub(crate) use crate::instructions::relayer::configure_registry::__client_accounts_configure_relayer_registry;
-pub(crate) use crate::instructions::relayer::register_relayer::__client_accounts_register_relayer;
-pub(crate) use crate::instructions::relayer::update_relayer::__client_accounts_update_relayer;
-pub(crate) use crate::instructions::relayer::deactivate_relayer::__client_accounts_deactivate_relayer;
-pub(crate) use crate::instructions::deposit_masp::__client_accounts_deposit_masp;
+
+// ANCHOR_CLIENT_ACCOUNTS_REEXPORTS_BEGIN
+#[allow(unused_imports)]
+use crate::instructions::admin::pause_v2::__client_accounts_pause_pool_v2;
+use crate::instructions::admin::unpause_v2::__client_accounts_unpause_pool_v2;
+use crate::instructions::deposit_masp::__client_accounts_deposit_masp;
+use crate::instructions::initialize_pool_v2::__client_accounts_initialize_pool_v2;
+use crate::instructions::register_asset::__client_accounts_register_asset;
+use crate::instructions::relayer::configure_registry::__client_accounts_configure_relayer_registry;
+use crate::instructions::relayer::deactivate_relayer::__client_accounts_deactivate_relayer;
+use crate::instructions::relayer::register_relayer::__client_accounts_register_relayer;
+use crate::instructions::relayer::update_relayer::__client_accounts_update_relayer;
+use crate::instructions::set_verification_key_v2::__client_accounts_set_verification_key_v2;
+// ANCHOR_CLIENT_ACCOUNTS_REEXPORTS_END
 
 #[program]
 pub mod psol_privacy_v2 {
