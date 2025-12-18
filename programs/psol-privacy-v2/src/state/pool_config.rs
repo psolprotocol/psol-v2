@@ -360,6 +360,8 @@ impl PoolConfigV2 {
     }
 
     pub fn is_feature_enabled(&self, feature: u8) -> bool {
+        self.feature_flags & feature != 0
+    }
 
     /// Initialize pool config (part 1 - without registries)
     pub fn initialize_partial(
@@ -371,7 +373,7 @@ impl PoolConfigV2 {
         timestamp: i64,
     ) {
         self.authority = authority;
-        self.pending_authority = None;
+        self.pending_authority = Pubkey::default();
         self.merkle_tree = merkle_tree;
         self.relayer_registry = Pubkey::default();
         self.compliance_config = Pubkey::default();
@@ -381,7 +383,7 @@ impl PoolConfigV2 {
         self.is_paused = false;
         self.bump = bump;
         self.created_at = timestamp;
-        self.last_updated_at = timestamp;
+        self.last_activity_at = timestamp;
         self._reserved = [0u8; 64];
     }
 
@@ -393,8 +395,6 @@ impl PoolConfigV2 {
     ) {
         self.relayer_registry = relayer_registry;
         self.compliance_config = compliance_config;
-    }
-        self.feature_flags & feature != 0
     }
 }
 
