@@ -19,3 +19,11 @@ target/deploy/*-keypair.json
 /target/
 **/target/
 core
+
+# Rust build output
+/target/
+**/target/
+core
+
+# Local archives
+psol-v2-wip.zip

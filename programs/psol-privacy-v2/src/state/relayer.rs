@@ -404,7 +404,7 @@ mod tests {
 
     #[test]
     fn test_fee_validation() {
-        let mut registry = RelayerRegistry {
+        let registry = RelayerRegistry {
             pool: Pubkey::default(),
             min_fee_bps: 10,
             max_fee_bps: 500,
