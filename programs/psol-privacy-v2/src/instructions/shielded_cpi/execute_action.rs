@@ -6,6 +6,7 @@
 use anchor_lang::prelude::*;
 
 use crate::error::PrivacyErrorV2;
+#[cfg(feature = "event-debug")]
 use crate::events::ShieldedActionExecuted;
 use crate::state::{MerkleTreeV2, PoolConfigV2, VerificationKeyAccountV2};
 use crate::ShieldedActionType;

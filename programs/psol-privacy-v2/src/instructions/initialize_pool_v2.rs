@@ -64,7 +64,7 @@ pub fn handler(
         ctx.program_id,
     );
 
-    let (compliance_config, _) = Pubkey::find_program_address(
+    let (_compliance_config, _) = Pubkey::find_program_address(
         &[ComplianceConfig::SEED_PREFIX, ctx.accounts.pool_config.key().as_ref()],
         ctx.program_id,
     );

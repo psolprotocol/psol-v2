@@ -81,7 +81,6 @@ declare_id!("21DbY1WykakReEX8RjpirJMxtgoa6vhd77EF6d3oC6Xo");
 // These must use pub(crate) visibility to avoid E0365 errors
 // Only include instructions that are actually defined in #[program] module below
 pub(crate) use crate::instructions::initialize_pool_v2::__client_accounts_initialize_pool_v2;
-pub(crate) use crate::instructions::initialize_pool_registries_v2::__client_accounts_initialize_pool_registries_v2;
 pub(crate) use crate::instructions::initialize_pool_registries::__client_accounts_initialize_pool_registries;
 pub(crate) use crate::instructions::register_asset::__client_accounts_register_asset;
 pub(crate) use crate::instructions::set_verification_key_v2::__client_accounts_set_verification_key_v2;
