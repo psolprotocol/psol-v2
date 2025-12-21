@@ -14,3 +14,8 @@ node_modules/
 programs/**/target/
 target/deploy/
 target/deploy/*-keypair.json
+
+# Rust build output
+/target/
+**/target/
+core
