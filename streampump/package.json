@@ -1,0 +1,22 @@
+{
+  "name": "streampump",
+  "version": "1.0.0",
+  "private": true,
+  "description": "StreamPump - Solana token launch platform for streamers using Bags.fm",
+  "scripts": {
+    "dev": "pnpm run --parallel dev",
+    "build": "pnpm run --filter './apps/**' build",
+    "lint": "pnpm run --parallel lint",
+    "test": "pnpm run --parallel test",
+    "db:generate": "pnpm --filter @streampump/api run db:generate",
+    "db:push": "pnpm --filter @streampump/api run db:push",
+    "db:migrate": "pnpm --filter @streampump/api run db:migrate",
+    "db:seed": "pnpm --filter @streampump/api run db:seed",
+    "clean": "pnpm run --parallel clean && rm -rf node_modules"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@9.0.0"
+}

@@ -1,0 +1,245 @@
+// StreamPump Prisma Schema
+// Database: PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===========================================
+// User & Authentication
+// ===========================================
+
+model User {
+  id              String   @id @default(uuid())
+  twitchId        String   @unique
+  displayName     String
+  email           String?
+  profileImageUrl String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  streamerProfile StreamerProfile?
+  sessions        Session[]
+  votes           Vote[]
+
+  @@index([twitchId])
+}
+
+model StreamerProfile {
+  id                   String   @id @default(uuid())
+  userId               String   @unique
+  streamerWalletPubkey String
+  platformFeeBps       Int      @default(0)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([streamerWalletPubkey])
+}
+
+// ===========================================
+// Session Management
+// ===========================================
+
+model Session {
+  id               String        @id @default(uuid())
+  code             String        @unique
+  title            String
+  status           SessionStatus @default(DRAFT)
+  durationSeconds  Int
+  startedAt        DateTime?
+  endedAt          DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  createdById      String
+
+  // Winner tracking
+  winnerOptionIndex Int?
+  vetoedWinnerIndex Int?
+
+  // Launched token info
+  mintAddress String?
+  
+  // Relations
+  createdBy  User         @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  options    OptionSet?
+  feeSplits  FeeSplit[]
+  images     ImageAsset[]
+  votes      Vote[]
+  launchTx   LaunchTx?
+  chainTxs   ChainTx[]
+  auditLogs  AuditLog[]
+
+  @@index([code])
+  @@index([status])
+  @@index([createdById])
+}
+
+enum SessionStatus {
+  DRAFT
+  VOTING
+  FINALIZED
+  LAUNCH_TX_READY
+  LAUNCHED
+  FAILED
+}
+
+// ===========================================
+// Voting Options
+// ===========================================
+
+model OptionSet {
+  id        String   @id @default(uuid())
+  sessionId String   @unique
+  options   Json     // Array of { index, name, ticker, imageId }
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+// ===========================================
+// Fee Splits
+// ===========================================
+
+model FeeSplit {
+  id           String       @id @default(uuid())
+  sessionId    String
+  walletPubkey String
+  bps          Int
+  role         FeeSplitRole
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+}
+
+enum FeeSplitRole {
+  STREAMER
+  MOD
+  PLATFORM
+}
+
+// ===========================================
+// Image Assets
+// ===========================================
+
+model ImageAsset {
+  id        String   @id @default(uuid())
+  sessionId String?
+  url       String
+  sha256    String
+  mime      String
+  width     Int
+  height    Int
+  createdAt DateTime @default(now())
+
+  session Session? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  @@index([sessionId])
+  @@index([sha256])
+}
+
+// ===========================================
+// Votes
+// ===========================================
+
+model Vote {
+  id           String   @id @default(uuid())
+  sessionId    String
+  twitchUserId String
+  optionIndex  Int
+  createdAt    DateTime @default(now())
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [twitchUserId], references: [twitchId], onDelete: Cascade)
+
+  @@unique([sessionId, twitchUserId])
+  @@index([sessionId])
+}
+
+// ===========================================
+// Transactions
+// ===========================================
+
+model LaunchTx {
+  id                  String    @id @default(uuid())
+  sessionId           String    @unique
+  bagsRequestId       String
+  serializedTxBase64  String    @db.Text
+  idempotencyKey      String    @unique
+  createdAt           DateTime  @default(now())
+  expiresAt           DateTime?
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([bagsRequestId])
+  @@index([idempotencyKey])
+}
+
+model ChainTx {
+  id          String        @id @default(uuid())
+  sessionId   String
+  kind        ChainTxKind
+  signature   String        @unique
+  status      ChainTxStatus @default(PENDING)
+  error       String?
+  confirmedAt DateTime?
+  createdAt   DateTime      @default(now())
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([signature])
+  @@index([status])
+}
+
+enum ChainTxKind {
+  LAUNCH
+  SWAP
+}
+
+enum ChainTxStatus {
+  PENDING
+  BROADCAST
+  CONFIRMED
+  FAILED
+}
+
+// ===========================================
+// Audit Logging
+// ===========================================
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  sessionId String
+  action    String
+  details   Json?
+  userId    String?
+  createdAt DateTime @default(now())
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// ===========================================
+// Rate Limiting / Idempotency
+// ===========================================
+
+model IdempotencyKey {
+  key       String   @id
+  response  Json?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+}
