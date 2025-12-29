@@ -62,7 +62,7 @@ pub struct DepositMasp<'info> {
         mut,
         constraint = merkle_tree.pool == pool_config.key() @ PrivacyErrorV2::InvalidMerkleTreePool
     )]
-    pub merkle_tree: Box<Account<'info, MerkleTreeV2>>,
+    pub merkle_tree: Account<'info, MerkleTreeV2>,
 
     /// Asset vault configuration for this asset
     #[account(
@@ -291,6 +291,7 @@ pub fn handler(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
 
     #[test]
     fn test_proof_data_length() {

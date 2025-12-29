@@ -14,3 +14,16 @@ node_modules/
 programs/**/target/
 target/deploy/
 target/deploy/*-keypair.json
+
+# Rust build output
+/target/
+**/target/
+core
+
+# Rust build output
+/target/
+**/target/
+core
+
+# Local archives
+psol-v2-wip.zip

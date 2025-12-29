@@ -362,6 +362,40 @@ impl PoolConfigV2 {
     pub fn is_feature_enabled(&self, feature: u8) -> bool {
         self.feature_flags & feature != 0
     }
+
+    /// Initialize pool config (part 1 - without registries)
+    pub fn initialize_partial(
+        &mut self,
+        authority: Pubkey,
+        merkle_tree: Pubkey,
+        tree_depth: u8,
+        bump: u8,
+        timestamp: i64,
+    ) {
+        self.authority = authority;
+        self.pending_authority = Pubkey::default();
+        self.merkle_tree = merkle_tree;
+        self.relayer_registry = Pubkey::default();
+        self.compliance_config = Pubkey::default();
+        self.tree_depth = tree_depth;
+        self.total_deposits = 0;
+        self.total_withdrawals = 0;
+        self.is_paused = false;
+        self.bump = bump;
+        self.created_at = timestamp;
+        self.last_activity_at = timestamp;
+        self._reserved = [0u8; 64];
+    }
+
+    /// Set registry addresses (part 2)
+    pub fn set_registries(
+        &mut self,
+        relayer_registry: Pubkey,
+        compliance_config: Pubkey,
+    ) {
+        self.relayer_registry = relayer_registry;
+        self.compliance_config = compliance_config;
+    }
 }
 
 /// PDA seeds for PoolConfigV2

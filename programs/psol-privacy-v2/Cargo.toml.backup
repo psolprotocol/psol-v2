@@ -10,7 +10,6 @@ crate-type = ["cdylib", "lib"]
 name = "psol_privacy_v2"
 
 [features]
-idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
 default = []
 devnet = []
 mainnet = []
