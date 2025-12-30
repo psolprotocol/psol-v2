@@ -1,113 +1,147 @@
-# pSOL v2 - Multi-Asset Shielded Pool
+# pSOL v2
 
-pSOL v2 is an experimental privacy protocol for Solana that implements confidential transactions over a shared multi-asset pool. It uses Groth16 zero knowledge proofs over BN254, a Merkle tree of commitments, and a relayer so users can withdraw without holding SOL.
+Privacy protocol for Solana implementing confidential transactions using zero-knowledge proofs.
 
-Status: Alpha, research only. Do not use with real funds. The cryptography, circuits, and implementation are still under active development.
+## Overview
 
-## Package Layout
+pSOL v2 enables private transfers of SPL tokens through a shared multi-asset shielded pool. The protocol uses Groth16 proofs over BN254, Merkle tree commitments, and a relayer architecture for gasless withdrawals.
 
-psol-v2-complete/
-├── programs/ # Solana on-chain program
-│ └── psol-privacy-v2/src/
-│ ├── crypto/ # Poseidon, Groth16, BN254 helpers
-│ ├── instructions/ # Program instruction handlers
-│ ├── state/ # Account structures and PDAs
-│ └── lib.rs
-├── sdk/ # TypeScript SDK
-│ └── src/
-│ ├── crypto/poseidon.ts # Client-side Poseidon helper
-│ ├── note/note.ts # Note and commitment management
-│ ├── merkle/tree.ts # Merkle tree utilities
-│ ├── proof/prover.ts # ZK proof generation
-│ ├── client.ts # Main high-level client
-│ └── types.ts
-├── circuits/ # Circom ZK circuits
-│ ├── deposit/deposit.circom
-│ ├── withdraw/withdraw.circom
-│ ├── joinsplit/joinsplit.circom
-│ └── membership/membership.circom
-├── relayer/src/index.ts # Relayer HTTP service
-└── scripts/ # Build and ceremony scripts
+**Status:** Alpha. Under active development. Do not use with real funds.
 
-nginx
-Copy code
+## Architecture
+```
+psol-v2/
+├── programs/psol-privacy-v2/    # Solana on-chain program (Anchor)
+│   ├── src/crypto/              # Cryptographic primitives
+│   ├── src/instructions/        # Transaction handlers
+│   ├── src/state/               # Account structures
+│   └── src/utils/               # Validation and helpers
+├── sdk/                         # TypeScript client library
+├── circuits/                    # Circom zero-knowledge circuits
+├── relayer/                     # HTTP relayer service
+└── tests/                       # Integration tests
+```
 
-## Quick Start
+## Core Components
 
-These commands assume you are working in a local development environment, not on mainnet, and that you are comfortable with Solana, Anchor, Node, and Circom.
+**On-chain Program**
+- Multi-asset shielded pool with Merkle tree of commitments
+- Groth16 verification for deposits, withdrawals, and transfers
+- Relayer registry with fee management and operator tracking
+- Support for compliance metadata and selective disclosure
 
+**Zero-Knowledge Circuits**
+- Deposit: Prove commitment to new note without revealing amount
+- Withdraw: Prove ownership and nullifier without revealing source
+- JoinSplit: Atomic split/merge of private notes
+- Membership: Prove inclusion in anonymity set
+
+**Relayer Service**
+- Accepts proof data and builds Solana transactions
+- Submits transactions on behalf of users
+- Enables interaction without holding SOL for fees
+- Configurable fee structure with on-chain enforcement
+
+**TypeScript SDK**
+- Note creation and commitment generation
+- Merkle proof construction
+- Zero-knowledge proof generation
+- Transaction building helpers
+
+## Installation
 ```bash
-npm run setup    # Install dependencies for SDK, relayer, circuits
-npm run build    # Build program, circuits, SDK, and relayer
-anchor test      # Run local tests against a test validator
-This is intended for contributors and auditors. It is not a one-line install for production use.
+# Install dependencies
+npm install
 
-Key Components
-On-chain program
+# Build circuits and generate proving keys
+npm run circuits:build
 
-Anchor-based Solana program that maintains a multi-asset shielded pool backed by a Merkle tree of commitments.
+# Build on-chain program
+anchor build
 
-Stores verification keys, pool configuration, Merkle roots, nullifiers, and asset vaults.
+# Build SDK and relayer
+npm run build
+```
 
-ZK circuits (Circom)
+## Usage
+```typescript
+import { PsolClient } from '@psol/sdk';
 
-Deposit, withdraw, joinsplit, and membership circuits targeting Groth16 on BN254.
+const client = new PsolClient(connection, wallet);
 
-Public inputs are designed to match the on-chain verifier and SDK helpers.
+// Deposit into shielded pool
+const note = await client.createNote(amount, assetId);
+await client.deposit(poolAddress, note);
 
-TypeScript SDK
+// Private transfer
+await client.transfer(fromNote, toRecipient, amount);
 
-Helpers for note creation, commitment and nullifier computation, Merkle tree interaction, and proof generation.
+// Withdraw via relayer
+await client.withdraw(note, recipientAddress, relayerEndpoint);
+```
 
-Intended for dApp integration and relayer clients, not yet stable for external production users.
+Refer to `sdk/examples/` for complete integration examples.
 
-Relayer service
+## Development Roadmap
 
-HTTP service that receives proof data and withdrawal parameters, builds Solana transactions, and submits them on behalf of users.
+### Completed
+- Relayer registry with PDA validation
+- Input validation and sanitization
+- Fee management and bounds enforcement
+- Basic deposit and withdrawal flows
 
-Designed so users can interact with the pool without managing SOL for fees.
+### In Progress (3-week sprint)
+- Merkle tree batching for efficient deposits
+- Redis-backed nullifier cache
+- Multi-relayer support with automatic selection
+- End-to-end testing with real proofs
 
-Basic SDK Usage Example
-This example is illustrative only. It is not production safe and does not include error handling, local proof verification, or full configuration.
+### Pending
+- Multi-party trusted setup ceremony
+- Production Poseidon hash implementation
+- Security audit
+- Mainnet deployment procedures
 
-typescript
-Copy code
-import { initializeSDK, createClient, createNote } from '@psol/sdk';
+## Security Considerations
 
-// One-time SDK initialization (circuits, parameters, etc.)
-await initializeSDK();
+This is experimental software under active development. Known limitations:
 
-// Create a note for a given amount and asset
-const note = await createNote(BigInt(1_000_000), assetId);
+- Circuits have not undergone formal audit
+- Trusted setup ceremony not yet performed
+- Cryptographic hash functions use placeholder implementations
+- Relayer architecture assumes honest majority
+- No protection against timing attacks or network analysis
 
-// Create a client instance and build a deposit
-const client = await createClient(connection, wallet);
-const tx = await client.depositMasp(poolConfig, {
-  note,
-  recipient: wallet.publicKey,
-  assetMint,
-  amount: BigInt(1_000_000),
-});
+A comprehensive security audit is required before mainnet deployment.
 
-// Submit transaction using your preferred Solana flow
-await connection.sendTransaction(tx, [wallet.payer]);
-Expect API changes while the protocol evolves. Treat this as a starting point for integration experiments, not a locked interface.
+## Testing
+```bash
+# Run unit tests
+anchor test
 
-Pre-Production Checklist
-Before any mainnet or real-funds deployment, at minimum the following must be completed:
+# Run SDK tests
+npm run test
 
-Multi-party trusted setup ceremony for all circuits
+# Run integration tests
+npm run test:integration
+```
 
-Final Poseidon implementation wired and tested against reference vectors
+## Requirements
 
-Alignment of commitment and nullifier hash formulas across circuits, on-chain code, and SDK
+- Rust 1.75+
+- Solana 1.18+
+- Anchor 0.32.1
+- Node.js 18+
+- Circom 2.1+
 
-End-to-end tests for deposit and withdraw flows with real proofs
+## Contributing
 
-Independent security and cryptographic audit
+This project is in active development. Contributions are welcome but the API is unstable and will change frequently.
 
-Deployment of verification keys and policy for how they can be changed or locked
+## License
 
-Clear documentation of threat model, limitations, and upgrade governance
+MIT
 
-License: MIT
+## Disclaimer
+
+This software is provided "as is" without warranty. Use at your own risk. The protocol is experimental and should not be used with real funds until a full security audit is completed and the trusted setup ceremony is performed.
