@@ -1,22 +1,3 @@
-//! Error Types for pSOL Privacy Pool v2
-//!
-//! Error codes are automatically assigned by Anchor starting at 6000.
-//! This module organizes errors by category for maintainability.
-//!
-//! # Categories
-//! - Proof/Cryptography errors
-//! - Merkle tree errors
-//! - Nullifier errors
-//! - Amount/value errors
-//! - Asset errors
-//! - Commitment errors
-//! - Authorization errors
-//! - Relayer errors
-//! - State errors
-//! - Feature errors
-//! - Compliance errors
-//! - Input validation errors
-//! - CPI errors
 
 use anchor_lang::prelude::*;
 
@@ -59,6 +40,13 @@ pub enum PrivacyErrorV2 {
     #[msg("Invalid verification key type for this operation")]
     InvalidVerificationKeyType,
 
+    // NEW: From security fixes
+    #[msg("Cryptography not implemented - build with --features insecure-dev for local testing only")]
+    CryptoNotImplemented,
+
+    #[msg("Proof verification failed - invalid zero-knowledge proof")]
+    ProofVerificationFailedInvalid,
+
     // =========================================================================
     // MERKLE TREE ERRORS
     // =========================================================================
@@ -77,11 +65,8 @@ pub enum PrivacyErrorV2 {
 
     #[msg("Invalid Merkle tree pool reference")]
     InvalidMerkleTreePool,
-
-    // =========================================================================
-    // NULLIFIER ERRORS
-    // =========================================================================
-
+    #[msg("Invalid pool reference")]
+InvalidPoolReference,
     #[msg("Nullifier already spent")]
     NullifierAlreadySpent,
 
@@ -245,6 +230,22 @@ pub enum PrivacyErrorV2 {
     InvalidTimestamp,
 
     // =========================================================================
+    // BATCHING ERRORS (NEW - from security fixes)
+    // =========================================================================
+
+    #[msg("Pending deposits buffer is full")]
+    BufferFull,
+
+    #[msg("No pending deposits to process")]
+    NoPendingDeposits,
+
+    #[msg("Batch not ready for processing - timing constraints not met")]
+    BatchNotReady,
+
+    #[msg("Invalid batch size - must be between 1 and MAX_BATCH_SIZE")]
+    InvalidBatchSize,
+
+    // =========================================================================
     // FEATURE ERRORS
     // =========================================================================
 
@@ -313,6 +314,8 @@ impl PrivacyErrorV2 {
                 | PrivacyErrorV2::InvalidPublicInputs
                 | PrivacyErrorV2::VerificationKeyNotSet
                 | PrivacyErrorV2::CryptographyError
+                | PrivacyErrorV2::CryptoNotImplemented
+                | PrivacyErrorV2::ProofVerificationFailedInvalid
         )
     }
 

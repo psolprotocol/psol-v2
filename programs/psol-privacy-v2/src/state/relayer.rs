@@ -14,7 +14,6 @@
 //! 4. Withdrawals/transfers validate relayer is registered and active
 
 use anchor_lang::prelude::*;
-
 use crate::error::PrivacyErrorV2;
 
 /// Maximum metadata URI length

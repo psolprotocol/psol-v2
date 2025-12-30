@@ -1,133 +1,43 @@
-//! Pool Configuration State - pSOL v2
-//!
-//! # MASP Pool Configuration
-//! The pool config is the root account for a pSOL v2 instance.
-//! Unlike v1, it supports multiple assets sharing one Merkle tree.
-//!
-//! # Security Properties
-//! - Authority changes require 2-step process
-//! - VKs can be locked per proof type
-//! - All operations use checked arithmetic
-//! - Pool can be paused in emergencies
-
 use anchor_lang::prelude::*;
 
 use crate::error::PrivacyErrorV2;
 use crate::ProofType;
 
-/// Main pool configuration account for MASP v2
-///
-/// PDA Seeds: `[b"pool_v2", authority.key().as_ref()]`
 #[account]
 pub struct PoolConfigV2 {
-    /// Current pool authority (admin)
     pub authority: Pubkey,
-
-    /// Pending authority for 2-step transfer (zero if none)
     pub pending_authority: Pubkey,
-
-    /// Associated Merkle tree account
     pub merkle_tree: Pubkey,
-
-    /// Relayer registry account
     pub relayer_registry: Pubkey,
-
-    /// Compliance configuration account
     pub compliance_config: Pubkey,
-
-    /// Merkle tree depth (immutable after init)
     pub tree_depth: u8,
-
-    /// Number of registered assets
     pub registered_asset_count: u16,
-
-    /// Maximum number of assets allowed
     pub max_assets: u16,
-
-    /// PDA bump seed
     pub bump: u8,
-
-    /// Pool paused flag
     pub is_paused: bool,
-
-    /// VK configuration flags (bitfield for each ProofType)
-    /// Bit 0: Deposit VK configured
-    /// Bit 1: Withdraw VK configured
-    /// Bit 2: JoinSplit VK configured
-    /// Bit 3: Membership VK configured
     pub vk_configured: u8,
-
-    /// VK lock flags (bitfield, same layout as vk_configured)
     pub vk_locked: u8,
-
-    /// Total deposits across all assets
     pub total_deposits: u64,
-
-    /// Total withdrawals across all assets
     pub total_withdrawals: u64,
-
-    /// Total join-split operations
     pub total_join_splits: u64,
-
-    /// Total membership proofs verified
     pub total_membership_proofs: u64,
-
-    /// Pool creation timestamp
     pub created_at: i64,
-
-    /// Last activity timestamp
     pub last_activity_at: i64,
-
-    /// Schema version for migrations
     pub version: u8,
-
-    /// Feature flags (for gradual rollout)
-    /// Bit 0: MASP enabled
-    /// Bit 1: JoinSplit enabled
-    /// Bit 2: Membership proofs enabled
-    /// Bit 3: Shielded CPI enabled
-    /// Bit 4: Compliance required
     pub feature_flags: u8,
-
-    /// Reserved space for future upgrades
     pub _reserved: [u8; 64],
 }
 
 impl PoolConfigV2 {
-    pub const LEN: usize = 8 // discriminator
-        + 32 // authority
-        + 32 // pending_authority
-        + 32 // merkle_tree
-        + 32 // relayer_registry
-        + 32 // compliance_config
-        + 1  // tree_depth
-        + 2  // registered_asset_count
-        + 2  // max_assets
-        + 1  // bump
-        + 1  // is_paused
-        + 1  // vk_configured
-        + 1  // vk_locked
-        + 8  // total_deposits
-        + 8  // total_withdrawals
-        + 8  // total_join_splits
-        + 8  // total_membership_proofs
-        + 8  // created_at
-        + 8  // last_activity_at
-        + 1  // version
-        + 1  // feature_flags
-        + 64; // reserved
-
+    pub const LEN: usize = 8 + 32 + 32 + 32 + 32 + 32 + 1 + 2 + 2 + 1 + 1 + 1 + 1 + 8 + 8 + 8 + 8 + 8 + 8 + 1 + 1 + 64;
     pub const VERSION: u8 = 2;
     pub const DEFAULT_MAX_ASSETS: u16 = 100;
-
-    // Feature flag constants
     pub const FEATURE_MASP: u8 = 1 << 0;
     pub const FEATURE_JOIN_SPLIT: u8 = 1 << 1;
     pub const FEATURE_MEMBERSHIP: u8 = 1 << 2;
     pub const FEATURE_SHIELDED_CPI: u8 = 1 << 3;
     pub const FEATURE_COMPLIANCE: u8 = 1 << 4;
 
-    /// Initialize pool configuration
     #[allow(clippy::too_many_arguments)]
     pub fn initialize(
         &mut self,
@@ -158,14 +68,9 @@ impl PoolConfigV2 {
         self.created_at = timestamp;
         self.last_activity_at = timestamp;
         self.version = Self::VERSION;
-        // Enable MASP and basic features by default
         self.feature_flags = Self::FEATURE_MASP;
         self._reserved = [0u8; 64];
     }
-
-    // =========================================================================
-    // Guard Methods
-    // =========================================================================
 
     #[inline]
     pub fn require_not_paused(&self) -> Result<()> {
@@ -217,10 +122,6 @@ impl PoolConfigV2 {
         self.require_feature_enabled(Self::FEATURE_SHIELDED_CPI)
     }
 
-    // =========================================================================
-    // VK Management
-    // =========================================================================
-
     pub fn set_vk_configured(&mut self, proof_type: ProofType) {
         let mask = 1u8 << (proof_type as u8);
         self.vk_configured |= mask;
@@ -241,10 +142,6 @@ impl PoolConfigV2 {
         self.vk_locked & mask != 0
     }
 
-    // =========================================================================
-    // Asset Management
-    // =========================================================================
-
     pub fn can_register_asset(&self) -> bool {
         self.registered_asset_count < self.max_assets
     }
@@ -257,10 +154,6 @@ impl PoolConfigV2 {
             .ok_or(error!(PrivacyErrorV2::ArithmeticOverflow))?;
         Ok(())
     }
-
-    // =========================================================================
-    // Statistics
-    // =========================================================================
 
     pub fn record_deposit(&mut self, timestamp: i64) -> Result<()> {
         self.total_deposits = self
@@ -298,18 +191,24 @@ impl PoolConfigV2 {
         Ok(())
     }
 
-    // =========================================================================
-    // Pause Control
-    // =========================================================================
+    pub fn record_pending_deposit(&mut self, timestamp: i64) -> Result<()> {
+        self.last_activity_at = timestamp;
+        Ok(())
+    }
+
+    pub fn record_batch(&mut self, count: u32, timestamp: i64) -> Result<()> {
+        self.total_deposits = self
+            .total_deposits
+            .checked_add(count as u64)
+            .ok_or(error!(PrivacyErrorV2::ArithmeticOverflow))?;
+        self.last_activity_at = timestamp;
+        Ok(())
+    }
 
     #[inline]
     pub fn set_paused(&mut self, paused: bool) {
         self.is_paused = paused;
     }
-
-    // =========================================================================
-    // Authority Management
-    // =========================================================================
 
     pub fn initiate_authority_transfer(&mut self, new_authority: Pubkey) -> Result<()> {
         require!(
@@ -347,10 +246,6 @@ impl PoolConfigV2 {
         self.pending_authority != Pubkey::default()
     }
 
-    // =========================================================================
-    // Feature Management
-    // =========================================================================
-
     pub fn enable_feature(&mut self, feature: u8) {
         self.feature_flags |= feature;
     }
@@ -363,7 +258,6 @@ impl PoolConfigV2 {
         self.feature_flags & feature != 0
     }
 
-    /// Initialize pool config (part 1 - without registries)
     pub fn initialize_partial(
         &mut self,
         authority: Pubkey,
@@ -387,7 +281,6 @@ impl PoolConfigV2 {
         self._reserved = [0u8; 64];
     }
 
-    /// Set registry addresses (part 2)
     pub fn set_registries(
         &mut self,
         relayer_registry: Pubkey,
@@ -398,7 +291,6 @@ impl PoolConfigV2 {
     }
 }
 
-/// PDA seeds for PoolConfigV2
 impl PoolConfigV2 {
     pub const SEED_PREFIX: &'static [u8] = b"pool_v2";
 
@@ -444,13 +336,11 @@ mod tests {
             _reserved: [0u8; 64],
         };
 
-        // Test VK configuration
         assert!(!config.is_vk_configured(ProofType::Withdraw));
         config.set_vk_configured(ProofType::Withdraw);
         assert!(config.is_vk_configured(ProofType::Withdraw));
         assert!(!config.is_vk_configured(ProofType::JoinSplit));
 
-        // Test VK locking
         assert!(!config.is_vk_locked(ProofType::Withdraw));
         config.lock_vk(ProofType::Withdraw);
         assert!(config.is_vk_locked(ProofType::Withdraw));

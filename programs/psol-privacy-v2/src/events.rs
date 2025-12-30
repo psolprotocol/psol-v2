@@ -1,25 +1,3 @@
-//! Events for pSOL Privacy Pool v2
-//!
-//! Events are emitted for indexing and client notification.
-//! All events include pool reference and timestamp.
-//!
-//! # Privacy Considerations
-//!
-//! Production events are designed to minimize privacy leakage:
-//! - Deposit events do NOT include amount or depositor
-//! - Withdraw events do NOT include recipient or amount
-//!
-//! While recipient/amount are visible in transaction accounts, removing them
-//! from events makes it significantly harder to index and correlate at scale.
-//!
-//! Debug events (gated behind `event-debug` feature) include additional
-//! information useful for development but MUST NOT be enabled in production.
-//!
-//! # Feature Flags
-//!
-//! - `event-debug`: Enables debug events with privacy-sensitive data
-//! - `mainnet`: Indicates mainnet build (incompatible with event-debug)
-
 use anchor_lang::prelude::*;
 
 // ============================================================================
@@ -455,6 +433,15 @@ macro_rules! debug_log {
     };
 }
 
+#[event]
+pub struct BatchProcessedEvent {
+    pub pool: Pubkey,
+    pub deposits_processed: u16,
+    pub first_leaf_index: u32,
+    pub last_leaf_index: u32,
+    pub new_merkle_root: [u8; 32],
+    pub timestamp: i64,
+}
 // =========================================================================
 // TESTS
 // =========================================================================
