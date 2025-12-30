@@ -28,9 +28,10 @@ startup_wait = 5000
 url = "https://api.mainnet-beta.solana.com"
 
 [[test.validator.clone]]
-# Clone SPL Token program
 address = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
 
 [[test.validator.clone]]
-# Clone Associated Token program
 address = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+
+[toolchain]
+anchor_version = "0.32.1"
