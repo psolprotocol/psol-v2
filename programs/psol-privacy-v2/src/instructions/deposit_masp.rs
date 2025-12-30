@@ -1,24 +1,8 @@
+// programs/psol-privacy-v2/src/instructions/deposit_masp.rs
+
 //! MASP Deposit Instruction - pSOL v2
 //!
 //! Handles deposits into the Multi-Asset Shielded Pool.
-//!
-//! # Privacy Considerations
-//!
-//! The deposit event intentionally does NOT include:
-//! - Amount (would enable correlation attacks)
-//! - Depositor address (would link on-chain identity to commitment)
-//!
-//! Only the commitment, leaf index, merkle root, and asset ID are emitted.
-//! This is sufficient for users to track their deposits while maintaining
-//! privacy for the anonymity set.
-//!
-//! # Security Model
-//!
-//! 1. User generates commitment = Poseidon(secret, nullifier, amount, asset_id)
-//! 2. User generates ZK proof proving knowledge of commitment preimage
-//! 3. On-chain verification ensures commitment is valid
-//! 4. Tokens are transferred AFTER proof verification (fail-safe)
-//! 5. Commitment is inserted into shared Merkle tree
 
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
@@ -51,7 +35,7 @@ pub struct DepositMasp<'info> {
         has_one = merkle_tree,
         constraint = !pool_config.is_paused @ PrivacyErrorV2::PoolPaused
     )]
-    pub pool_config: Account<'info, PoolConfigV2>,
+    pub pool_config: Box<Account<'info, PoolConfigV2>>,
 
     /// Pool authority (validated via has_one constraint)
     /// CHECK: Validated by has_one constraint on pool_config
@@ -77,7 +61,7 @@ pub struct DepositMasp<'info> {
         constraint = asset_vault.is_active @ PrivacyErrorV2::AssetNotActive,
         constraint = asset_vault.deposits_enabled @ PrivacyErrorV2::DepositsDisabled,
     )]
-    pub asset_vault: Account<'info, AssetVault>,
+    pub asset_vault: Box<Account<'info, AssetVault>>,
 
     /// Vault token account that receives deposited tokens
     #[account(
@@ -90,17 +74,14 @@ pub struct DepositMasp<'info> {
     /// User token account providing funds
     #[account(
         mut,
-        constraint = user_token_account.mint == asset_vault.mint
-            @ PrivacyErrorV2::InvalidMint,
-        constraint = user_token_account.owner == depositor.key()
-            @ PrivacyErrorV2::InvalidTokenOwner
+        constraint = user_token_account.mint == asset_vault.mint @ PrivacyErrorV2::InvalidMint,
+        constraint = user_token_account.owner == depositor.key() @ PrivacyErrorV2::InvalidTokenOwner
     )]
     pub user_token_account: Account<'info, TokenAccount>,
 
     /// Mint for this asset
     #[account(
-        constraint = mint.key() == asset_vault.mint
-            @ PrivacyErrorV2::InvalidMint
+        constraint = mint.key() == asset_vault.mint @ PrivacyErrorV2::InvalidMint
     )]
     pub mint: Account<'info, Mint>,
 
@@ -108,12 +89,9 @@ pub struct DepositMasp<'info> {
     #[account(
         seeds = [ProofType::Deposit.as_seed(), pool_config.key().as_ref()],
         bump = deposit_vk.bump,
-        constraint = deposit_vk.pool == pool_config.key()
-            @ PrivacyErrorV2::InvalidVerificationKeyPool,
-        constraint = deposit_vk.proof_type == ProofType::Deposit as u8
-            @ PrivacyErrorV2::InvalidVerificationKeyType,
-        constraint = deposit_vk.is_initialized
-            @ PrivacyErrorV2::VerificationKeyNotSet,
+        constraint = deposit_vk.pool == pool_config.key() @ PrivacyErrorV2::InvalidVerificationKeyPool,
+        constraint = deposit_vk.proof_type == ProofType::Deposit as u8 @ PrivacyErrorV2::InvalidVerificationKeyType,
+        constraint = deposit_vk.is_initialized @ PrivacyErrorV2::VerificationKeyNotSet,
     )]
     pub deposit_vk: Account<'info, VerificationKeyAccountV2>,
 
@@ -125,26 +103,6 @@ pub struct DepositMasp<'info> {
 }
 
 /// Handler for deposit_masp instruction
-///
-/// # Arguments
-/// * `amount` - Amount of tokens to deposit
-/// * `commitment` - Poseidon commitment = H(secret, nullifier, amount, asset_id)
-/// * `asset_id` - Asset identifier (Keccak256(mint)[0..32])
-/// * `proof_data` - Groth16 proof bytes (256 bytes)
-/// * `encrypted_note` - Optional encrypted note for recipient (future use)
-///
-/// # Flow
-/// 1. Validate inputs and asset binding
-/// 2. Verify Groth16 proof (proves knowledge of commitment preimage)
-/// 3. Transfer tokens from user to vault
-/// 4. Insert commitment into Merkle tree
-/// 5. Update vault statistics
-/// 6. Emit privacy-preserving deposit event
-///
-/// # Security
-/// - Proof verification happens BEFORE token transfer
-/// - Commitment uniqueness is enforced by Merkle tree structure
-/// - Zero commitments are rejected (reserved for empty leaves)
 #[allow(clippy::too_many_arguments)]
 pub fn handler(
     ctx: Context<DepositMasp>,
@@ -154,62 +112,45 @@ pub fn handler(
     proof_data: Vec<u8>,
     _encrypted_note: Option<Vec<u8>>,
 ) -> Result<()> {
-    let pool_config = &mut ctx.accounts.pool_config;
-    let merkle_tree = &mut ctx.accounts.merkle_tree;
-    let asset_vault = &mut ctx.accounts.asset_vault;
+    // IMPORTANT:
+    // - ctx.accounts.pool_config is Box<Account<PoolConfigV2>> so it has `.key()`
+    // - after deref, PoolConfigV2 itself does NOT have `.key()`
+    let pool_key = ctx.accounts.pool_config.key();
 
-    let clock = Clock::get()?;
-    let timestamp = clock.unix_timestamp;
+    // Deref Box<Account<...>> to inner mutable account data for updates.
+    let pool_config: &mut PoolConfigV2 = &mut *ctx.accounts.pool_config;
+    let merkle_tree: &mut MerkleTreeV2 = &mut *ctx.accounts.merkle_tree;
+    let asset_vault: &mut AssetVault = &mut *ctx.accounts.asset_vault;
+
+    let timestamp = Clock::get()?.unix_timestamp;
 
     // =========================================================================
-    // 1. INPUT VALIDATION (fail fast before any expensive operations)
+    // 1. INPUT VALIDATION
     // =========================================================================
 
-    // Amount must be positive
     require!(amount > 0, PrivacyErrorV2::InvalidAmount);
 
-    // Commitment cannot be zero (reserved for empty leaves in Merkle tree)
     require!(
         !commitment.iter().all(|&b| b == 0),
         PrivacyErrorV2::InvalidCommitment
     );
 
-    // Proof must be exactly 256 bytes (Groth16 proof size: 2*G1 + 1*G2)
-    require!(
-        proof_data.len() == 256,
-        PrivacyErrorV2::InvalidProofFormat
-    );
+    require!(proof_data.len() == 256, PrivacyErrorV2::InvalidProofFormat);
 
-    // Asset ID must match vault's configured asset ID
-    require!(
-        asset_vault.asset_id == asset_id,
-        PrivacyErrorV2::AssetIdMismatch
-    );
+    require!(asset_vault.asset_id == asset_id, PrivacyErrorV2::AssetIdMismatch);
 
-    // Check vault deposit limits if configured
-    // Check Merkle tree has space
-    require!(
-        !merkle_tree.is_full(),
-        PrivacyErrorV2::MerkleTreeFull
-    );
+    require!(!merkle_tree.is_full(), PrivacyErrorV2::MerkleTreeFull);
 
     // =========================================================================
     // 2. VERIFY GROTH16 PROOF
     // =========================================================================
 
-    // Build public inputs matching deposit.circom order:
-    // signal input commitment;
-    // signal input amount;
-    // signal input asset_id;
     let public_inputs = DepositPublicInputs::new(commitment, amount, asset_id);
     public_inputs.validate()?;
-
     let public_inputs_fields = public_inputs.to_field_elements();
 
-    // Verify the ZK proof
     let vk = &ctx.accounts.deposit_vk;
     let is_valid = verify_proof_bytes(vk, &proof_data, &public_inputs_fields)?;
-
     require!(is_valid, PrivacyErrorV2::InvalidProof);
 
     // =========================================================================
@@ -221,12 +162,7 @@ pub fn handler(
         to: ctx.accounts.vault_token_account.to_account_info(),
         authority: ctx.accounts.depositor.to_account_info(),
     };
-
-    let cpi_ctx = CpiContext::new(
-        ctx.accounts.token_program.to_account_info(),
-        cpi_accounts,
-    );
-
+    let cpi_ctx = CpiContext::new(ctx.accounts.token_program.to_account_info(), cpi_accounts);
     token::transfer(cpi_ctx, amount)?;
 
     // =========================================================================
@@ -240,25 +176,15 @@ pub fn handler(
     // 5. UPDATE STATISTICS
     // =========================================================================
 
-    // Update asset vault statistics
     asset_vault.record_deposit(amount, timestamp)?;
-
-    // Update pool statistics
     pool_config.record_deposit(timestamp)?;
 
     // =========================================================================
-    // 6. EMIT PRIVACY-PRESERVING EVENT
+    // 6. EMIT EVENT (privacy-preserving)
     // =========================================================================
 
-    // IMPORTANT: This event intentionally does NOT include amount or depositor
-    // to prevent correlation attacks and protect depositor privacy.
-    //
-    // The leaf_index and merkle_root are included because:
-    // - Users need leaf_index to construct withdrawal proofs
-    // - merkle_root lets clients verify tree state
-    // - Neither reveals who deposited or how much
     emit!(DepositMaspEvent {
-        pool: pool_config.key(),
+        pool: pool_key,
         commitment,
         leaf_index,
         merkle_root,
@@ -266,11 +192,9 @@ pub fn handler(
         timestamp,
     });
 
-    // Debug event - only emitted when event-debug feature is enabled
-    // WARNING: This leaks privacy-sensitive data and MUST NOT be enabled in production
     #[cfg(feature = "event-debug")]
     emit!(DepositMaspDebugEvent {
-        pool: pool_config.key(),
+        pool: pool_key,
         commitment,
         leaf_index,
         amount,
@@ -291,11 +215,8 @@ pub fn handler(
 
 #[cfg(test)]
 mod tests {
-
     #[test]
     fn test_proof_data_length() {
-        // Groth16 proof = 2 G1 points (64 bytes each) + 1 G2 point (128 bytes)
-        // = 64 + 64 + 128 = 256 bytes
         assert_eq!(256, 64 + 64 + 128);
     }
 }
