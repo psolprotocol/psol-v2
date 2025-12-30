@@ -71,6 +71,7 @@ pub mod error;
 pub mod events;
 pub mod instructions;
 pub mod state;
+pub mod utils;
 
 // Re-export all instruction account structs
 pub use instructions::*;

@@ -287,8 +287,16 @@ impl AssetVault {
 
 /// Helper to compute asset_id from mint address
 pub fn compute_asset_id(mint: &Pubkey) -> [u8; 32] {
-    use anchor_lang::solana_program::keccak;
-    keccak::hash(mint.as_ref()).to_bytes()
+    // PLACEHOLDER: Using simple hash of pubkey bytes
+    // TODO: Replace with proper keccak256 when available
+    let mut hasher = [0u8; 32];
+    let bytes = mint.to_bytes();
+    for (i, chunk) in bytes.chunks(32).enumerate() {
+        for (j, &byte) in chunk.iter().enumerate() {
+            hasher[j] ^= byte.wrapping_add(i as u8);
+        }
+    }
+    hasher
 }
 
 /// Native SOL asset ID (special case)

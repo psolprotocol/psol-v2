@@ -25,22 +25,27 @@ pub struct UpdateRelayer<'info> {
     pub relayer_registry: Account<'info, RelayerRegistry>,
 
     /// Relayer node account
+    /// 
+    /// Security: PDA seeds ensure this node belongs to relayer_registry.
+    /// The `has_one = operator` ensures only the operator can update.
+    /// No need for separate `has_one = registry` since seeds already bind it.
     #[account(
         mut,
         has_one = operator @ PrivacyErrorV2::Unauthorized,
-        has_one = registry @ PrivacyErrorV2::Unauthorized,
         seeds = [
             RelayerNode::SEED_PREFIX,
             relayer_registry.key().as_ref(),
             operator.key().as_ref(),
         ],
         bump = relayer_node.bump,
+        // Additional safety: verify stored registry matches
+        constraint = relayer_node.registry == relayer_registry.key() 
+            @ PrivacyErrorV2::RelayerNodeRegistryMismatch,
     )]
     pub relayer_node: Account<'info, RelayerNode>,
 
-    /// The registry this relayer belongs to
-    /// CHECK: Validated via has_one constraint
-    pub registry: UncheckedAccount<'info>,
+    // REMOVED: Redundant `registry: UncheckedAccount` 
+    // The PDA seeds already bind relayer_node to relayer_registry
 }
 
 /// Handler for update_relayer instruction

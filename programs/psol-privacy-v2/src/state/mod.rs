@@ -25,7 +25,9 @@
 //! | VerificationKeyAccountV2 | `[proof_type.as_seed(), pool]` |
 //! | SpentNullifierV2 | `[b"nullifier_v2", pool, nullifier_hash]` |
 //! | RelayerRegistry | `[b"relayer_registry", pool]` |
-//! | RelayerNode | `[b"relayer_node", registry, operator]` |
+//! | RelayerNode | `[b"relayer", registry, operator]` |
+//!
+//! ⚠️  NOTE: RelayerNode uses `b"relayer"` NOT `b"relayer_node"`
 
 pub mod asset_vault;
 pub mod compliance;

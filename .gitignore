@@ -27,3 +27,7 @@ core
 
 # Local archives
 psol-v2-wip.zip
+solana.tar.bz2
+*.tar.bz2
+*.orig
+*.rej

@@ -1,6 +1,7 @@
 //! Register Relayer Instruction
 //!
 //! Registers a new relayer node with the pool.
+use crate::utils::validate_relayer_name;
 
 use anchor_lang::prelude::*;
 
