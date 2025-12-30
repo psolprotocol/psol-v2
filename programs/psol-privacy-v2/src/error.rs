@@ -232,6 +232,12 @@ pub enum PrivacyErrorV2 {
     #[msg("Account data corrupted")]
     CorruptedData,
 
+    #[msg("Invalid metadata format or content")]
+    InvalidMetadata,
+
+    #[msg("Invalid input parameter")]
+    InvalidInput,
+
     #[msg("Operation exceeds safe limits")]
     LimitExceeded,
 

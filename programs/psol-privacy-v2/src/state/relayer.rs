@@ -389,7 +389,36 @@ impl RelayerNode {
         )
     }
 
-    pub fn seeds<'a>(
+    
+
+    /// Validates that this RelayerNode belongs to `expected_registry` and that the passed
+    /// account key matches the canonical PDA derivation.
+    ///
+    /// PDA seeds: [b"relayer", expected_registry, operator]
+    pub fn validate_registry_and_pda(
+        &self,
+        program_id: &Pubkey,
+        expected_registry: &Pubkey,
+        account_key: &Pubkey,
+    ) -> Result<()> {
+        // 1) Ensure the node claims the expected registry
+        require_keys_eq!(
+            self.registry,
+            *expected_registry,
+            PrivacyErrorV2::RelayerNodeRegistryMismatch
+        );
+
+        // 2) Ensure the account address is the canonical PDA for (registry, operator)
+        let (expected_pda, _bump) = Self::find_pda(program_id, expected_registry, &self.operator);
+        require_keys_eq!(
+            *account_key,
+            expected_pda,
+            PrivacyErrorV2::InvalidRelayerNodePda
+        );
+
+        Ok(())
+    }
+pub fn seeds<'a>(
         registry: &'a Pubkey,
         operator: &'a Pubkey,
         bump: &'a [u8; 1],
@@ -448,5 +477,112 @@ mod tests {
 
         let fee = relayer.calculate_fee(10_000).unwrap();
         assert_eq!(fee, 100); // 1% of 10000 = 100
+    }
+
+
+    fn assert_err_contains(err: anchor_lang::error::Error, needle: &str) {
+        let s = err.to_string();
+        assert!(
+            s.contains(needle),
+            "expected error to contain `{}`, got `{}`",
+            needle,
+            s
+        );
+    }
+
+    #[test]
+    fn test_validate_registry_and_pda_happy_path() {
+        let program_id = Pubkey::new_unique();
+        let registry = Pubkey::new_unique();
+        let operator = Pubkey::new_unique();
+
+        let (pda, bump) = RelayerNode::find_pda(&program_id, &registry, &operator);
+
+        let node = RelayerNode {
+            registry,
+            operator,
+            fee_bps: 100,
+            is_active: true,
+            stake_amount: 0,
+            transactions_processed: 0,
+            fees_earned: 0,
+            registered_at: 0,
+            last_active_at: 0,
+            metadata_uri: String::new(),
+            bump,
+            reputation_score: 50,
+            _reserved: [0u8; 16],
+        };
+
+        assert!(node
+            .validate_registry_and_pda(&program_id, &registry, &pda)
+            .is_ok());
+    }
+
+    #[test]
+    fn test_validate_registry_and_pda_wrong_registry_fails() {
+        let program_id = Pubkey::new_unique();
+        let actual_registry = Pubkey::new_unique();
+        let expected_registry = Pubkey::new_unique();
+        let operator = Pubkey::new_unique();
+
+        let (pda_expected, bump) = RelayerNode::find_pda(&program_id, &expected_registry, &operator);
+
+        let node = RelayerNode {
+            registry: actual_registry,
+            operator,
+            fee_bps: 100,
+            is_active: true,
+            stake_amount: 0,
+            transactions_processed: 0,
+            fees_earned: 0,
+            registered_at: 0,
+            last_active_at: 0,
+            metadata_uri: String::new(),
+            bump,
+            reputation_score: 50,
+            _reserved: [0u8; 16],
+        };
+
+        let err = node
+            .validate_registry_and_pda(&program_id, &expected_registry, &pda_expected)
+            .unwrap_err();
+
+        // Message comes from #[msg(...)] on PrivacyErrorV2::RelayerNodeRegistryMismatch
+        assert_err_contains(err, "RelayerNode registry mismatch");
+    }
+
+    #[test]
+    fn test_validate_registry_and_pda_wrong_pda_fails() {
+        let program_id = Pubkey::new_unique();
+        let registry = Pubkey::new_unique();
+        let operator = Pubkey::new_unique();
+
+        let (_pda, bump) = RelayerNode::find_pda(&program_id, &registry, &operator);
+
+        let node = RelayerNode {
+            registry,
+            operator,
+            fee_bps: 100,
+            is_active: true,
+            stake_amount: 0,
+            transactions_processed: 0,
+            fees_earned: 0,
+            registered_at: 0,
+            last_active_at: 0,
+            metadata_uri: String::new(),
+            bump,
+            reputation_score: 50,
+            _reserved: [0u8; 16],
+        };
+
+        let wrong_key = Pubkey::new_unique();
+
+        let err = node
+            .validate_registry_and_pda(&program_id, &registry, &wrong_key)
+            .unwrap_err();
+
+        // Message comes from #[msg(...)] on PrivacyErrorV2::InvalidRelayerNodePda
+        assert_err_contains(err, "Invalid RelayerNode PDA");
     }
 }
