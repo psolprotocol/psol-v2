@@ -31,3 +31,15 @@ solana.tar.bz2
 *.tar.bz2
 *.orig
 *.rej
+
+test-ledger/
+test-ledger/**
+*.sst
+*.tar.zst
+genesis.bin
+tower-*.bin
+**/*keypair*.json
+target/
+node_modules/
+.DS_Store
+
