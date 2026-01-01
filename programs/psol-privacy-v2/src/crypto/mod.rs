@@ -1,7 +1,7 @@
 //! Cryptographic Primitives for pSOL Privacy Pool v2
 
 pub mod curve_utils;
-pub mod groth16;
+// pub mod groth16;
 pub mod groth16_verifier;
 pub mod keccak;
 pub mod poseidon;
