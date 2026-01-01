@@ -1,14 +1,38 @@
-use anchor_lang::prelude::*;
-use solana_program::keccak;
+//! Keccak-256 Hash Utilities for pSOL v2
+//!
+//! Provides keccak256 hashing for:
+//! - Asset ID derivation (from mint address)
+//! - Verification key hashing
+//! - Commitment hashing
+//!
+//! Uses the sha3 crate for Ethereum/circom-compatible Keccak-256.
 
-/// Compute keccak256 hash of data
+use anchor_lang::prelude::*;
+use sha3::{Digest, Keccak256};
+
+/// Compute Keccak-256 hash of data.
+/// 
+/// This is the standard Keccak-256 used by Ethereum and circomlib.
+/// It's different from SHA3-256 (the NIST standard).
 pub fn keccak256(data: &[u8]) -> [u8; 32] {
-    keccak::hash(data).to_bytes()
+    let mut hasher = Keccak256::new();
+    hasher.update(data);
+    let result = hasher.finalize();
+    let mut output = [0u8; 32];
+    output.copy_from_slice(&result);
+    output
 }
 
-/// Compute keccak256 hash of multiple inputs (concatenated)
+/// Compute Keccak-256 hash of multiple inputs (concatenated)
 pub fn keccak256_concat(inputs: &[&[u8]]) -> [u8; 32] {
-    keccak::hashv(inputs).to_bytes()
+    let mut hasher = Keccak256::new();
+    for input in inputs {
+        hasher.update(input);
+    }
+    let result = hasher.finalize();
+    let mut output = [0u8; 32];
+    output.copy_from_slice(&result);
+    output
 }
 
 /// Derive asset ID from mint address
@@ -122,6 +146,7 @@ mod tests {
 
     #[test]
     fn test_keccak256_known_vector() {
+        // Empty string keccak256 = 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470
         let hash = keccak256(b"");
 
         let expected = [

@@ -697,16 +697,6 @@ impl JoinSplitPublicInputsBuilder {
     }
 }
 
-// ============================================================================
-// UTILITY FUNCTIONS
-// ============================================================================
-
-/// Convert u64 to 32-byte field element (big-endian)
-fn u64_to_field(value: u64) -> [u8; 32] {
-    let mut bytes = [0u8; 32];
-    bytes[24..32].copy_from_slice(&value.to_be_bytes());
-    bytes
-}
 
 // ============================================================================
 // TESTS

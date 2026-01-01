@@ -34,6 +34,9 @@ pub enum PrivacyErrorV2 {
     #[msg("Cryptographic operation failed")]
     CryptographyError,
 
+    #[msg("Invalid scalar: value is not in canonical form (>= field modulus)")]
+    InvalidScalar,
+
     #[msg("Invalid verification key pool reference")]
     InvalidVerificationKeyPool,
 
@@ -314,6 +317,7 @@ impl PrivacyErrorV2 {
                 | PrivacyErrorV2::InvalidPublicInputs
                 | PrivacyErrorV2::VerificationKeyNotSet
                 | PrivacyErrorV2::CryptographyError
+                | PrivacyErrorV2::InvalidScalar
                 | PrivacyErrorV2::CryptoNotImplemented
                 | PrivacyErrorV2::ProofVerificationFailedInvalid
         )

@@ -9,6 +9,10 @@ license = "MIT"
 crate-type = ["cdylib", "lib"]
 name = "psol_privacy_v2"
 
+[lints.rust]
+# Allow target_os = "solana" cfg checks (used by Solana programs)
+unexpected_cfgs = { level = "allow", check-cfg = ['cfg(target_os, values("solana"))'] }
+
 [features]
 idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
 default = []
@@ -19,11 +23,18 @@ no-entrypoint = []
 no-idl = []
 no-log-ix-name = []
 cpi = ["no-entrypoint"]
-poseidon-constants = []
+# SECURITY: insecure-dev bypasses cryptographic verification. NEVER enable in production.
 insecure-dev = []
 
 [dependencies]
 anchor-lang = { version = "0.32.1", features = ["init-if-needed"] }
 anchor-spl = "0.32.1"
-solana-program = "2.1.0"
+# Use light-poseidon for circom-compatible Poseidon hash on BN254
+# This is the standard for Solana ZK programs
+light-poseidon = "0.2"
+# ark-bn254 for BN254 curve field types (Fr scalar field)
+ark-bn254 = "0.4"
+ark-ff = "0.4"
+# sha3 for keccak256 hash (Ethereum/circom compatible)
+sha3 = { version = "0.10", default-features = false }
 hex = "0.4"

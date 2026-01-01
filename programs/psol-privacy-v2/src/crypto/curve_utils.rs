@@ -1,179 +1,252 @@
 //! BN254 Elliptic Curve Utilities for pSOL v2
+//!
+//! This module provides curve utilities for Groth16 verification using
+//! Solana's alt_bn128 syscalls. It re-exports types from alt_bn128_syscalls
+//! and adds VK-specific operations.
+//!
+//! # Design Notes
+//! - All hot-path operations avoid heap allocation where possible
+//! - Validation is strict: invalid points/scalars cause immediate errors
+//! - Field vs scalar modulus is carefully distinguished
 
 use anchor_lang::prelude::*;
 use crate::error::PrivacyErrorV2;
 
-pub type G1Point = [u8; 64];
-pub type G2Point = [u8; 128];
-pub type ScalarField = [u8; 32];
-pub type PairingElement = [u8; 192];
+// Re-export core types from alt_bn128_syscalls
+pub use super::alt_bn128_syscalls::{
+    G1Point, G2Point, Scalar as ScalarField, PairingElement,
+    G1_IDENTITY, G2_IDENTITY,
+    BN254_FP_MODULUS as BN254_FIELD_MODULUS,
+    BN254_FR_MODULUS as BN254_SCALAR_MODULUS,
+    is_g1_identity, is_g2_identity,
+    g1_add, g1_mul, g1_negate,
+    is_valid_scalar, validate_g1_point,
+    verify_pairing, verify_pairing_4,
+    make_pairing_element,
+};
 
-pub const G1_IDENTITY: G1Point = [0u8; 64];
-pub const G2_IDENTITY: G2Point = [0u8; 128];
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+/// G1 generator point (1, 2) - standard BN254 generator
 pub const G1_GENERATOR: G1Point = [
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,
-];
-pub const BN254_FIELD_MODULUS: [u8; 32] = [
-    0x30,0x64,0x4e,0x72,0xe1,0x31,0xa0,0x29,0xb8,0x50,0x45,0xb6,0x81,0x81,0x58,0x5d,
-    0x97,0x81,0x6a,0x91,0x68,0x71,0xca,0x8d,0x3c,0x20,0x8c,0x16,0xd8,0x7c,0xfd,0x47,
-];
-pub const BN254_SCALAR_MODULUS: [u8; 32] = [
-    0x30,0x64,0x4e,0x72,0xe1,0x31,0xa0,0x29,0xb8,0x50,0x45,0xb6,0x81,0x81,0x58,0x5d,
-    0x28,0x33,0xe8,0x48,0x79,0xb9,0x70,0x91,0x43,0xe1,0xf5,0x93,0xf0,0x00,0x00,0x01,
-];
-const PAIRING_SUCCESS: [u8; 32] = [
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+    // x = 1
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+    // y = 2
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2,
 ];
 
-// Direct syscall - works on all Solana versions with BN254 support
-#[cfg(target_os = "solana")]
-extern "C" {
-    fn sol_alt_bn128_group_op(op: u64, input: *const u8, input_size: u64, result: *mut u8) -> u64;
+// ============================================================================
+// G1 OPERATIONS
+// ============================================================================
+
+/// Negate a G1 point.
+/// Re-export with renamed function for backward compatibility.
+#[inline]
+pub fn negate_g1(point: &G1Point) -> Result<G1Point> {
+    super::alt_bn128_syscalls::g1_negate(point)
 }
 
-const ALT_BN128_ADD: u64 = 0;
-const ALT_BN128_MUL: u64 = 1;
-const ALT_BN128_PAIRING: u64 = 2;
-
-#[cfg(target_os = "solana")]
-fn alt_bn128_addition(input: &[u8]) -> std::result::Result<Vec<u8>, ()> {
-    let mut result = vec![0u8; 64];
-    let ret = unsafe { sol_alt_bn128_group_op(ALT_BN128_ADD, input.as_ptr(), input.len() as u64, result.as_mut_ptr()) };
-    if ret == 0 { Ok(result) } else { Err(()) }
-}
-#[cfg(target_os = "solana")]
-fn alt_bn128_multiplication(input: &[u8]) -> std::result::Result<Vec<u8>, ()> {
-    let mut result = vec![0u8; 64];
-    let ret = unsafe { sol_alt_bn128_group_op(ALT_BN128_MUL, input.as_ptr(), input.len() as u64, result.as_mut_ptr()) };
-    if ret == 0 { Ok(result) } else { Err(()) }
-}
-#[cfg(target_os = "solana")]
-fn alt_bn128_pairing(input: &[u8]) -> std::result::Result<Vec<u8>, ()> {
-    let mut result = vec![0u8; 32];
-    let ret = unsafe { sol_alt_bn128_group_op(ALT_BN128_PAIRING, input.as_ptr(), input.len() as u64, result.as_mut_ptr()) };
-    if ret == 0 { Ok(result) } else { Err(()) }
+/// Perform scalar multiplication on G1.
+/// Wrapper for backward compatibility.
+#[inline]
+pub fn g1_scalar_mul(point: &G1Point, scalar: &ScalarField) -> Result<G1Point> {
+    g1_mul(point, scalar)
 }
 
-#[cfg(not(target_os = "solana"))]
-fn alt_bn128_addition(input: &[u8]) -> std::result::Result<Vec<u8>, ()> {
-    if input.len() >= 64 { Ok(input[0..64].to_vec()) } else { Ok(vec![0u8; 64]) }
-}
-#[cfg(not(target_os = "solana"))]
-fn alt_bn128_multiplication(_input: &[u8]) -> std::result::Result<Vec<u8>, ()> { Ok(vec![0u8; 64]) }
-#[cfg(not(target_os = "solana"))]
-fn alt_bn128_pairing(_input: &[u8]) -> std::result::Result<Vec<u8>, ()> { Ok(PAIRING_SUCCESS.to_vec()) }
+// ============================================================================
+// G2 VALIDATION
+// ============================================================================
 
-#[inline] pub fn is_g1_identity(p: &G1Point) -> bool { p.iter().all(|&b| b == 0) }
-#[inline] pub fn is_g2_identity(p: &G2Point) -> bool { p.iter().all(|&b| b == 0) }
-
-pub fn validate_g1_point(point: &G1Point) -> Result<()> {
-    if is_g1_identity(point) { return Ok(()); }
-    let mut input = [0u8; 128];
-    input[0..64].copy_from_slice(point);
-    alt_bn128_addition(&input).map_err(|_| PrivacyErrorV2::CryptographyError)?;
+/// Validate a G2 point.
+/// Currently performs basic structural checks only.
+/// Full G2 validation would require expensive pairing operations.
+///
+/// Note: The pairing syscall itself will reject invalid G2 points,
+/// so this is primarily for early rejection of malformed data.
+pub fn validate_g2_point(point: &G2Point) -> Result<()> {
+    // Check for trivially invalid structure
+    // G2 points have two Fp2 coordinates, each with two Fp elements
+    // A valid non-identity point should have at least some non-zero bytes
+    
+    // We can't easily validate G2 on-curve without a G2 operation,
+    // but the pairing check will catch invalid points.
+    // For now, just ensure it's not all zeros (which would be identity)
+    // when used in non-identity context.
+    
+    // Accept all points here; pairing will reject invalid ones
+    let _ = point;
     Ok(())
 }
-pub fn validate_g2_point(_: &G2Point) -> Result<()> { Ok(()) }
-pub fn validate_g2_point_allow_identity(_: &G2Point) -> Result<()> { Ok(()) }
 
-pub fn negate_g1(point: &G1Point) -> Result<G1Point> {
-    if is_g1_identity(point) { return Ok(G1_IDENTITY); }
-    let mut result = *point;
-    let mut y = [0u8; 32];
-    y.copy_from_slice(&point[32..64]);
-    result[32..64].copy_from_slice(&field_subtract(&BN254_FIELD_MODULUS, &y));
-    Ok(result)
+/// Validate G2 point, allowing identity.
+#[inline]
+pub fn validate_g2_point_allow_identity(_point: &G2Point) -> Result<()> {
+    // Identity is always valid
+    Ok(())
 }
 
-pub fn g1_add(a: &G1Point, b: &G1Point) -> Result<G1Point> {
-    if is_g1_identity(a) { return Ok(*b); }
-    if is_g1_identity(b) { return Ok(*a); }
-    let mut input = [0u8; 128];
-    input[0..64].copy_from_slice(a);
-    input[64..128].copy_from_slice(b);
-    let result = alt_bn128_addition(&input).map_err(|_| PrivacyErrorV2::CryptographyError)?;
-    let mut point = [0u8; 64];
-    point.copy_from_slice(&result);
-    Ok(point)
-}
+// ============================================================================
+// SCALAR UTILITIES
+// ============================================================================
 
-pub fn g1_scalar_mul(point: &G1Point, scalar: &ScalarField) -> Result<G1Point> {
-    if is_g1_identity(point) || scalar.iter().all(|&b| b == 0) { return Ok(G1_IDENTITY); }
-    let mut input = [0u8; 96];
-    input[0..64].copy_from_slice(point);
-    input[64..96].copy_from_slice(scalar);
-    let result = alt_bn128_multiplication(&input).map_err(|_| PrivacyErrorV2::CryptographyError)?;
-    let mut product = [0u8; 64];
-    product.copy_from_slice(&result);
-    Ok(product)
-}
-
-pub fn is_valid_scalar(s: &ScalarField) -> bool {
-    for i in 0..32 {
-        if s[i] < BN254_SCALAR_MODULUS[i] { return true; }
-        if s[i] > BN254_SCALAR_MODULUS[i] { return false; }
-    }
-    false
-}
-
+/// Convert u64 to 32-byte big-endian scalar.
+#[inline]
 pub fn u64_to_scalar(v: u64) -> ScalarField {
     let mut s = [0u8; 32];
     s[24..32].copy_from_slice(&v.to_be_bytes());
     s
 }
 
+/// Convert i64 to scalar (negative values as field negation).
+#[inline]
 pub fn i64_to_scalar(v: i64) -> ScalarField {
-    if v >= 0 { u64_to_scalar(v as u64) }
-    else { field_subtract(&BN254_SCALAR_MODULUS, &u64_to_scalar(if v == i64::MIN { (i64::MAX as u64)+1 } else { (-v) as u64 })) }
+    if v >= 0 {
+        u64_to_scalar(v as u64)
+    } else {
+        let abs = if v == i64::MIN {
+            (i64::MAX as u64) + 1
+        } else {
+            (-v) as u64
+        };
+        field_subtract(&BN254_SCALAR_MODULUS, &u64_to_scalar(abs))
+    }
 }
 
+/// Convert Pubkey to scalar (truncated to fit in field).
+/// Uses first 31 bytes to ensure result < modulus.
 pub fn pubkey_to_scalar(pk: &Pubkey) -> ScalarField {
     let mut s = [0u8; 32];
+    // Copy first 31 bytes, leaving MSB as 0
+    // This ensures the result is < 2^248 < Fr modulus
     s[1..32].copy_from_slice(&pk.to_bytes()[0..31]);
     s
 }
 
-pub fn make_pairing_element(g1: &G1Point, g2: &G2Point) -> PairingElement {
-    let mut e = [0u8; 192];
-    e[0..64].copy_from_slice(g1);
-    e[64..192].copy_from_slice(g2);
-    e
-}
+// ============================================================================
+// VK OPERATIONS
+// ============================================================================
 
-pub fn verify_pairing(elements: &[PairingElement]) -> Result<bool> {
-    if elements.is_empty() { return Ok(true); }
-    let mut input = vec![0u8; elements.len() * 192];
-    for (i, e) in elements.iter().enumerate() { input[i*192..(i+1)*192].copy_from_slice(e); }
-    let result = alt_bn128_pairing(&input).map_err(|_| PrivacyErrorV2::CryptographyError)?;
-    let mut arr = [0u8; 32];
-    arr.copy_from_slice(&result);
-    Ok(arr == PAIRING_SUCCESS)
-}
-
+/// Compute vk_x = IC[0] + Σ(public_input[i] × IC[i+1])
+///
+/// This is the public input accumulator for Groth16 verification.
+///
+/// # Arguments
+/// * `ic` - Array of IC points from verification key (length = num_inputs + 1)
+/// * `inputs` - Public input scalars (length = num_inputs)
+///
+/// # Returns
+/// * Accumulated G1 point
+///
+/// # Errors
+/// * `InvalidPublicInputs` - If ic.len() != inputs.len() + 1
 pub fn compute_vk_x(ic: &[[u8; 64]], inputs: &[[u8; 32]]) -> Result<G1Point> {
-    if ic.len() != inputs.len() + 1 { return Err(PrivacyErrorV2::InvalidPublicInputs.into()); }
-    let mut vk_x = ic[0];
-    for (inp, icp) in inputs.iter().zip(ic.iter().skip(1)) {
-        vk_x = g1_add(&vk_x, &g1_scalar_mul(icp, inp)?)?;
+    if ic.len() != inputs.len() + 1 {
+        msg!(
+            "IC length mismatch: expected {} IC points for {} inputs",
+            inputs.len() + 1,
+            inputs.len()
+        );
+        return Err(PrivacyErrorV2::InvalidPublicInputs.into());
     }
+
+    // Start with IC[0]
+    let mut vk_x = ic[0];
+
+    // Accumulate: vk_x += input[i] * IC[i+1]
+    for (input, ic_point) in inputs.iter().zip(ic.iter().skip(1)) {
+        // Validate input is a valid scalar
+        if !is_valid_scalar(input) {
+            msg!("Invalid public input scalar");
+            return Err(PrivacyErrorV2::InvalidScalar.into());
+        }
+
+        let term = g1_mul(ic_point, input)?;
+        vk_x = g1_add(&vk_x, &term)?;
+    }
+
     Ok(vk_x)
 }
 
+// ============================================================================
+// INTERNAL HELPERS
+// ============================================================================
+
+/// Subtract two 32-byte big-endian values: result = a - b
 fn field_subtract(a: &[u8; 32], b: &[u8; 32]) -> [u8; 32] {
     let mut r = [0u8; 32];
     let mut borrow: u16 = 0;
+
     for i in (0..32).rev() {
-        let d = (a[i] as u16).wrapping_sub(b[i] as u16).wrapping_sub(borrow);
+        let d = (a[i] as u16)
+            .wrapping_sub(b[i] as u16)
+            .wrapping_sub(borrow);
         r[i] = d as u8;
         borrow = if d > 255 { 1 } else { 0 };
     }
+
     r
 }
+
+// ============================================================================
+// TESTS
+// ============================================================================
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[test] fn test_identity() { assert!(is_g1_identity(&G1_IDENTITY)); }
-    #[test] fn test_scalar() { assert_eq!(u64_to_scalar(42)[31], 42); }
+
+    #[test]
+    fn test_identity() {
+        assert!(is_g1_identity(&G1_IDENTITY));
+        assert!(!is_g1_identity(&G1_GENERATOR));
+    }
+
+    #[test]
+    fn test_u64_to_scalar() {
+        let s = u64_to_scalar(42);
+        assert_eq!(s[31], 42);
+        assert_eq!(s[30], 0);
+    }
+
+    #[test]
+    fn test_i64_to_scalar_positive() {
+        let pos = i64_to_scalar(100);
+        assert_eq!(pos, u64_to_scalar(100));
+    }
+
+    #[test]
+    fn test_compute_vk_x_length_mismatch() {
+        let ic = [[1u8; 64]; 3]; // 3 IC points = 2 inputs expected
+        let inputs = [[2u8; 32]; 3]; // 3 inputs provided
+
+        let result = compute_vk_x(&ic, &inputs);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_compute_vk_x_valid() {
+        let ic = [[1u8; 64]; 3]; // 3 IC points = 2 inputs
+        let inputs = [[0u8; 32]; 2]; // 2 inputs (zeros = identity contribution)
+
+        let result = compute_vk_x(&ic, &inputs);
+        // Should succeed (on non-Solana target, uses mock operations)
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_pubkey_to_scalar() {
+        let pk = Pubkey::new_unique();
+        let s = pubkey_to_scalar(&pk);
+
+        // MSB should be 0 (ensuring < modulus)
+        assert_eq!(s[0], 0);
+
+        // Should be deterministic
+        let s2 = pubkey_to_scalar(&pk);
+        assert_eq!(s, s2);
+    }
 }
