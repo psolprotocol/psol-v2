@@ -15,7 +15,7 @@ pub mod utils;
 
 pub use instructions::*;
 
-declare_id!("21DbY1WykakReEX8RjpirJMxtgoa6vhd77EF6d3oC6Xo");
+declare_id!("8qkJv1gEC1xLaVn2mMFcgThVeWuJYX9FRLef5Kb8HdPW");
 
 pub(crate) use crate::instructions::admin::authority_v2::__client_accounts_accept_authority_transfer_v2;
 pub(crate) use crate::instructions::admin::authority_v2::__client_accounts_cancel_authority_transfer_v2;
