@@ -34,6 +34,9 @@ pub enum PrivacyErrorV2 {
     #[msg("Cryptographic operation failed")]
     CryptographyError,
 
+    #[msg("Invalid scalar field element: value must be less than BN254 Fr modulus")]
+    InvalidScalarField,
+
     #[msg("Invalid verification key pool reference")]
     InvalidVerificationKeyPool,
 

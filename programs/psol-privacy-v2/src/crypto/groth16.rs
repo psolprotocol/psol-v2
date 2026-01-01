@@ -42,8 +42,8 @@ pub type PublicInputs = Vec<[u8; 32]>;
 /// - e(A, B) = e(alpha, beta) * e(L, gamma) * e(C, delta)
 /// - Where L = sum(public_inputs[i] * IC[i])
 pub fn verify_groth16_proof(
-    proof: &Groth16Proof,
-    public_inputs: &PublicInputs,
+    _proof: &Groth16Proof,
+    _public_inputs: &PublicInputs,
     _verification_key: &[u8], // TODO: Define VK structure
 ) -> Result<bool> {
     #[cfg(not(feature = "insecure-dev"))]
@@ -104,7 +104,7 @@ fn placeholder_verify_proof(
 ///
 /// Proves: "I know values such that commitment = Hash(nullifier, amount, asset_id, blinding)"
 pub fn verify_deposit_proof(
-    commitment: &[u8; 32],
+    _commitment: &[u8; 32],
     _proof: &Groth16Proof,
 ) -> Result<bool> {
     #[cfg(not(feature = "insecure-dev"))]
@@ -126,8 +126,8 @@ pub fn verify_deposit_proof(
 ///
 /// Proves: "I know a valid note in the Merkle tree and its nullifier hasn't been spent"
 pub fn verify_withdraw_proof(
-    nullifier_hash: &[u8; 32],
-    merkle_root: &[u8; 32],
+    _nullifier_hash: &[u8; 32],
+    _merkle_root: &[u8; 32],
     _recipient: &Pubkey,
     _amount: u64,
     _proof: &Groth16Proof,

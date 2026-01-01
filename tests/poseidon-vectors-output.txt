@@ -1,0 +1,129 @@
+Generating Poseidon test vectors...
+
+================================================================================
+POSEIDON(2) TEST VECTORS - For hash_two_to_one()
+================================================================================
+
+Test Vector 1: Poseidon(1, 2)
+Input: [1, 2]
+Output (hex): 0x118,209,3,86,76,239,241,87,195,18,196,88,66,229,60,78,197,80,33,107,96,229,152,66,52,14,202,53,84,7,152,9
+
+    #[test]
+    fn test_hash_two_to_one_vector_circomlib_1() {
+        // Poseidon(1, 2) - circomlib reference
+        let left = u64_to_scalar_be(1);
+        let right = u64_to_scalar_be(2);
+        
+        let result = hash_two_to_one(&left, &right).unwrap();
+        let expected: [u8; 32] = [
+            0x11, 0x8,, 0x20, 0x9,, 0x3,, 0x86, 0x,7, 0x6,,
+            0x23, 0x9,, 0x24, 0x1,, 0x87, 0x,1, 0x95, 0x,1,
+            0x8,, 0x19, 0x6,, 0x88, 0x,6, 0x6,, 0x22, 0x9,,
+            0x60, 0x,7, 0x8,, 0x19, 0x7,, 0x80, 0x,3, 0x3,
+        ];
+        assert_eq!(result, expected, "Poseidon(1, 2) - circomlib reference - must match circomlib output");
+    }
+
+Test Vector 2: Poseidon(100, 200)
+Input: [100, 200]
+Output (hex): 0x4,86,193,211,141,185,167,222,44,227,145,114,26,169,229,112,2,86,17,81,64,63,223,219,28,156,236,17,147,69,125,45
+
+    #[test]
+    fn test_hash_two_to_one_vector_circomlib_2() {
+        // Poseidon(100, 200) - circomlib reference
+        let left = u64_to_scalar_be(100);
+        let right = u64_to_scalar_be(200);
+        
+        let result = hash_two_to_one(&left, &right).unwrap();
+        let expected: [u8; 32] = [
+            0x4,, 0x86, 0x,1, 0x93, 0x,2, 0x11, 0x,1, 0x41,
+            0x,1, 0x85, 0x,1, 0x67, 0x,2, 0x22, 0x,4, 0x4,,
+            0x22, 0x7,, 0x14, 0x5,, 0x11, 0x4,, 0x26, 0x,1,
+            0x69, 0x,2, 0x29, 0x,1, 0x12, 0x,2, 0x,8, 0x6,
+        ];
+        assert_eq!(result, expected, "Poseidon(100, 200) - circomlib reference - must match circomlib output");
+    }
+
+Test Vector 3: Merkle tree node example
+Input: [0x1234...cdef, 0xfedc...4321]
+Output (hex): 0x232,82,3,187,14,108,88,12,50,123,247,97,121,246,85,227,166,194,14,228,79,83,125,220,237,48,232,197,110,17,198,25
+
+================================================================================
+POSEIDON(4) TEST VECTORS - For poseidon_hash_4() and compute_commitment()
+================================================================================
+
+Test Vector 1: Poseidon(1, 2, 3, 4)
+Input: [1, 2, 3, 4]
+Output (hex): 0x213,253,93,252,34,46,87,187,101,19,46,19,86,82,82,1,240,228,217,56,162,117,203,129,132,157,111,197,248,42,250,34
+
+    #[test]
+    fn test_poseidon_hash_4_vector_circomlib_1() {
+        // Poseidon(1, 2, 3, 4) - circomlib reference
+        let i0 = u64_to_scalar_be(1);
+        let i1 = u64_to_scalar_be(2);
+        let i2 = u64_to_scalar_be(3);
+        let i3 = u64_to_scalar_be(4);
+        
+        let result = poseidon_hash_4(&i0, &i1, &i2, &i3).unwrap();
+        let expected: [u8; 32] = [
+            0x21, 0x3,, 0x25, 0x3,, 0x93, 0x,2, 0x52, 0x,3,
+            0x4,, 0x46, 0x,8, 0x7,, 0x18, 0x7,, 0x10, 0x1,,
+            0x19, 0x,4, 0x6,, 0x19, 0x,8, 0x6,, 0x82, 0x,8,
+            0x2,, 0x1,, 0x24, 0x0,, 0x22, 0x8,, 0x21, 0x7,
+        ];
+        assert_eq!(result, expected, "Poseidon(1, 2, 3, 4) - circomlib reference - must match circomlib output");
+    }
+
+Test Vector 2: Commitment Example
+Input: [secret=0x1111111111111111, nullifier=0x2222222222222222, amount=1000, asset_id=0x3333333333333333]
+Output (hex): 0x122,165,1,123,85,12,3,31,91,168,135,233,228,24,132,131,74,176,102,105,20,180,215,159,10,185,128,232,107,229,197,12
+
+    #[test]
+    fn test_compute_commitment_vector_circomlib() {
+        // Commitment computation - circomlib reference
+        let secret = u64_to_scalar_be(0x1111111111111111);
+        let nullifier = u64_to_scalar_be(0x2222222222222222);
+        let amount = 1000u64;
+        let asset_id = u64_to_scalar_be(0x3333333333333333);
+        
+        let result = compute_commitment(&secret, &nullifier, amount, &asset_id).unwrap();
+        let expected: [u8; 32] = [
+            0x12, 0x2,, 0x16, 0x5,, 0x1,, 0x12, 0x3,, 0x85,
+            0x,1, 0x2,, 0x3,, 0x31, 0x,9, 0x1,, 0x16, 0x8,,
+            0x13, 0x5,, 0x23, 0x3,, 0x22, 0x8,, 0x24, 0x,1,
+            0x32, 0x,1, 0x31, 0x,7, 0x4,, 0x17, 0x6,, 0x10
+        ];
+        assert_eq!(result, expected, "Commitment computation - circomlib reference - must match circomlib output");
+    }
+
+================================================================================
+NULLIFIER HASH TEST VECTORS
+================================================================================
+
+Nullifier Hash Example
+Input: nullifier=0x4444444444444444, secret=0x5555555555555555, leaf_index=42
+Inner hash (hex): 0x189,164,149,214,215,45,185,210,48,241,142,17,38,228,249,231,77,16,45,161,249,11,80,158,180,210,240,14,201,235,147,20
+Final nullifier hash (hex): 0x123,36,134,73,63,124,70,58,155,201,204,231,160,195,228,219,101,38,127,251,72,69,191,232,244,14,188,119,11,91,89,33
+
+    #[test]
+    fn test_compute_nullifier_hash_vector_circomlib() {
+        // Nullifier hash computation - circomlib reference
+        let nullifier = u64_to_scalar_be(0x4444444444444444);
+        let secret = u64_to_scalar_be(0x5555555555555555);
+        let leaf_index = 42u32;
+        
+        let result = compute_nullifier_hash(&nullifier, &secret, leaf_index).unwrap();
+        let expected: [u8; 32] = [
+            0x12, 0x3,, 0x36, 0x,1, 0x34, 0x,7, 0x3,, 0x63,
+            0x,1, 0x24, 0x,7, 0x0,, 0x58, 0x,1, 0x55, 0x,2,
+            0x01, 0x,2, 0x04, 0x,2, 0x31, 0x,1, 0x60, 0x,1,
+            0x95, 0x,2, 0x28, 0x,2, 0x19, 0x,1, 0x01, 0x,3
+        ];
+        assert_eq!(result, expected, "Nullifier hash computation - circomlib reference - must match circomlib output");
+    }
+
+================================================================================
+
+Copy the test functions above into poseidon.rs #[cfg(test)] mod tests {}
+Replace the TODO comments with these concrete test vectors.
+================================================================================

@@ -1,14 +1,20 @@
 use anchor_lang::prelude::*;
-use solana_program::keccak;
+use sha3::{Digest, Keccak256};
 
 /// Compute keccak256 hash of data
 pub fn keccak256(data: &[u8]) -> [u8; 32] {
-    keccak::hash(data).to_bytes()
+    let mut hasher = Keccak256::new();
+    hasher.update(data);
+    hasher.finalize().into()
 }
 
 /// Compute keccak256 hash of multiple inputs (concatenated)
 pub fn keccak256_concat(inputs: &[&[u8]]) -> [u8; 32] {
-    keccak::hashv(inputs).to_bytes()
+    let mut hasher = Keccak256::new();
+    for input in inputs {
+        hasher.update(input);
+    }
+    hasher.finalize().into()
 }
 
 /// Derive asset ID from mint address

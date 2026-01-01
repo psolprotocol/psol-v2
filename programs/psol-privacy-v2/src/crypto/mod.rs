@@ -1,5 +1,6 @@
 //! Cryptographic Primitives for pSOL Privacy Pool v2
 
+pub mod alt_bn128_syscalls;
 pub mod curve_utils;
 pub mod groth16;
 pub mod groth16_verifier;
@@ -44,9 +45,7 @@ pub use keccak::{
 
 pub use poseidon::{
     hash_two_to_one,
-    poseidon_hash_3,
     poseidon_hash_4,
-    poseidon_hash,
     compute_commitment,
     compute_nullifier_hash,
     verify_commitment,
@@ -57,7 +56,6 @@ pub use poseidon::{
     is_zero_hash,
     empty_leaf_hash,
     is_valid_scalar as poseidon_is_valid_scalar,
-    reduce_scalar,
     is_placeholder_implementation,
     IS_PLACEHOLDER,
     BN254_SCALAR_MODULUS as POSEIDON_FIELD_MODULUS,

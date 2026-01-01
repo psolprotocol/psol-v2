@@ -1,7 +1,8 @@
 //! Attach Audit Metadata Instruction
 //!
 //! Attaches encrypted audit metadata to an existing commitment.
-use crate::utils::validate_metadata_uri;
+// NOTE: validate_metadata_uri may be used in future - placeholder validation
+// use crate::utils::validate_metadata_uri;
 /// Used for compliance and regulatory reporting.
 
 use anchor_lang::prelude::*;
