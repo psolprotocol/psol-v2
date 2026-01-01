@@ -7,11 +7,11 @@
 //! - Relayer deactivation
 
 pub mod configure_registry;
+pub mod deactivate_relayer;
 pub mod register_relayer;
 pub mod update_relayer;
-pub mod deactivate_relayer;
 
 pub use configure_registry::ConfigureRelayerRegistry;
+pub use deactivate_relayer::DeactivateRelayer;
 pub use register_relayer::RegisterRelayer;
 pub use update_relayer::UpdateRelayer;
-pub use deactivate_relayer::DeactivateRelayer;

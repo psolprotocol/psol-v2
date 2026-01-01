@@ -9,9 +9,9 @@ use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
 
 use crate::crypto::{verify_proof_bytes, DepositPublicInputs};
 use crate::error::PrivacyErrorV2;
-use crate::events::DepositMaspEvent;
 #[cfg(feature = "event-debug")]
 use crate::events::DepositMaspDebugEvent;
+use crate::events::DepositMaspEvent;
 use crate::state::{AssetVault, MerkleTreeV2, PoolConfigV2, VerificationKeyAccountV2};
 use crate::ProofType;
 
@@ -137,7 +137,10 @@ pub fn handler(
 
     require!(proof_data.len() == 256, PrivacyErrorV2::InvalidProofFormat);
 
-    require!(asset_vault.asset_id == asset_id, PrivacyErrorV2::AssetIdMismatch);
+    require!(
+        asset_vault.asset_id == asset_id,
+        PrivacyErrorV2::AssetIdMismatch
+    );
 
     require!(!merkle_tree.is_full(), PrivacyErrorV2::MerkleTreeFull);
 

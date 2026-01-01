@@ -38,10 +38,8 @@ use crate::error::PrivacyErrorV2;
 use crate::state::VerificationKeyAccountV2;
 
 use super::curve_utils::{
-    G1Point, G2Point, ScalarField,
-    validate_g1_point, validate_g2_point,
-    negate_g1, compute_vk_x, verify_pairing, make_pairing_element,
-    is_valid_scalar,
+    compute_vk_x, is_valid_scalar, make_pairing_element, negate_g1, validate_g1_point,
+    validate_g2_point, verify_pairing, G1Point, G2Point, ScalarField,
 };
 
 // ============================================================================
@@ -234,10 +232,10 @@ pub fn verify_groth16_proof(
     // Step 6: Build pairing elements
     // e(-A, B) · e(α, β) · e(vk_x, γ) · e(C, δ) = 1
     let pairing_elements = [
-        make_pairing_element(&neg_a, &proof.b),      // e(-A, B)
-        make_pairing_element(&vk.vk_alpha_g1, &vk.vk_beta_g2),  // e(α, β)
-        make_pairing_element(&vk_x, &vk.vk_gamma_g2),           // e(vk_x, γ)
-        make_pairing_element(&proof.c, &vk.vk_delta_g2),        // e(C, δ)
+        make_pairing_element(&neg_a, &proof.b), // e(-A, B)
+        make_pairing_element(&vk.vk_alpha_g1, &vk.vk_beta_g2), // e(α, β)
+        make_pairing_element(&vk_x, &vk.vk_gamma_g2), // e(vk_x, γ)
+        make_pairing_element(&proof.c, &vk.vk_delta_g2), // e(C, δ)
     ];
 
     // Step 7: Verify the multi-pairing equation

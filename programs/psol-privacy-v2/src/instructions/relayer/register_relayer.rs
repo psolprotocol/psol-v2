@@ -1,13 +1,12 @@
 //! Register Relayer Instruction
 //!
 //! Registers a new relayer node with the pool.
-use crate::utils::validate_relayer_name;
 
 use anchor_lang::prelude::*;
 
 use crate::error::PrivacyErrorV2;
 use crate::events::RelayerRegistered;
-use crate::state::{PoolConfigV2, RelayerRegistry, RelayerNode, MAX_RELAYER_METADATA_URI_LEN};
+use crate::state::{PoolConfigV2, RelayerNode, RelayerRegistry, MAX_RELAYER_METADATA_URI_LEN};
 
 /// Accounts for registering a new relayer
 #[derive(Accounts)]
@@ -46,11 +45,7 @@ pub struct RegisterRelayer<'info> {
 }
 
 /// Handler for register_relayer instruction
-pub fn handler(
-    ctx: Context<RegisterRelayer>,
-    fee_bps: u16,
-    metadata_uri: String,
-) -> Result<()> {
+pub fn handler(ctx: Context<RegisterRelayer>, fee_bps: u16, metadata_uri: String) -> Result<()> {
     let registry = &mut ctx.accounts.relayer_registry;
     let relayer_node = &mut ctx.accounts.relayer_node;
 

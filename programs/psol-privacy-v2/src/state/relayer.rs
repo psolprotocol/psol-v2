@@ -13,8 +13,8 @@
 //! 3. Users can query active relayers and their fees
 //! 4. Withdrawals/transfers validate relayer is registered and active
 
-use anchor_lang::prelude::*;
 use crate::error::PrivacyErrorV2;
+use anchor_lang::prelude::*;
 
 /// Maximum metadata URI length
 pub const MAX_RELAYER_METADATA_URI_LEN: usize = 200;
@@ -82,19 +82,14 @@ impl RelayerRegistry {
         + 8                   // last_updated_at
         + 1                   // bump
         + 1                   // registrations_open
-        + 32;                 // reserved
+        + 32; // reserved
 
     /// Default fee bounds
-    pub const DEFAULT_MIN_FEE_BPS: u16 = 10;   // 0.1%
-    pub const DEFAULT_MAX_FEE_BPS: u16 = 500;  // 5%
+    pub const DEFAULT_MIN_FEE_BPS: u16 = 10; // 0.1%
+    pub const DEFAULT_MAX_FEE_BPS: u16 = 500; // 5%
 
     /// Initialize the registry
-    pub fn initialize(
-        &mut self,
-        pool: Pubkey,
-        bump: u8,
-        timestamp: i64,
-    ) {
+    pub fn initialize(&mut self, pool: Pubkey, bump: u8, timestamp: i64) {
         self.pool = pool;
         self.min_fee_bps = Self::DEFAULT_MIN_FEE_BPS;
         self.max_fee_bps = Self::DEFAULT_MAX_FEE_BPS;
@@ -120,8 +115,14 @@ impl RelayerRegistry {
         min_stake_amount: u64,
         timestamp: i64,
     ) -> Result<()> {
-        require!(min_fee_bps <= max_fee_bps, PrivacyErrorV2::InvalidFeeConfiguration);
-        require!(max_fee_bps <= 10000, PrivacyErrorV2::InvalidFeeConfiguration); // Max 100%
+        require!(
+            min_fee_bps <= max_fee_bps,
+            PrivacyErrorV2::InvalidFeeConfiguration
+        );
+        require!(
+            max_fee_bps <= 10000,
+            PrivacyErrorV2::InvalidFeeConfiguration
+        ); // Max 100%
 
         self.min_fee_bps = min_fee_bps;
         self.max_fee_bps = max_fee_bps;
@@ -208,10 +209,7 @@ impl RelayerRegistry {
     pub const SEED_PREFIX: &'static [u8] = b"relayer_registry";
 
     pub fn find_pda(program_id: &Pubkey, pool: &Pubkey) -> (Pubkey, u8) {
-        Pubkey::find_program_address(
-            &[Self::SEED_PREFIX, pool.as_ref()],
-            program_id,
-        )
+        Pubkey::find_program_address(&[Self::SEED_PREFIX, pool.as_ref()], program_id)
     }
 }
 
@@ -275,7 +273,7 @@ impl RelayerNode {
             + 4 + metadata_uri_len  // metadata_uri
             + 1                     // bump
             + 1                     // reputation_score
-            + 16                    // reserved
+            + 16 // reserved
     }
 
     pub const DEFAULT_SPACE: usize = Self::space(MAX_RELAYER_METADATA_URI_LEN);
@@ -317,7 +315,10 @@ impl RelayerNode {
             self.fee_bps = fee;
         }
         if let Some(uri) = metadata_uri {
-            require!(uri.len() <= MAX_RELAYER_METADATA_URI_LEN, PrivacyErrorV2::InputTooLarge);
+            require!(
+                uri.len() <= MAX_RELAYER_METADATA_URI_LEN,
+                PrivacyErrorV2::InputTooLarge
+            );
             self.metadata_uri = uri;
         }
         if let Some(active) = is_active {
@@ -377,18 +378,12 @@ impl RelayerNode {
 impl RelayerNode {
     pub const SEED_PREFIX: &'static [u8] = b"relayer";
 
-    pub fn find_pda(
-        program_id: &Pubkey,
-        registry: &Pubkey,
-        operator: &Pubkey,
-    ) -> (Pubkey, u8) {
+    pub fn find_pda(program_id: &Pubkey, registry: &Pubkey, operator: &Pubkey) -> (Pubkey, u8) {
         Pubkey::find_program_address(
             &[Self::SEED_PREFIX, registry.as_ref(), operator.as_ref()],
             program_id,
         )
     }
-
-    
 
     /// Validates that this RelayerNode belongs to `expected_registry` and that the passed
     /// account key matches the canonical PDA derivation.
@@ -417,12 +412,17 @@ impl RelayerNode {
 
         Ok(())
     }
-pub fn seeds<'a>(
+    pub fn seeds<'a>(
         registry: &'a Pubkey,
         operator: &'a Pubkey,
         bump: &'a [u8; 1],
     ) -> [&'a [u8]; 4] {
-        [Self::SEED_PREFIX, registry.as_ref(), operator.as_ref(), bump]
+        [
+            Self::SEED_PREFIX,
+            registry.as_ref(),
+            operator.as_ref(),
+            bump,
+        ]
     }
 }
 
@@ -452,7 +452,7 @@ mod tests {
         assert!(registry.validate_fee(100).is_ok());
         assert!(registry.validate_fee(10).is_ok());
         assert!(registry.validate_fee(500).is_ok());
-        assert!(registry.validate_fee(5).is_err());   // Below min
+        assert!(registry.validate_fee(5).is_err()); // Below min
         assert!(registry.validate_fee(1000).is_err()); // Above max
     }
 
@@ -477,7 +477,6 @@ mod tests {
         let fee = relayer.calculate_fee(10_000).unwrap();
         assert_eq!(fee, 100); // 1% of 10000 = 100
     }
-
 
     fn assert_err_contains(err: anchor_lang::error::Error, needle: &str) {
         let s = err.to_string();
@@ -525,7 +524,8 @@ mod tests {
         let expected_registry = Pubkey::new_unique();
         let operator = Pubkey::new_unique();
 
-        let (pda_expected, bump) = RelayerNode::find_pda(&program_id, &expected_registry, &operator);
+        let (pda_expected, bump) =
+            RelayerNode::find_pda(&program_id, &expected_registry, &operator);
 
         let node = RelayerNode {
             registry: actual_registry,

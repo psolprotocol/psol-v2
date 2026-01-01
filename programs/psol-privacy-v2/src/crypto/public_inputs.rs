@@ -14,7 +14,7 @@ use anchor_lang::prelude::*;
 
 use crate::error::PrivacyErrorV2;
 
-use super::curve_utils::{u64_to_scalar, i64_to_scalar, pubkey_to_scalar, ScalarField};
+use super::curve_utils::{i64_to_scalar, pubkey_to_scalar, u64_to_scalar, ScalarField};
 
 // ============================================================================
 // CONSTANTS
@@ -44,10 +44,10 @@ pub const MAX_JS_OUTPUTS: usize = 4;
 pub struct DepositPublicInputs {
     /// Commitment hash being inserted into tree
     pub commitment: [u8; 32],
-    
+
     /// Deposit amount
     pub amount: u64,
-    
+
     /// Asset identifier (Keccak256 of mint pubkey)
     pub asset_id: [u8; 32],
 }
@@ -87,11 +87,7 @@ impl DepositPublicInputs {
 
     /// Convert to field elements for Groth16 verification
     pub fn to_field_elements(&self) -> Vec<ScalarField> {
-        vec![
-            self.commitment,
-            u64_to_scalar(self.amount),
-            self.asset_id,
-        ]
+        vec![self.commitment, u64_to_scalar(self.amount), self.asset_id]
     }
 }
 
@@ -120,25 +116,25 @@ impl DepositPublicInputs {
 pub struct WithdrawPublicInputs {
     /// Merkle root of the commitment tree
     pub merkle_root: [u8; 32],
-    
+
     /// Nullifier hash (prevents double-spend)
     pub nullifier_hash: [u8; 32],
-    
+
     /// Asset identifier
     pub asset_id: [u8; 32],
-    
+
     /// Recipient address (who receives the tokens)
     pub recipient: Pubkey,
-    
+
     /// Withdrawal amount (before fee)
     pub amount: u64,
-    
+
     /// Relayer address (submits tx on behalf of user)
     pub relayer: Pubkey,
-    
+
     /// Fee paid to relayer (deducted from amount)
     pub relayer_fee: u64,
-    
+
     /// Optional hash of encrypted metadata (0 if none)
     pub public_data_hash: [u8; 32],
 }
@@ -253,25 +249,25 @@ impl WithdrawPublicInputs {
 pub struct JoinSplitPublicInputs {
     /// Merkle root of the commitment tree
     pub merkle_root: [u8; 32],
-    
+
     /// Asset identifier (must be same for all inputs/outputs)
     pub asset_id: [u8; 32],
-    
+
     /// Input nullifier hashes (up to MAX_JS_INPUTS)
     pub nullifier_hashes: Vec<[u8; 32]>,
-    
+
     /// Output commitment hashes (up to MAX_JS_OUTPUTS)
     pub output_commitments: Vec<[u8; 32]>,
-    
+
     /// Net public amount flow
     /// Positive: deposit additional funds
     /// Negative: withdraw funds
     /// Zero: pure private transfer
     pub public_amount: i64,
-    
+
     /// Relayer address (for any public flows)
     pub relayer: Pubkey,
-    
+
     /// Relayer fee
     pub relayer_fee: u64,
 }
@@ -385,28 +381,28 @@ impl JoinSplitPublicInputs {
     /// Convert to field elements for Groth16 verification
     pub fn to_field_elements(&self) -> Vec<ScalarField> {
         let mut elements = Vec::with_capacity(self.count());
-        
+
         // Fixed elements
         elements.push(self.merkle_root);
         elements.push(self.asset_id);
-        
+
         // Nullifiers
         for nullifier in &self.nullifier_hashes {
             elements.push(*nullifier);
         }
-        
+
         // Output commitments
         for commitment in &self.output_commitments {
             elements.push(*commitment);
         }
-        
+
         // Public amount (as signed field element)
         elements.push(i64_to_scalar(self.public_amount));
-        
+
         // Relayer info
         elements.push(pubkey_to_scalar(&self.relayer));
         elements.push(u64_to_scalar(self.relayer_fee));
-        
+
         elements
     }
 
@@ -456,13 +452,13 @@ impl JoinSplitPublicInputs {
 pub struct MembershipPublicInputs {
     /// Merkle root of the commitment tree
     pub merkle_root: [u8; 32],
-    
+
     /// Asset identifier
     pub asset_id: [u8; 32],
-    
+
     /// Minimum amount threshold to prove
     pub threshold: u64,
-    
+
     /// Hash of prover's public key (for identity binding)
     pub public_key_hash: [u8; 32],
 }
@@ -596,7 +592,9 @@ impl WithdrawPublicInputsBuilder {
 
     /// Build for self-relay (recipient = relayer, no fee)
     pub fn build_self_relay(mut self) -> Result<WithdrawPublicInputs> {
-        let recipient = self.recipient.ok_or(error!(PrivacyErrorV2::InvalidAmount))?;
+        let recipient = self
+            .recipient
+            .ok_or(error!(PrivacyErrorV2::InvalidAmount))?;
         self.relayer = Some(recipient);
         self.relayer_fee = Some(0);
         self.build()
@@ -605,12 +603,22 @@ impl WithdrawPublicInputsBuilder {
     /// Build the public inputs
     pub fn build(self) -> Result<WithdrawPublicInputs> {
         let inputs = WithdrawPublicInputs {
-            merkle_root: self.merkle_root.ok_or(error!(PrivacyErrorV2::InvalidMerkleRoot))?,
-            nullifier_hash: self.nullifier_hash.ok_or(error!(PrivacyErrorV2::InvalidNullifier))?,
-            asset_id: self.asset_id.ok_or(error!(PrivacyErrorV2::AssetNotRegistered))?,
-            recipient: self.recipient.ok_or(error!(PrivacyErrorV2::RecipientMismatch))?,
+            merkle_root: self
+                .merkle_root
+                .ok_or(error!(PrivacyErrorV2::InvalidMerkleRoot))?,
+            nullifier_hash: self
+                .nullifier_hash
+                .ok_or(error!(PrivacyErrorV2::InvalidNullifier))?,
+            asset_id: self
+                .asset_id
+                .ok_or(error!(PrivacyErrorV2::AssetNotRegistered))?,
+            recipient: self
+                .recipient
+                .ok_or(error!(PrivacyErrorV2::RecipientMismatch))?,
             amount: self.amount.ok_or(error!(PrivacyErrorV2::InvalidAmount))?,
-            relayer: self.relayer.ok_or(error!(PrivacyErrorV2::RelayerNotRegistered))?,
+            relayer: self
+                .relayer
+                .ok_or(error!(PrivacyErrorV2::RelayerNotRegistered))?,
             relayer_fee: self.relayer_fee.unwrap_or(0),
             public_data_hash: self.public_data_hash.unwrap_or([0u8; 32]),
         };
@@ -683,8 +691,12 @@ impl JoinSplitPublicInputsBuilder {
     /// Build the public inputs
     pub fn build(self) -> Result<JoinSplitPublicInputs> {
         let inputs = JoinSplitPublicInputs {
-            merkle_root: self.merkle_root.ok_or(error!(PrivacyErrorV2::InvalidMerkleRoot))?,
-            asset_id: self.asset_id.ok_or(error!(PrivacyErrorV2::AssetNotRegistered))?,
+            merkle_root: self
+                .merkle_root
+                .ok_or(error!(PrivacyErrorV2::InvalidMerkleRoot))?,
+            asset_id: self
+                .asset_id
+                .ok_or(error!(PrivacyErrorV2::AssetNotRegistered))?,
             nullifier_hashes: self.nullifier_hashes,
             output_commitments: self.output_commitments,
             public_amount: self.public_amount,
@@ -702,6 +714,7 @@ impl JoinSplitPublicInputsBuilder {
 // ============================================================================
 
 /// Convert u64 to 32-byte field element (big-endian)
+#[allow(dead_code)]
 fn u64_to_field(value: u64) -> [u8; 32] {
     let mut bytes = [0u8; 32];
     bytes[24..32].copy_from_slice(&value.to_be_bytes());
@@ -721,25 +734,17 @@ mod tests {
     }
 
     // ----- Deposit tests -----
-    
+
     #[test]
     fn test_deposit_valid() {
-        let inputs = DepositPublicInputs::new(
-            [1u8; 32],
-            1000,
-            [2u8; 32],
-        );
+        let inputs = DepositPublicInputs::new([1u8; 32], 1000, [2u8; 32]);
         assert!(inputs.validate().is_ok());
         assert_eq!(inputs.to_field_elements().len(), DepositPublicInputs::COUNT);
     }
 
     #[test]
     fn test_deposit_zero_commitment() {
-        let inputs = DepositPublicInputs::new(
-            [0u8; 32],
-            1000,
-            [2u8; 32],
-        );
+        let inputs = DepositPublicInputs::new([0u8; 32], 1000, [2u8; 32]);
         assert!(inputs.validate().is_err());
     }
 
@@ -758,7 +763,10 @@ mod tests {
             [0u8; 32],
         );
         assert!(inputs.validate().is_ok());
-        assert_eq!(inputs.to_field_elements().len(), WithdrawPublicInputs::COUNT);
+        assert_eq!(
+            inputs.to_field_elements().len(),
+            WithdrawPublicInputs::COUNT
+        );
     }
 
     #[test]
@@ -843,14 +851,12 @@ mod tests {
 
     #[test]
     fn test_membership_valid() {
-        let inputs = MembershipPublicInputs::new(
-            [1u8; 32],
-            [2u8; 32],
-            1000,
-            [4u8; 32],
-        );
+        let inputs = MembershipPublicInputs::new([1u8; 32], [2u8; 32], 1000, [4u8; 32]);
         assert!(inputs.validate().is_ok());
-        assert_eq!(inputs.to_field_elements().len(), MembershipPublicInputs::COUNT);
+        assert_eq!(
+            inputs.to_field_elements().len(),
+            MembershipPublicInputs::COUNT
+        );
     }
 
     // ----- Builder tests -----

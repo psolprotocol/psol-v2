@@ -1,9 +1,7 @@
 //! Attach Audit Metadata Instruction
 //!
 //! Attaches encrypted audit metadata to an existing commitment.
-use crate::utils::validate_metadata_uri;
 /// Used for compliance and regulatory reporting.
-
 use anchor_lang::prelude::*;
 
 use crate::error::PrivacyErrorV2;
@@ -85,7 +83,9 @@ pub fn handler(
     )?;
 
     // Update compliance statistics
-    ctx.accounts.compliance_config.record_attachment(timestamp)?;
+    ctx.accounts
+        .compliance_config
+        .record_attachment(timestamp)?;
 
     // Emit event
     emit!(AuditMetadataAttached {

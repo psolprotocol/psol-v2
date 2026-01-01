@@ -25,13 +25,25 @@ pub use curve_utils::{
     verify_pairing, make_pairing_element, compute_vk_x,
 };
 
-pub use groth16_verifier::{
+pub use groth16::{
     verify_groth16_proof,
     verify_proof_bytes,
+    verify_deposit_proof,
+    verify_withdraw_proof,
+    verify_joinsplit_proof,
+    verify_membership_proof,
     Groth16Proof,
-    PROOF_DATA_LEN,
-    is_valid_proof_length,
+    PublicInputs,
 };
+
+/// Proof data length constant
+pub const PROOF_DATA_LEN: usize = 256;
+
+/// Check if proof bytes have valid length
+#[inline]
+pub fn is_valid_proof_length(data: &[u8]) -> bool {
+    data.len() == PROOF_DATA_LEN
+}
 
 pub use keccak::{
     keccak256,

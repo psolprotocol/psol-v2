@@ -9,9 +9,7 @@ use anchor_lang::prelude::*;
 
 use crate::error::PrivacyErrorV2;
 use crate::events::{
-    AuthorityTransferInitiatedV2,
-    AuthorityTransferCompletedV2,
-    AuthorityTransferCancelledV2,
+    AuthorityTransferCancelledV2, AuthorityTransferCompletedV2, AuthorityTransferInitiatedV2,
 };
 use crate::state::PoolConfigV2;
 

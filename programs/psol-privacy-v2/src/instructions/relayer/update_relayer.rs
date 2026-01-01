@@ -6,7 +6,7 @@ use anchor_lang::prelude::*;
 
 use crate::error::PrivacyErrorV2;
 use crate::events::RelayerUpdated;
-use crate::state::{PoolConfigV2, RelayerRegistry, RelayerNode};
+use crate::state::{PoolConfigV2, RelayerNode, RelayerRegistry};
 
 /// Accounts for updating a relayer
 #[derive(Accounts)]
@@ -25,7 +25,7 @@ pub struct UpdateRelayer<'info> {
     pub relayer_registry: Account<'info, RelayerRegistry>,
 
     /// Relayer node account
-    /// 
+    ///
     /// Security: PDA seeds ensure this node belongs to relayer_registry.
     /// The `has_one = operator` ensures only the operator can update.
     /// No need for separate `has_one = registry` since seeds already bind it.
@@ -39,12 +39,11 @@ pub struct UpdateRelayer<'info> {
         ],
         bump = relayer_node.bump,
         // Additional safety: verify stored registry matches
-        constraint = relayer_node.registry == relayer_registry.key() 
+        constraint = relayer_node.registry == relayer_registry.key()
             @ PrivacyErrorV2::RelayerNodeRegistryMismatch,
     )]
     pub relayer_node: Account<'info, RelayerNode>,
-
-    // REMOVED: Redundant `registry: UncheckedAccount` 
+    // REMOVED: Redundant `registry: UncheckedAccount`
     // The PDA seeds already bind relayer_node to relayer_registry
 }
 

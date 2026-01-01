@@ -1,4 +1,3 @@
-
 use anchor_lang::prelude::*;
 
 #[error_code]
@@ -6,7 +5,6 @@ pub enum PrivacyErrorV2 {
     // =========================================================================
     // PROOF & CRYPTOGRAPHY ERRORS
     // =========================================================================
-    
     #[msg("Invalid proof: verification failed")]
     InvalidProof,
 
@@ -41,7 +39,9 @@ pub enum PrivacyErrorV2 {
     InvalidVerificationKeyType,
 
     // NEW: From security fixes
-    #[msg("Cryptography not implemented - build with --features insecure-dev for local testing only")]
+    #[msg(
+        "Cryptography not implemented - build with --features insecure-dev for local testing only"
+    )]
     CryptoNotImplemented,
 
     #[msg("Proof verification failed - invalid zero-knowledge proof")]
@@ -50,7 +50,6 @@ pub enum PrivacyErrorV2 {
     // =========================================================================
     // MERKLE TREE ERRORS
     // =========================================================================
-
     #[msg("Merkle root not in recent history")]
     InvalidMerkleRoot,
 
@@ -66,7 +65,7 @@ pub enum PrivacyErrorV2 {
     #[msg("Invalid Merkle tree pool reference")]
     InvalidMerkleTreePool,
     #[msg("Invalid pool reference")]
-InvalidPoolReference,
+    InvalidPoolReference,
     #[msg("Nullifier already spent")]
     NullifierAlreadySpent,
 
@@ -82,7 +81,6 @@ InvalidPoolReference,
     // =========================================================================
     // AMOUNT/VALUE ERRORS
     // =========================================================================
-
     #[msg("Invalid amount: must be greater than zero")]
     InvalidAmount,
 
@@ -107,7 +105,6 @@ InvalidPoolReference,
     // =========================================================================
     // ASSET ERRORS
     // =========================================================================
-
     #[msg("Token mint does not match pool configuration")]
     InvalidMint,
 
@@ -141,7 +138,6 @@ InvalidPoolReference,
     // =========================================================================
     // COMMITMENT ERRORS
     // =========================================================================
-
     #[msg("Invalid commitment: cannot be all zeros")]
     InvalidCommitment,
 
@@ -154,7 +150,6 @@ InvalidPoolReference,
     // =========================================================================
     // AUTHORIZATION ERRORS
     // =========================================================================
-
     #[msg("Unauthorized: caller is not pool authority")]
     Unauthorized,
 
@@ -173,7 +168,6 @@ InvalidPoolReference,
     // =========================================================================
     // RELAYER ERRORS
     // =========================================================================
-
     #[msg("Relayer not registered")]
     RelayerNotRegistered,
 
@@ -201,7 +195,6 @@ InvalidPoolReference,
     // =========================================================================
     // STATE ERRORS
     // =========================================================================
-
     #[msg("Pool is paused")]
     PoolPaused,
 
@@ -232,7 +225,6 @@ InvalidPoolReference,
     // =========================================================================
     // BATCHING ERRORS (NEW - from security fixes)
     // =========================================================================
-
     #[msg("Pending deposits buffer is full")]
     BufferFull,
 
@@ -248,7 +240,6 @@ InvalidPoolReference,
     // =========================================================================
     // FEATURE ERRORS
     // =========================================================================
-
     #[msg("Feature not enabled for this pool")]
     FeatureDisabled,
 
@@ -267,7 +258,6 @@ InvalidPoolReference,
     // =========================================================================
     // COMPLIANCE ERRORS
     // =========================================================================
-
     #[msg("Encrypted note required for this pool")]
     EncryptedNoteRequired,
 
@@ -280,7 +270,6 @@ InvalidPoolReference,
     // =========================================================================
     // INPUT VALIDATION
     // =========================================================================
-
     #[msg("Input exceeds maximum allowed length")]
     InputTooLarge,
 
@@ -293,7 +282,6 @@ InvalidPoolReference,
     // =========================================================================
     // CPI ERRORS
     // =========================================================================
-
     #[msg("Shielded action not supported")]
     UnsupportedShieldedAction,
 

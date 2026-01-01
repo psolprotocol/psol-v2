@@ -100,7 +100,7 @@ impl MerkleTreeV2 {
             + 4 + (32 * (depth_usize + 1))      // zeros (vec)
             + 8                                 // total_leaves
             + 8                                 // last_insertion_at
-            + 1                                 // version
+            + 1 // version
     }
 
     pub const VERSION: u8 = 2;
@@ -116,12 +116,7 @@ impl MerkleTreeV2 {
     /// - `InvalidTreeDepth` if depth is out of range
     /// - `InvalidRootHistorySize` if history size < 30
     /// - `CryptographyError` if Poseidon hash fails
-    pub fn initialize(
-        &mut self,
-        pool: Pubkey,
-        depth: u8,
-        root_history_size: u16,
-    ) -> Result<()> {
+    pub fn initialize(&mut self, pool: Pubkey, depth: u8, root_history_size: u16) -> Result<()> {
         // Validate parameters
         require!(
             depth >= MIN_TREE_DEPTH && depth <= MAX_TREE_DEPTH,
@@ -278,11 +273,7 @@ impl MerkleTreeV2 {
     /// # Note
     /// Each insertion updates the root, so root history will contain
     /// intermediate roots. This is intentional for proper proof generation.
-    pub fn insert_batch(
-        &mut self,
-        commitments: &[[u8; 32]],
-        timestamp: i64,
-    ) -> Result<Vec<u32>> {
+    pub fn insert_batch(&mut self, commitments: &[[u8; 32]], timestamp: i64) -> Result<Vec<u32>> {
         let mut indices = Vec::with_capacity(commitments.len());
 
         for commitment in commitments {
@@ -418,10 +409,7 @@ impl MerkleTreeV2 {
     pub const SEED_PREFIX: &'static [u8] = b"merkle_tree_v2";
 
     pub fn find_pda(program_id: &Pubkey, pool: &Pubkey) -> (Pubkey, u8) {
-        Pubkey::find_program_address(
-            &[Self::SEED_PREFIX, pool.as_ref()],
-            program_id,
-        )
+        Pubkey::find_program_address(&[Self::SEED_PREFIX, pool.as_ref()], program_id)
     }
 
     pub fn seeds<'a>(pool: &'a Pubkey, bump: &'a [u8; 1]) -> [&'a [u8]; 3] {

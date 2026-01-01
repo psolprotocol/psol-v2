@@ -6,7 +6,7 @@ use anchor_lang::prelude::*;
 
 use crate::error::PrivacyErrorV2;
 use crate::events::RelayerDeactivated;
-use crate::state::{PoolConfigV2, RelayerRegistry, RelayerNode};
+use crate::state::{PoolConfigV2, RelayerNode, RelayerRegistry};
 
 /// Accounts for deactivating a relayer
 #[derive(Accounts)]

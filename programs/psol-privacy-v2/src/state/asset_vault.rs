@@ -109,7 +109,7 @@ impl AssetVault {
             + 1                     // decimals
             + 1                     // asset_type
             + 4 + metadata_uri_len  // metadata_uri (String)
-            + 32                    // reserved
+            + 32 // reserved
     }
 
     pub const DEFAULT_SPACE: usize = Self::space(MAX_METADATA_URI_LEN);
@@ -173,13 +173,22 @@ impl AssetVault {
 
     #[inline]
     pub fn require_withdrawals_enabled(&self) -> Result<()> {
-        require!(self.withdrawals_enabled, PrivacyErrorV2::WithdrawalsDisabled);
+        require!(
+            self.withdrawals_enabled,
+            PrivacyErrorV2::WithdrawalsDisabled
+        );
         Ok(())
     }
 
     pub fn validate_deposit_amount(&self, amount: u64) -> Result<()> {
-        require!(amount >= self.min_deposit, PrivacyErrorV2::BelowMinimumDeposit);
-        require!(amount <= self.max_deposit, PrivacyErrorV2::ExceedsMaximumDeposit);
+        require!(
+            amount >= self.min_deposit,
+            PrivacyErrorV2::BelowMinimumDeposit
+        );
+        require!(
+            amount <= self.max_deposit,
+            PrivacyErrorV2::ExceedsMaximumDeposit
+        );
         Ok(())
     }
 
@@ -259,7 +268,10 @@ impl AssetVault {
     }
 
     pub fn set_metadata_uri(&mut self, uri: String) -> Result<()> {
-        require!(uri.len() <= MAX_METADATA_URI_LEN, PrivacyErrorV2::InputTooLarge);
+        require!(
+            uri.len() <= MAX_METADATA_URI_LEN,
+            PrivacyErrorV2::InputTooLarge
+        );
         self.metadata_uri = uri;
         Ok(())
     }
@@ -276,11 +288,7 @@ impl AssetVault {
         )
     }
 
-    pub fn seeds<'a>(
-        pool: &'a Pubkey,
-        asset_id: &'a [u8; 32],
-        bump: &'a [u8; 1],
-    ) -> [&'a [u8]; 4] {
+    pub fn seeds<'a>(pool: &'a Pubkey, asset_id: &'a [u8; 32], bump: &'a [u8; 1]) -> [&'a [u8]; 4] {
         [Self::SEED_PREFIX, pool.as_ref(), asset_id.as_ref(), bump]
     }
 }
@@ -301,10 +309,8 @@ pub fn compute_asset_id(mint: &Pubkey) -> [u8; 32] {
 
 /// Native SOL asset ID (special case)
 pub const NATIVE_SOL_ASSET_ID: [u8; 32] = [
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
 ];
 
 #[cfg(test)]

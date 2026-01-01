@@ -25,8 +25,8 @@
 //! }
 //! ```
 
-use anchor_lang::prelude::*;
-use crate::error::PrivacyErrorV2;  // CORRECTED: Import error type
+use crate::error::PrivacyErrorV2;
+use anchor_lang::prelude::*; // CORRECTED: Import error type
 
 /// Batcher Role PDA - On-Chain Authorization
 ///
@@ -74,18 +74,12 @@ impl BatcherRole {
         + 8   // total_batches_processed
         + 8   // total_deposits_batched
         + 1   // bump
-        + 1;  // version
+        + 1; // version
 
     pub const VERSION: u8 = 1;
 
     /// Initialize a batcher role
-    pub fn initialize(
-        &mut self,
-        pool: Pubkey,
-        batcher: Pubkey,
-        bump: u8,
-        timestamp: i64,
-    ) {
+    pub fn initialize(&mut self, pool: Pubkey, batcher: Pubkey, bump: u8, timestamp: i64) {
         self.pool = pool;
         self.batcher = batcher;
         self.is_enabled = true;
@@ -100,11 +94,13 @@ impl BatcherRole {
     /// Record a batch processed by this batcher
     pub fn record_batch(&mut self, deposits_count: u32, timestamp: i64) -> Result<()> {
         // CORRECTED: Use PrivacyErrorV2 instead of error::ErrorCode
-        self.total_batches_processed = self.total_batches_processed
+        self.total_batches_processed = self
+            .total_batches_processed
             .checked_add(1)
             .ok_or(PrivacyErrorV2::ArithmeticOverflow)?;
 
-        self.total_deposits_batched = self.total_deposits_batched
+        self.total_deposits_batched = self
+            .total_deposits_batched
             .checked_add(deposits_count as u64)
             .ok_or(PrivacyErrorV2::ArithmeticOverflow)?;
 

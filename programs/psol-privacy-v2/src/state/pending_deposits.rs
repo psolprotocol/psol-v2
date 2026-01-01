@@ -40,13 +40,13 @@ use anchor_lang::prelude::*;
 use crate::error::PrivacyErrorV2;
 
 /// Maximum pending deposits in buffer
-/// 
+///
 /// Limited to prevent account bloat and ensure batch processing
 /// fits within Solana compute unit limits.
 pub const MAX_PENDING_DEPOSITS: usize = 100;
 
 /// Minimum time between batches (seconds)
-/// 
+///
 /// Prevents spam batching attacks.
 pub const MIN_BATCH_INTERVAL_SECONDS: i64 = 60;
 
@@ -76,7 +76,7 @@ pub struct PendingDeposit {
 
 impl PendingDeposit {
     pub const LEN: usize = 32   // commitment
-        + 8;                    // timestamp
+        + 8; // timestamp
 
     /// Create a new pending deposit entry
     pub fn new(commitment: [u8; 32], timestamp: i64) -> Self {
@@ -132,17 +132,12 @@ impl PendingDepositsBuffer {
         + 8                                                     // total_batches_processed
         + 8                                                     // total_deposits_batched
         + 1                                                     // bump
-        + 1;                                                    // version
+        + 1; // version
 
     pub const VERSION: u8 = 1;
 
     /// Initialize the pending deposits buffer
-    pub fn initialize(
-        &mut self,
-        pool: Pubkey,
-        bump: u8,
-        timestamp: i64,
-    ) {
+    pub fn initialize(&mut self, pool: Pubkey, bump: u8, timestamp: i64) {
         self.pool = pool;
         self.deposits = Vec::with_capacity(MAX_PENDING_DEPOSITS);
         self.total_pending = 0;
@@ -165,16 +160,9 @@ impl PendingDepositsBuffer {
     ///
     /// # Returns
     /// Index of the deposit in the buffer
-    pub fn add_pending(
-        &mut self,
-        commitment: [u8; 32],
-        timestamp: i64,
-    ) -> Result<usize> {
+    pub fn add_pending(&mut self, commitment: [u8; 32], timestamp: i64) -> Result<usize> {
         // Check buffer not full
-        require!(
-            !self.is_full(),
-            PrivacyErrorV2::BufferFull
-        );
+        require!(!self.is_full(), PrivacyErrorV2::BufferFull);
 
         // Validate commitment is not zero (reserved for empty Merkle leaves)
         require!(
@@ -187,7 +175,9 @@ impl PendingDepositsBuffer {
 
         // Add to buffer
         self.deposits.push(pending);
-        self.total_pending = self.total_pending.checked_add(1)
+        self.total_pending = self
+            .total_pending
+            .checked_add(1)
             .ok_or(PrivacyErrorV2::ArithmeticOverflow)?;
 
         // Return index in buffer
@@ -206,10 +196,7 @@ impl PendingDepositsBuffer {
     /// # Note
     /// Call `clear_processed()` after successful Merkle insertion
     pub fn prepare_batch(&self, max_to_process: u16) -> &[PendingDeposit] {
-        let to_process = std::cmp::min(
-            max_to_process as usize,
-            self.deposits.len()
-        );
+        let to_process = std::cmp::min(max_to_process as usize, self.deposits.len());
 
         &self.deposits[..to_process]
     }
@@ -233,15 +220,18 @@ impl PendingDepositsBuffer {
         self.deposits.drain(..count as usize);
 
         // Update statistics
-        self.total_pending = self.total_pending
+        self.total_pending = self
+            .total_pending
             .checked_sub(count)
             .ok_or(PrivacyErrorV2::ArithmeticOverflow)?;
 
-        self.total_batches_processed = self.total_batches_processed
+        self.total_batches_processed = self
+            .total_batches_processed
             .checked_add(1)
             .ok_or(PrivacyErrorV2::ArithmeticOverflow)?;
 
-        self.total_deposits_batched = self.total_deposits_batched
+        self.total_deposits_batched = self
+            .total_deposits_batched
             .checked_add(count as u64)
             .ok_or(PrivacyErrorV2::ArithmeticOverflow)?;
 

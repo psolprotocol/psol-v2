@@ -67,7 +67,7 @@ pub struct RegisterAsset<'info> {
 /// Handler for register_asset instruction
 pub fn handler(ctx: Context<RegisterAsset>, asset_id: [u8; 32]) -> Result<()> {
     let pool_config = &mut ctx.accounts.pool_config;
-    
+
     // Verify pool can register more assets
     require!(
         pool_config.can_register_asset(),

@@ -6,7 +6,7 @@
 use anchor_lang::prelude::*;
 
 use crate::error::PrivacyErrorV2;
-use crate::events::{VerificationKeySetV2, VerificationKeyLockedV2};
+use crate::events::{VerificationKeyLockedV2, VerificationKeySetV2};
 use crate::state::{PoolConfigV2, VerificationKeyAccountV2};
 use crate::ProofType;
 
@@ -68,11 +68,7 @@ pub fn handler(
 
     // Initialize if needed
     if !vk_account.is_initialized {
-        vk_account.initialize(
-            pool_config.key(),
-            proof_type,
-            ctx.bumps.vk_account,
-        );
+        vk_account.initialize(pool_config.key(), proof_type, ctx.bumps.vk_account);
     }
 
     // Set VK data
@@ -132,18 +128,12 @@ pub struct LockVerificationKeyV2<'info> {
 }
 
 /// Handler for lock_verification_key_v2 instruction
-pub fn lock_handler(
-    ctx: Context<LockVerificationKeyV2>,
-    proof_type: ProofType,
-) -> Result<()> {
+pub fn lock_handler(ctx: Context<LockVerificationKeyV2>, proof_type: ProofType) -> Result<()> {
     let pool_config = &mut ctx.accounts.pool_config;
     let vk_account = &mut ctx.accounts.vk_account;
 
     // Check not already locked
-    require!(
-        !vk_account.is_locked,
-        PrivacyErrorV2::VerificationKeyLocked
-    );
+    require!(!vk_account.is_locked, PrivacyErrorV2::VerificationKeyLocked);
 
     let clock = Clock::get()?;
     let timestamp = clock.unix_timestamp;

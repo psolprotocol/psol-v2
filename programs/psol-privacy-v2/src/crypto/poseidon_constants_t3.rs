@@ -19,7 +19,7 @@ pub const ROUND_CONSTANTS_T3: [[u8; 32]; 195] = [
     // ... Continue for all 65 rounds (195 constants total)
     // NOTE: In production, use the exact constants from circomlib
     // These are placeholder values that should be replaced
-    
+
     // Rounds 3-64 (placeholder - must be replaced with real circomlib constants)
     hex!("0000000000000000000000000000000000000000000000000000000000000001"),
     hex!("0000000000000000000000000000000000000000000000000000000000000002"),

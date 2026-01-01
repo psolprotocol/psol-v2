@@ -17,22 +17,22 @@ pub use instructions::*;
 
 declare_id!("21DbY1WykakReEX8RjpirJMxtgoa6vhd77EF6d3oC6Xo");
 
-pub(crate) use crate::instructions::initialize_pool_v2::__client_accounts_initialize_pool_v2;
-pub(crate) use crate::instructions::initialize_pool_registries::__client_accounts_initialize_pool_registries;
-pub(crate) use crate::instructions::register_asset::__client_accounts_register_asset;
-pub(crate) use crate::instructions::set_verification_key_v2::__client_accounts_set_verification_key_v2;
-pub(crate) use crate::instructions::set_verification_key_v2::__client_accounts_lock_verification_key_v2;
-pub(crate) use crate::instructions::admin::pause_v2::__client_accounts_pause_pool_v2;
-pub(crate) use crate::instructions::admin::unpause_v2::__client_accounts_unpause_pool_v2;
-pub(crate) use crate::instructions::admin::authority_v2::__client_accounts_initiate_authority_transfer_v2;
 pub(crate) use crate::instructions::admin::authority_v2::__client_accounts_accept_authority_transfer_v2;
 pub(crate) use crate::instructions::admin::authority_v2::__client_accounts_cancel_authority_transfer_v2;
+pub(crate) use crate::instructions::admin::authority_v2::__client_accounts_initiate_authority_transfer_v2;
+pub(crate) use crate::instructions::admin::pause_v2::__client_accounts_pause_pool_v2;
+pub(crate) use crate::instructions::admin::unpause_v2::__client_accounts_unpause_pool_v2;
+pub(crate) use crate::instructions::batch_process_deposits::__client_accounts_batch_process_deposits;
+pub(crate) use crate::instructions::deposit_masp::__client_accounts_deposit_masp;
+pub(crate) use crate::instructions::initialize_pool_registries::__client_accounts_initialize_pool_registries;
+pub(crate) use crate::instructions::initialize_pool_v2::__client_accounts_initialize_pool_v2;
+pub(crate) use crate::instructions::register_asset::__client_accounts_register_asset;
 pub(crate) use crate::instructions::relayer::configure_registry::__client_accounts_configure_relayer_registry;
+pub(crate) use crate::instructions::relayer::deactivate_relayer::__client_accounts_deactivate_relayer;
 pub(crate) use crate::instructions::relayer::register_relayer::__client_accounts_register_relayer;
 pub(crate) use crate::instructions::relayer::update_relayer::__client_accounts_update_relayer;
-pub(crate) use crate::instructions::relayer::deactivate_relayer::__client_accounts_deactivate_relayer;
-pub(crate) use crate::instructions::deposit_masp::__client_accounts_deposit_masp;
-pub(crate) use crate::instructions::batch_process_deposits::__client_accounts_batch_process_deposits;
+pub(crate) use crate::instructions::set_verification_key_v2::__client_accounts_lock_verification_key_v2;
+pub(crate) use crate::instructions::set_verification_key_v2::__client_accounts_set_verification_key_v2;
 #[program]
 pub mod psol_privacy_v2 {
     use super::*;
@@ -150,7 +150,14 @@ pub mod psol_privacy_v2 {
         proof_data: Vec<u8>,
         encrypted_note: Option<Vec<u8>>,
     ) -> Result<()> {
-        instructions::deposit_masp::handler(ctx, amount, commitment, asset_id, proof_data, encrypted_note)
+        instructions::deposit_masp::handler(
+            ctx,
+            amount,
+            commitment,
+            asset_id,
+            proof_data,
+            encrypted_note,
+        )
     }
 
     pub fn batch_process_deposits(
