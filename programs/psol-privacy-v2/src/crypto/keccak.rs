@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use solana_program::keccak;
+use solana_keccak_hasher as keccak;
 
 /// Compute keccak256 hash of data
 pub fn keccak256(data: &[u8]) -> [u8; 32] {
