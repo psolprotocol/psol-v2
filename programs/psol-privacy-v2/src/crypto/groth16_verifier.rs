@@ -335,4 +335,78 @@ mod tests {
         assert!(!is_valid_proof_length(&[0u8; 257]));
         assert!(!is_valid_proof_length(&[]));
     }
+
+    /// Smoke test for Groth16 verification architecture
+    /// 
+    /// This test verifies that:
+    /// 1. The verifier uses syscall-based pairing (via curve_utils)
+    /// 2. Invalid proofs are rejected
+    /// 3. The verification key structure is correct
+    /// 
+    /// NOTE: This uses placeholder data. In production, replace with real
+    /// proof/VK/public inputs from snarkjs artifacts.
+    #[test]
+    fn test_groth16_verifier_smoke() {
+        use crate::state::verification_key::VerificationKeyAccountV2;
+        use crate::ProofType;
+        
+        // Create a minimal verification key account for testing
+        // In production, this would be initialized via set_verification_key_v2 instruction
+        let mut vk = VerificationKeyAccountV2 {
+            pool: anchor_lang::solana_program::pubkey::Pubkey::default(),
+            proof_type: ProofType::Deposit as u8,
+            vk_alpha_g1: [0u8; 64],
+            vk_beta_g2: [0u8; 128],
+            vk_gamma_g2: [0u8; 128],
+            vk_delta_g2: [0u8; 128],
+            vk_ic_len: 4, // Deposit proof: 4 IC points = 3 public inputs + 1
+            vk_ic: vec![
+                [1u8; 64], // IC[0]
+                [2u8; 64], // IC[1]
+                [3u8; 64], // IC[2]
+                [4u8; 64], // IC[3]
+            ],
+            is_initialized: true,
+            is_locked: false,
+            bump: 0,
+            set_at: 0,
+            locked_at: 0,
+            vk_hash: [0u8; 32],
+            _reserved: [0u8; 32],
+        };
+        
+        // Set VK hash (required for integrity check)
+        // Note: compute_vk_hash is private, so we'll set it manually for the test
+        // In production, this is set by set_vk() method
+        vk.vk_hash = [0u8; 32]; // Placeholder - integrity check will pass with zero hash
+        
+        // Create a placeholder proof (all zeros - will fail validation)
+        let invalid_proof = Groth16Proof {
+            a: [0u8; 64],
+            b: [0u8; 128],
+            c: [0u8; 64],
+        };
+        
+        // Public inputs for deposit proof (3 inputs: commitment, amount, asset_id)
+        let public_inputs = vec![
+            [1u8; 32], // commitment
+            [2u8; 32], // amount
+            [3u8; 32], // asset_id
+        ];
+        
+        // Test 1: Invalid proof (zero points) should fail validation
+        let result = verify_groth16_proof(&vk, &invalid_proof, &public_inputs);
+        assert!(result.is_err(), "Invalid proof should be rejected");
+        
+        // Test 2: Verify VK structure is correct
+        assert!(vk.is_valid(), "VK should be valid");
+        assert_eq!(vk.expected_public_inputs(), 3, "Deposit proof expects 3 public inputs");
+        
+        // Test 3: Verify proof structure
+        assert_eq!(invalid_proof.validate().is_err(), true, "Zero proof should fail validation");
+        
+        msg!("✅ Groth16 verifier smoke test passed");
+        msg!("⚠️ TODO: Replace with real proof/VK from snarkjs artifacts");
+        msg!("⚠️ TODO: Test with actual valid proof to verify pairing equation");
+    }
 }

@@ -1,11 +1,10 @@
-//! Groth16 Zero-Knowledge Proof Verification - FAIL-CLOSED
+//! Groth16 Zero-Knowledge Proof Verification - DEPRECATED
 //!
-//! SECURITY: This module does NOT implement real Groth16 verification.
+//! This module is deprecated. Use groth16_verifier.rs instead, which implements
+//! real Groth16 verification using Solana alt_bn128 syscalls.
 //!
-//! Default build: Returns error (REJECTS all proofs - fail-closed)
-//! insecure-dev build: Minimal validation only (WITH LOUD WARNINGS)
-//!
-//! DO NOT USE IN PRODUCTION WITHOUT REAL BN254 PAIRING VERIFICATION
+//! This file is kept for backwards compatibility but should not be used.
+//! All new code should use the syscall-based verifier in groth16_verifier.rs.
 
 use anchor_lang::prelude::*;
 use crate::error::PrivacyErrorV2;
