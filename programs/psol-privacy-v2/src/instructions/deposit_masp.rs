@@ -7,11 +7,11 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
 
-use crate::crypto::{verify_proof_bytes, DepositPublicInputs};
+use crate::crypto::DepositPublicInputs;
 use crate::error::PrivacyErrorV2;
+use crate::events::DepositMaspEvent;
 #[cfg(feature = "event-debug")]
 use crate::events::DepositMaspDebugEvent;
-use crate::events::DepositMaspEvent;
 use crate::state::{AssetVault, MerkleTreeV2, PoolConfigV2, VerificationKeyAccountV2};
 use crate::ProofType;
 
@@ -137,10 +137,7 @@ pub fn handler(
 
     require!(proof_data.len() == 256, PrivacyErrorV2::InvalidProofFormat);
 
-    require!(
-        asset_vault.asset_id == asset_id,
-        PrivacyErrorV2::AssetIdMismatch
-    );
+    require!(asset_vault.asset_id == asset_id, PrivacyErrorV2::AssetIdMismatch);
 
     require!(!merkle_tree.is_full(), PrivacyErrorV2::MerkleTreeFull);
 
@@ -153,7 +150,15 @@ pub fn handler(
     let public_inputs_fields = public_inputs.to_field_elements();
 
     let vk = &ctx.accounts.deposit_vk;
-    let is_valid = verify_proof_bytes(vk, &proof_data, &public_inputs_fields)?;
+    let is_valid = crate::crypto::verify_proof_from_account(
+        &vk.vk_alpha_g1,
+        &vk.vk_beta_g2,
+        &vk.vk_gamma_g2,
+        &vk.vk_delta_g2,
+        &vk.vk_ic,
+        &proof_data,
+        &public_inputs_fields,
+    )?;
     require!(is_valid, PrivacyErrorV2::InvalidProof);
 
     // =========================================================================

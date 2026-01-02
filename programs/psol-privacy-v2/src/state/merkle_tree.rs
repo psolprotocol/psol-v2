@@ -19,7 +19,6 @@
 
 use anchor_lang::prelude::*;
 
-use crate::crypto::poseidon;
 use crate::error::PrivacyErrorV2;
 
 /// Maximum supported tree depth (2^24 = ~16M leaves)
@@ -173,7 +172,7 @@ impl MerkleTreeV2 {
         // Compute hash(zero[i-1], zero[i-1]) for each level
         for i in 1..=depth {
             let prev = &zeros[(i - 1) as usize];
-            let zero_at_level = poseidon::hash_two_to_one(prev, prev)?;
+            let zero_at_level = crate::crypto::hash_two_to_one(prev, prev)?;
             zeros.push(zero_at_level);
         }
 
@@ -200,7 +199,7 @@ impl MerkleTreeV2 {
     pub fn insert_leaf(&mut self, commitment: [u8; 32], timestamp: i64) -> Result<u32> {
         // Reject zero commitments (these are reserved for empty leaves)
         require!(
-            !poseidon::is_zero_hash(&commitment),
+            !crate::crypto::is_zero_hash(&commitment),
             PrivacyErrorV2::InvalidCommitment
         );
 
@@ -229,11 +228,11 @@ impl MerkleTreeV2 {
             if is_right_child {
                 // Right child: hash with left sibling from filled_subtrees
                 let left_sibling = self.filled_subtrees[level_usize];
-                current_hash = poseidon::hash_two_to_one(&left_sibling, &current_hash)?;
+                current_hash = crate::crypto::hash_two_to_one(&left_sibling, &current_hash)?;
             } else {
                 // Left child: update filled_subtree, hash with zero
                 self.filled_subtrees[level_usize] = current_hash;
-                current_hash = poseidon::hash_two_to_one(&current_hash, &self.zeros[level_usize])?;
+                current_hash = crate::crypto::hash_two_to_one(&current_hash, &self.zeros[level_usize])?;
             }
         }
 

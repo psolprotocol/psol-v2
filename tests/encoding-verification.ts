@@ -251,16 +251,24 @@ async function testPublicInputEncoding() {
   // Test Pubkey encoding
   {
     // Example Solana pubkey (32 bytes)
-    const pubkey = Buffer.from('So11111111111111111111111111111111111111112', 'base58');
+  {
+    // Example Solana pubkey (32 bytes)
+    const pubkeyBase58 = 'So11111111111111111111111111111111111111112';
+
+    // base58 decode (Node Buffer does NOT support "base58" encoding)
+    const pubkeyBytesU8 = anchor.utils.bytes.bs58.decode(pubkeyBase58); // Uint8Array
+    if (pubkeyBytesU8.length !== 32) {
+      throw new Error(`Invalid pubkey length: expected 32, got ${pubkeyBytesU8.length}`);
+    }
+
+    const pubkey = Buffer.from(pubkeyBytesU8); // Buffer for hex/logging
+
     console.log('Pubkey encoding:');
-    console.log('  pubkey (base58): So11111111111111111111111111111111111111112');
+    console.log(`  pubkey (base58): ${pubkeyBase58}`);
     console.log('  pubkey (hex):', pubkey.toString('hex'));
     console.log('  As scalar:', be32ToBigint(pubkey).toString().slice(0, 30) + '...');
     console.log('');
   }
-  
-  console.log('✅ Public input encoding tests complete\n');
-}
 
 // =============================================================================
 // VERIFICATION KEY ENCODING TESTS

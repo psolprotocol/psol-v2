@@ -25,14 +25,14 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 
-use crate::crypto::{verify_proof_bytes, WithdrawPublicInputs};
+use crate::crypto::WithdrawPublicInputs;
 use crate::error::PrivacyErrorV2;
+use crate::events::WithdrawMaspEvent;
 #[cfg(feature = "event-debug")]
 use crate::events::WithdrawMaspDebugEvent;
-use crate::events::WithdrawMaspEvent;
 use crate::state::{
-    AssetVault, MerkleTreeV2, PoolConfigV2, RelayerNode, RelayerRegistry, SpendType,
-    SpentNullifierV2, VerificationKeyAccountV2,
+    AssetVault, MerkleTreeV2, PoolConfigV2, RelayerNode, RelayerRegistry,
+    SpentNullifierV2, SpendType, VerificationKeyAccountV2,
 };
 use crate::ProofType;
 
@@ -100,7 +100,7 @@ pub struct WithdrawMasp<'info> {
     /// Vault's token account (source)
     #[account(
         mut,
-        constraint = vault_token_account.key() == asset_vault.token_account
+        constraint = vault_token_account.key() == asset_vault.token_account 
             @ PrivacyErrorV2::InvalidVaultTokenAccount,
     )]
     pub vault_token_account: Box<Account<'info, TokenAccount>>,
@@ -164,7 +164,10 @@ pub fn handler(
     // =========================================================================
 
     // Validate proof data length (Groth16: 2*G1 + 1*G2 = 256 bytes)
-    require!(proof_data.len() == 256, PrivacyErrorV2::InvalidProofFormat);
+    require!(
+        proof_data.len() == 256,
+        PrivacyErrorV2::InvalidProofFormat
+    );
 
     // Validate amount is above minimum (prevents dust attacks)
     require!(
@@ -222,7 +225,11 @@ pub fn handler(
             &relayer_node_key,
         )?;
 
-        require!(relayer_node.is_active, PrivacyErrorV2::RelayerNotActive);
+
+        require!(
+            relayer_node.is_active,
+            PrivacyErrorV2::RelayerNotActive
+        );
         require!(
             relayer_node.operator == ctx.accounts.relayer.key(),
             PrivacyErrorV2::Unauthorized
@@ -263,7 +270,16 @@ pub fn handler(
 
     // Verify the ZK proof
     let field_elements = public_inputs.to_field_elements();
-    let is_valid = verify_proof_bytes(&ctx.accounts.vk_account, &proof_data, &field_elements)?;
+    let vk = &ctx.accounts.vk_account;
+    let is_valid = crate::crypto::verify_proof_from_account(
+        &vk.vk_alpha_g1,
+        &vk.vk_beta_g2,
+        &vk.vk_gamma_g2,
+        &vk.vk_delta_g2,
+        &vk.vk_ic,
+        &proof_data,
+        &field_elements,
+    )?;
 
     require!(is_valid, PrivacyErrorV2::InvalidProof);
 
@@ -299,8 +315,8 @@ pub fn handler(
         &[vault_bump],
     ];
 
-    let vault_signer_seeds: &[&[&[u8]]] = &[vault_seeds];
-    // Transfer tokens to recipient
+            let vault_signer_seeds: &[&[&[u8]]] = &[vault_seeds];
+// Transfer tokens to recipient
     if recipient_amount > 0 {
         let transfer_ctx = CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
@@ -329,9 +345,7 @@ pub fn handler(
     }
 
     // Update asset vault statistics
-    ctx.accounts
-        .asset_vault
-        .record_withdrawal(amount, timestamp)?;
+    ctx.accounts.asset_vault.record_withdrawal(amount, timestamp)?;
 
     // Update pool statistics
     ctx.accounts.pool_config.record_withdrawal(timestamp)?;

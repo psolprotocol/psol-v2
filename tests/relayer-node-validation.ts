@@ -69,9 +69,20 @@ describe("RelayerNode PDA Validation", () => {
       program = anchor.workspace.PsolPrivacyV2 as Program;
       programId = program.programId;
     } catch (e) {
-      console.log("Program not loaded, using placeholder for test structure");
-      programId = new PublicKey("pSoL2xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
-    }
+  const wsKeys = Object.keys((anchor as any).workspace ?? {});
+  const fromEnv = process.env.PSOL_PRIVACY_V2_PROGRAM_ID || process.env.ANCHOR_PROGRAM_ID;
+
+  if (!fromEnv) {
+    throw new Error(
+      `Could not load program from anchor.workspace.PsolPrivacyV2. ` +
+      `Workspace keys: ${wsKeys.length ? wsKeys.join(", ") : "(none)"}.\n` +
+      `Set PSOL_PRIVACY_V2_PROGRAM_ID (or ANCHOR_PROGRAM_ID) to a valid base58 program id.`
+    );
+  }
+
+  programId = new PublicKey(fromEnv);
+}
+
 
     // Generate keypairs
     authorityA = Keypair.generate();
