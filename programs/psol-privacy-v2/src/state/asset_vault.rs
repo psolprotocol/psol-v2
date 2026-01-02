@@ -173,30 +173,18 @@ impl AssetVault {
 
     #[inline]
     pub fn require_withdrawals_enabled(&self) -> Result<()> {
-        require!(
-            self.withdrawals_enabled,
-            PrivacyErrorV2::WithdrawalsDisabled
-        );
+        require!(self.withdrawals_enabled, PrivacyErrorV2::WithdrawalsDisabled);
         Ok(())
     }
 
     pub fn validate_deposit_amount(&self, amount: u64) -> Result<()> {
-        require!(
-            amount >= self.min_deposit,
-            PrivacyErrorV2::BelowMinimumDeposit
-        );
-        require!(
-            amount <= self.max_deposit,
-            PrivacyErrorV2::ExceedsMaximumDeposit
-        );
+        require!(amount >= self.min_deposit, PrivacyErrorV2::BelowMinimumDeposit);
+        require!(amount <= self.max_deposit, PrivacyErrorV2::ExceedsMaximumDeposit);
         Ok(())
     }
 
     pub fn validate_withdrawal_amount(&self, amount: u64) -> Result<()> {
-        require!(
-            amount <= self.shielded_balance,
-            PrivacyErrorV2::InsufficientBalance
-        );
+        require!(amount <= self.shielded_balance, PrivacyErrorV2::InsufficientBalance);
         Ok(())
     }
 
@@ -268,10 +256,7 @@ impl AssetVault {
     }
 
     pub fn set_metadata_uri(&mut self, uri: String) -> Result<()> {
-        require!(
-            uri.len() <= MAX_METADATA_URI_LEN,
-            PrivacyErrorV2::InputTooLarge
-        );
+        require!(uri.len() <= MAX_METADATA_URI_LEN, PrivacyErrorV2::InputTooLarge);
         self.metadata_uri = uri;
         Ok(())
     }
@@ -288,23 +273,28 @@ impl AssetVault {
         )
     }
 
-    pub fn seeds<'a>(pool: &'a Pubkey, asset_id: &'a [u8; 32], bump: &'a [u8; 1]) -> [&'a [u8]; 4] {
+    pub fn seeds<'a>(
+        pool: &'a Pubkey,
+        asset_id: &'a [u8; 32],
+        bump: &'a [u8; 1],
+    ) -> [&'a [u8]; 4] {
         [Self::SEED_PREFIX, pool.as_ref(), asset_id.as_ref(), bump]
     }
 }
 
 /// Helper to compute asset_id from mint address
 pub fn compute_asset_id(mint: &Pubkey) -> [u8; 32] {
-    // PLACEHOLDER: Using simple hash of pubkey bytes
-    // TODO: Replace with proper keccak256 when available
-    let mut hasher = [0u8; 32];
-    let bytes = mint.to_bytes();
-    for (i, chunk) in bytes.chunks(32).enumerate() {
-        for (j, &byte) in chunk.iter().enumerate() {
-            hasher[j] ^= byte.wrapping_add(i as u8);
-        }
-    }
-    hasher
+    // Canonical, deterministic asset_id suitable for BN254 Fr public inputs.
+    //
+    // Raw Keccak256(mint) is a random 256-bit value and will often be >= Fr modulus,
+    // which causes Groth16 verification to fail (public input not canonical).
+    //
+    // Off-chain circuits/SDK MUST use the same derivation:
+    //   asset_id = 0x00 || Keccak256("psol:asset_id:v1" || mint)[0..31]
+    let h = crate::crypto::keccak::keccak256_concat(&[b"psol:asset_id:v1", mint.as_ref()]);
+    let mut out = [0u8; 32];
+    out[1..32].copy_from_slice(&h[0..31]);
+    out
 }
 
 /// Native SOL asset ID (special case)
@@ -332,6 +322,6 @@ mod tests {
     #[test]
     fn test_space_calculation() {
         let space = AssetVault::DEFAULT_SPACE;
-        assert!(space < 1000); // Should be reasonably small
+        assert!(space < 1000);
     }
 }

@@ -13,12 +13,12 @@ use ark_ff::{BigInteger, Field, PrimeField, AdditiveGroup};
 
 include!("poseidon_bn254_constants.in.rs");
 
-#[inline(always)]
+#[inline(never)]
 fn fr_from_be32(b: &[u8; 32]) -> Fr {
     Fr::from_be_bytes_mod_order(b)
 }
 
-#[inline(always)]
+#[inline(never)]
 fn sigma5(x: Fr) -> Fr {
     // x^5 = x * x^2^2
     let x2 = x.square();

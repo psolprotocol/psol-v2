@@ -106,17 +106,21 @@ pub struct WithdrawMasp<'info> {
     pub vault_token_account: Box<Account<'info, TokenAccount>>,
 
     /// Recipient's token account (destination)
-    /// CHECK: We verify the mint matches, recipient can be any valid token account
+    /// SECURITY: Must be owned by the recipient pubkey from the proof public inputs
+    /// to prevent fund redirection attacks.
     #[account(
         mut,
         constraint = recipient_token_account.mint == asset_vault.mint @ PrivacyErrorV2::InvalidMint,
+        constraint = recipient_token_account.owner == recipient @ PrivacyErrorV2::RecipientMismatch,
     )]
     pub recipient_token_account: Box<Account<'info, TokenAccount>>,
 
     /// Relayer's token account for fee (if relayer_fee > 0)
+    /// SECURITY: Must be owned by the relayer signer to prevent fee redirection attacks.
     #[account(
         mut,
         constraint = relayer_token_account.mint == asset_vault.mint @ PrivacyErrorV2::InvalidMint,
+        constraint = relayer_token_account.owner == relayer.key() @ PrivacyErrorV2::RelayerMismatch,
     )]
     pub relayer_token_account: Box<Account<'info, TokenAccount>>,
 
@@ -315,8 +319,9 @@ pub fn handler(
         &[vault_bump],
     ];
 
-            let vault_signer_seeds: &[&[&[u8]]] = &[vault_seeds];
-// Transfer tokens to recipient
+    let vault_signer_seeds: &[&[&[u8]]] = &[vault_seeds];
+
+    // Transfer tokens to recipient
     if recipient_amount > 0 {
         let transfer_ctx = CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),

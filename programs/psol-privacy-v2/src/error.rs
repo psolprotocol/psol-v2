@@ -162,6 +162,9 @@ pub enum PrivacyErrorV2 {
     #[msg("Recipient does not match proof public inputs")]
     RecipientMismatch,
 
+    #[msg("Relayer token account owner does not match relayer signer")]
+    RelayerMismatch,
+
     #[msg("Invalid token owner")]
     InvalidTokenOwner,
 
