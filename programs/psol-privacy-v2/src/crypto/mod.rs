@@ -21,10 +21,10 @@ pub mod groth16;
 pub mod keccak;
 pub mod public_inputs;
 
-// Optional modules
-#[cfg(feature = "poseidon-constants")]
+// NOTE: Poseidon vector tests are in tests/poseidon_vectors_test.rs (integration test)
+// Run: cargo test -p psol-privacy-v2 --test poseidon_vectors_test -- --nocapture
 
-#[cfg(feature = "poseidon-constants")]
+// Optional modules - none currently active
 
 // REMOVED: alt_bn128_syscalls, curve_utils, encoding
 // These contained fake stubs that made tests pass while verification was broken.

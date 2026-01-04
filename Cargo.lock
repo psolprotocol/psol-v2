@@ -1300,6 +1300,8 @@ dependencies = [
  "ark-ff",
  "hex",
  "light-poseidon",
+ "serde",
+ "serde_json",
  "sha3",
 ]
 

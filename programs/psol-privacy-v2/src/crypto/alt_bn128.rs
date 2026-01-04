@@ -25,6 +25,11 @@
 //!
 //! # Important: Negation uses Fp, not Fr
 //! G1 point negation: -P = (x, p - y) where p is the BASE FIELD modulus.
+//!
+//! # Target Configuration
+//! - `target_os = "solana"`: New Solana toolchain (Platform Tools 2.0+)
+//! - `target_arch = "bpf"`: Older Solana toolchain
+//! We use `cfg(any(...))` to support both.
 
 use crate::error::PrivacyErrorV2;
 use anchor_lang::prelude::*;
@@ -39,6 +44,7 @@ use super::field::{BN254_FP_MODULUS, be_subtract, is_g1_identity};
 /// G1 point addition (opcode 0)
 const ALT_BN128_ADD: u64 = 0;
 /// G1 point subtraction (opcode 1) - not used in Groth16 but defined for completeness
+#[allow(dead_code)]
 const ALT_BN128_SUB: u64 = 1;
 /// G1 scalar multiplication (opcode 2)
 const ALT_BN128_MUL: u64 = 2;
@@ -47,9 +53,10 @@ const ALT_BN128_PAIRING: u64 = 3;
 
 // ============================================================================
 // SOLANA SYSCALL IMPLEMENTATIONS
+// Uses cfg(any(...)) to support both old (bpf) and new (solana) toolchains
 // ============================================================================
 
-#[cfg(target_os = "solana")]
+#[cfg(any(target_os = "solana", target_arch = "bpf"))]
 extern "C" {
     fn sol_alt_bn128_group_op(
         group_op: u64,
@@ -60,7 +67,7 @@ extern "C" {
 }
 
 /// G1 point addition: result = a + b
-#[cfg(target_os = "solana")]
+#[cfg(any(target_os = "solana", target_arch = "bpf"))]
 pub fn g1_add(a: &[u8; 64], b: &[u8; 64]) -> Result<[u8; 64]> {
     let mut input = [0u8; 128];
     input[0..64].copy_from_slice(a);
@@ -80,7 +87,7 @@ pub fn g1_add(a: &[u8; 64], b: &[u8; 64]) -> Result<[u8; 64]> {
 /// G1 scalar multiplication: result = scalar * point
 /// Input layout (128 bytes): G1 point (64) + scalar (32) + padding (32)
 /// Reference: https://docs.rs/solana-program/latest/solana_program/alt_bn128/index.html
-#[cfg(target_os = "solana")]
+#[cfg(any(target_os = "solana", target_arch = "bpf"))]
 pub fn g1_mul(point: &[u8; 64], scalar: &[u8; 32]) -> Result<[u8; 64]> {
     // CRITICAL: Solana expects 128-byte input for MUL, NOT 96 bytes
     let mut input = [0u8; 128];
@@ -102,7 +109,7 @@ pub fn g1_mul(point: &[u8; 64], scalar: &[u8; 32]) -> Result<[u8; 64]> {
 /// Pairing check: verify e(a1,b1) * e(a2,b2) * ... = 1
 /// Input: array of 192-byte pairs (G1 || G2)
 /// Returns true if pairing product equals identity.
-#[cfg(target_os = "solana")]
+#[cfg(any(target_os = "solana", target_arch = "bpf"))]
 pub fn pairing_check_4(pairs: &[[u8; 192]; 4]) -> Result<bool> {
     let mut input = [0u8; 768]; // 4 * 192
     for (i, pair) in pairs.iter().enumerate() {
@@ -126,14 +133,14 @@ pub fn pairing_check_4(pairs: &[[u8; 192]; 4]) -> Result<bool> {
 // HOST (ARKWORKS) IMPLEMENTATIONS
 // ============================================================================
 
-#[cfg(not(target_os = "solana"))]
+#[cfg(not(any(target_os = "solana", target_arch = "bpf")))]
 use ark_bn254::{Bn254, Fq, Fq2, Fr, G1Affine, G2Affine};
-#[cfg(not(target_os = "solana"))]
+#[cfg(not(any(target_os = "solana", target_arch = "bpf")))]
 use ark_ec::{pairing::Pairing, AffineRepr, CurveGroup};
-#[cfg(not(target_os = "solana"))]
+#[cfg(not(any(target_os = "solana", target_arch = "bpf")))]
 use ark_ff::{BigInteger256, PrimeField, Zero};
 
-#[cfg(not(target_os = "solana"))]
+#[cfg(not(any(target_os = "solana", target_arch = "bpf")))]
 fn bytes_to_fq(bytes: &[u8; 32]) -> Option<Fq> {
     let mut le_bytes = *bytes;
     le_bytes.reverse(); // BE to LE
@@ -146,7 +153,7 @@ fn bytes_to_fq(bytes: &[u8; 32]) -> Option<Fq> {
     Fq::from_bigint(bigint)
 }
 
-#[cfg(not(target_os = "solana"))]
+#[cfg(not(any(target_os = "solana", target_arch = "bpf")))]
 fn bytes_to_fr(bytes: &[u8; 32]) -> Option<Fr> {
     let mut le_bytes = *bytes;
     le_bytes.reverse();
@@ -159,7 +166,7 @@ fn bytes_to_fr(bytes: &[u8; 32]) -> Option<Fr> {
     Fr::from_bigint(bigint)
 }
 
-#[cfg(not(target_os = "solana"))]
+#[cfg(not(any(target_os = "solana", target_arch = "bpf")))]
 fn fq_to_bytes(fq: Fq) -> [u8; 32] {
     let bigint = fq.into_bigint();
     let mut le_bytes = [0u8; 32];
@@ -171,7 +178,7 @@ fn fq_to_bytes(fq: Fq) -> [u8; 32] {
     le_bytes
 }
 
-#[cfg(not(target_os = "solana"))]
+#[cfg(not(any(target_os = "solana", target_arch = "bpf")))]
 fn bytes_to_g1(bytes: &[u8; 64]) -> Option<G1Affine> {
     if is_g1_identity(bytes) {
         return Some(G1Affine::identity());
@@ -186,7 +193,7 @@ fn bytes_to_g1(bytes: &[u8; 64]) -> Option<G1Affine> {
     }
 }
 
-#[cfg(not(target_os = "solana"))]
+#[cfg(not(any(target_os = "solana", target_arch = "bpf")))]
 fn g1_to_bytes(point: G1Affine) -> [u8; 64] {
     if point.is_zero() {
         return [0u8; 64];
@@ -197,7 +204,7 @@ fn g1_to_bytes(point: G1Affine) -> [u8; 64] {
     bytes
 }
 
-#[cfg(not(target_os = "solana"))]
+#[cfg(not(any(target_os = "solana", target_arch = "bpf")))]
 fn bytes_to_g2(bytes: &[u8; 128]) -> Option<G2Affine> {
     if bytes.iter().all(|&b| b == 0) {
         return Some(G2Affine::identity());
@@ -220,7 +227,7 @@ fn bytes_to_g2(bytes: &[u8; 128]) -> Option<G2Affine> {
 }
 
 /// G1 point addition using arkworks
-#[cfg(not(target_os = "solana"))]
+#[cfg(not(any(target_os = "solana", target_arch = "bpf")))]
 pub fn g1_add(a: &[u8; 64], b: &[u8; 64]) -> Result<[u8; 64]> {
     let a_point = bytes_to_g1(a).ok_or(PrivacyErrorV2::CryptographyError)?;
     let b_point = bytes_to_g1(b).ok_or(PrivacyErrorV2::CryptographyError)?;
@@ -229,7 +236,7 @@ pub fn g1_add(a: &[u8; 64], b: &[u8; 64]) -> Result<[u8; 64]> {
 }
 
 /// G1 scalar multiplication using arkworks
-#[cfg(not(target_os = "solana"))]
+#[cfg(not(any(target_os = "solana", target_arch = "bpf")))]
 pub fn g1_mul(point: &[u8; 64], scalar: &[u8; 32]) -> Result<[u8; 64]> {
     let p = bytes_to_g1(point).ok_or(PrivacyErrorV2::CryptographyError)?;
     let s = bytes_to_fr(scalar).ok_or(PrivacyErrorV2::CryptographyError)?;
@@ -238,7 +245,7 @@ pub fn g1_mul(point: &[u8; 64], scalar: &[u8; 32]) -> Result<[u8; 64]> {
 }
 
 /// Pairing check using arkworks - real verification!
-#[cfg(not(target_os = "solana"))]
+#[cfg(not(any(target_os = "solana", target_arch = "bpf")))]
 pub fn pairing_check_4(pairs: &[[u8; 192]; 4]) -> Result<bool> {
     let mut g1_points = Vec::with_capacity(4);
     let mut g2_points = Vec::with_capacity(4);
@@ -383,7 +390,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(not(target_os = "solana"))]
+    #[cfg(not(any(target_os = "solana", target_arch = "bpf")))]
     fn test_g1_double() {
         // 2*G should give a different point
         let mut two = [0u8; 32];
@@ -421,7 +428,7 @@ mod tests {
     /// Uses the pairing identity: e(G1, G2) * e(-G1, G2) = 1
     /// If G2 encoding is wrong, this test WILL fail.
     #[test]
-    #[cfg(not(target_os = "solana"))]
+    #[cfg(not(any(target_os = "solana", target_arch = "bpf")))]
     fn test_pairing_identity_verifies_g2_encoding() {
         use ark_bn254::{G1Affine, G2Affine};
         use ark_ec::AffineRepr;
@@ -461,7 +468,7 @@ mod tests {
     /// Helper to convert arkworks G2 point to bytes
     /// G2 encoding: x1 || x0 || y1 || y0 (imaginary first, then real)
     /// This matches snarkjs/Ethereum BN254 serialization format.
-    #[cfg(not(target_os = "solana"))]
+    #[cfg(not(any(target_os = "solana", target_arch = "bpf")))]
     fn g2_to_bytes(point: G2Affine) -> [u8; 128] {
         use ark_ff::PrimeField;
         
