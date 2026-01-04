@@ -15,24 +15,26 @@ pub mod utils;
 
 pub use instructions::*;
 
-declare_id!("21DbY1WykakReEX8RjpirJMxtgoa6vhd77EF6d3oC6Xo");
+declare_id!("8qkJv1gEC1xLaVn2mMFcgThVeWuJYX9FRLef5Kb8HdPW");
 
-pub(crate) use crate::instructions::initialize_pool_v2::__client_accounts_initialize_pool_v2;
-pub(crate) use crate::instructions::initialize_pool_registries::__client_accounts_initialize_pool_registries;
-pub(crate) use crate::instructions::register_asset::__client_accounts_register_asset;
-pub(crate) use crate::instructions::set_verification_key_v2::__client_accounts_set_verification_key_v2;
-pub(crate) use crate::instructions::set_verification_key_v2::__client_accounts_lock_verification_key_v2;
-pub(crate) use crate::instructions::admin::pause_v2::__client_accounts_pause_pool_v2;
-pub(crate) use crate::instructions::admin::unpause_v2::__client_accounts_unpause_pool_v2;
-pub(crate) use crate::instructions::admin::authority_v2::__client_accounts_initiate_authority_transfer_v2;
 pub(crate) use crate::instructions::admin::authority_v2::__client_accounts_accept_authority_transfer_v2;
 pub(crate) use crate::instructions::admin::authority_v2::__client_accounts_cancel_authority_transfer_v2;
+pub(crate) use crate::instructions::admin::authority_v2::__client_accounts_initiate_authority_transfer_v2;
+pub(crate) use crate::instructions::admin::pause_v2::__client_accounts_pause_pool_v2;
+pub(crate) use crate::instructions::admin::unpause_v2::__client_accounts_unpause_pool_v2;
+pub(crate) use crate::instructions::batch_process_deposits::__client_accounts_batch_process_deposits;
+pub(crate) use crate::instructions::deposit_masp::__client_accounts_deposit_masp;
+pub(crate) use crate::instructions::initialize_pool_registries::__client_accounts_initialize_pool_registries;
+pub(crate) use crate::instructions::initialize_pool_v2::__client_accounts_initialize_pool_v2;
+pub(crate) use crate::instructions::register_asset::__client_accounts_register_asset;
 pub(crate) use crate::instructions::relayer::configure_registry::__client_accounts_configure_relayer_registry;
+pub(crate) use crate::instructions::relayer::deactivate_relayer::__client_accounts_deactivate_relayer;
 pub(crate) use crate::instructions::relayer::register_relayer::__client_accounts_register_relayer;
 pub(crate) use crate::instructions::relayer::update_relayer::__client_accounts_update_relayer;
-pub(crate) use crate::instructions::relayer::deactivate_relayer::__client_accounts_deactivate_relayer;
-pub(crate) use crate::instructions::deposit_masp::__client_accounts_deposit_masp;
-pub(crate) use crate::instructions::batch_process_deposits::__client_accounts_batch_process_deposits;
+pub(crate) use crate::instructions::set_verification_key_v2::__client_accounts_lock_verification_key_v2;
+pub(crate) use crate::instructions::set_verification_key_v2::__client_accounts_set_verification_key_v2;
+pub(crate) use crate::instructions::withdraw_masp::__client_accounts_withdraw_masp;
+
 #[program]
 pub mod psol_privacy_v2 {
     use super::*;
@@ -150,7 +152,14 @@ pub mod psol_privacy_v2 {
         proof_data: Vec<u8>,
         encrypted_note: Option<Vec<u8>>,
     ) -> Result<()> {
-        instructions::deposit_masp::handler(ctx, amount, commitment, asset_id, proof_data, encrypted_note)
+        instructions::deposit_masp::handler(
+            ctx,
+            amount,
+            commitment,
+            asset_id,
+            proof_data,
+            encrypted_note,
+        )
     }
 
     pub fn batch_process_deposits(
@@ -158,6 +167,37 @@ pub mod psol_privacy_v2 {
         max_to_process: u16,
     ) -> Result<()> {
         instructions::batch_process_deposits::handler(ctx, max_to_process)
+    }
+
+    /// Withdraw tokens from the shielded pool using a ZK proof.
+    ///
+    /// # Security
+    /// - Verifies ZK proof proving knowledge of commitment preimage
+    /// - Checks merkle root is valid (current or in history)
+    /// - Marks nullifier as spent to prevent double-spending
+    /// - Enforces recipient_token_account.owner == recipient (from proof public inputs)
+    /// - Enforces relayer_token_account.owner == relayer (from proof public inputs)
+    #[allow(clippy::too_many_arguments)]
+    pub fn withdraw_masp(
+        ctx: Context<WithdrawMasp>,
+        proof_data: Vec<u8>,
+        merkle_root: [u8; 32],
+        nullifier_hash: [u8; 32],
+        recipient: Pubkey,
+        amount: u64,
+        asset_id: [u8; 32],
+        relayer_fee: u64,
+    ) -> Result<()> {
+        instructions::withdraw_masp::handler(
+            ctx,
+            proof_data,
+            merkle_root,
+            nullifier_hash,
+            recipient,
+            amount,
+            asset_id,
+            relayer_fee,
+        )
     }
 }
 

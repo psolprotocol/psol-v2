@@ -43,3 +43,11 @@ target/
 node_modules/
 .DS_Store
 
+
+# local bundles
+*.zip
+
+# Local patch/overlay artifacts
+psol-v2-actually-corrected/
+psol-v2-actually-corrected*
+*.zip

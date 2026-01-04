@@ -1,11 +1,14 @@
+[toolchain]
+anchor_version = "0.32.1"
+
 [features]
-seeds = false
+resolution = true
 skip-lint = false
 
-[programs.localnet]
-psol_privacy_v2 = "21DbY1WykakReEX8RjpirJMxtgoa6vhd77EF6d3oC6Xo"
-
 [programs.devnet]
+psol_privacy_v2 = "8qkJv1gEC1xLaVn2mMFcgThVeWuJYX9FRLef5Kb8HdPW"
+
+[programs.localnet]
 psol_privacy_v2 = "21DbY1WykakReEX8RjpirJMxtgoa6vhd77EF6d3oC6Xo"
 
 [programs.mainnet]
@@ -15,7 +18,7 @@ psol_privacy_v2 = "21DbY1WykakReEX8RjpirJMxtgoa6vhd77EF6d3oC6Xo"
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "localnet"
+cluster = "devnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
@@ -23,15 +26,5 @@ test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
 
 [test]
 startup_wait = 5000
-
-[test.validator]
-url = "https://api.mainnet-beta.solana.com"
-
-[[test.validator.clone]]
-address = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-
-[[test.validator.clone]]
-address = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
-
-[toolchain]
-anchor_version = "0.32.1"
+shutdown_wait = 2000
+upgradeable = false

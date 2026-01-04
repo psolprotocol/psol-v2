@@ -1,11 +1,8 @@
-
 use anchor_lang::prelude::*;
 
 use crate::error::PrivacyErrorV2;
 use crate::events::BatchProcessedEvent;
-use crate::state::{
-    BatcherRole, MerkleTreeV2, PendingDepositsBuffer, PoolConfigV2,
-};
+use crate::state::{BatcherRole, MerkleTreeV2, PendingDepositsBuffer, PoolConfigV2};
 
 /// Maximum deposits to process in a single batch
 pub const MAX_BATCH_SIZE: u16 = 50;
@@ -74,10 +71,7 @@ pub struct BatchProcessDeposits<'info> {
 ///   4. Require is_enabled == true
 ///
 /// This manual check is robust and Anchor-version-proof.
-pub fn handler(
-    ctx: Context<BatchProcessDeposits>,
-    max_to_process: u16,
-) -> Result<()> {
+pub fn handler(ctx: Context<BatchProcessDeposits>, max_to_process: u16) -> Result<()> {
     let pool_config = &mut ctx.accounts.pool_config;
     let merkle_tree = &mut ctx.accounts.merkle_tree;
     let pending_buffer = &mut ctx.accounts.pending_buffer;
@@ -94,9 +88,12 @@ pub fn handler(
 
     if !is_authority {
         // Not authority - require valid BatcherRole PDA
-        
+
         // Step 1: Require account provided
-        let batcher_role = ctx.accounts.batcher_role.as_ref()
+        let batcher_role = ctx
+            .accounts
+            .batcher_role
+            .as_ref()
             .ok_or(PrivacyErrorV2::Unauthorized)?;
 
         // Step 2: Derive expected PDA
@@ -117,10 +114,7 @@ pub fn handler(
         );
 
         // Step 4: Check is_enabled flag
-        require!(
-            batcher_role.is_enabled,
-            PrivacyErrorV2::Unauthorized
-        );
+        require!(batcher_role.is_enabled, PrivacyErrorV2::Unauthorized);
 
         msg!("Authorized via BatcherRole PDA: {}", batcher_role.key());
     } else {
@@ -153,10 +147,7 @@ pub fn handler(
     // 3. VALIDATE MERKLE TREE CAPACITY
     // =========================================================================
 
-    let to_process = std::cmp::min(
-        max_to_process as usize,
-        pending_buffer.size()
-    );
+    let to_process = std::cmp::min(max_to_process as usize, pending_buffer.size());
 
     let tree_capacity = merkle_tree.capacity();
     let tree_used = merkle_tree.next_leaf_index as usize;
@@ -173,10 +164,7 @@ pub fn handler(
     let deposits_to_process = pending_buffer.prepare_batch(max_to_process);
     let actual_count = deposits_to_process.len();
 
-    require!(
-        actual_count > 0,
-        PrivacyErrorV2::NoPendingDeposits
-    );
+    require!(actual_count > 0, PrivacyErrorV2::NoPendingDeposits);
 
     let start_leaf_index = merkle_tree.next_leaf_index;
 
@@ -187,10 +175,7 @@ pub fn handler(
             PrivacyErrorV2::InvalidCommitment
         );
 
-        merkle_tree.insert_leaf(
-            deposit.commitment,
-            deposit.timestamp
-        )?;
+        merkle_tree.insert_leaf(deposit.commitment, deposit.timestamp)?;
     }
 
     let end_leaf_index = merkle_tree.next_leaf_index - 1;
@@ -220,14 +205,14 @@ pub fn handler(
     // 8. EMIT BATCH EVENT
     // =========================================================================
 
-   emit!(BatchProcessedEvent {
-    pool: ctx.accounts.pool_config.key(),
-    deposits_processed: actual_count as u16,
-    first_leaf_index: start_leaf_index,
-    last_leaf_index: end_leaf_index,
-    new_merkle_root: final_merkle_root,
-    timestamp: clock.unix_timestamp,
-});
+    emit!(BatchProcessedEvent {
+        pool: ctx.accounts.pool_config.key(),
+        deposits_processed: actual_count as u16,
+        first_leaf_index: start_leaf_index,
+        last_leaf_index: end_leaf_index,
+        new_merkle_root: final_merkle_root,
+        timestamp: clock.unix_timestamp,
+    });
 
     msg!(
         "Batch processed: {} deposits (indices {}-{})",

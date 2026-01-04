@@ -29,7 +29,8 @@ pub struct PoolConfigV2 {
 }
 
 impl PoolConfigV2 {
-    pub const LEN: usize = 8 + 32 + 32 + 32 + 32 + 32 + 1 + 2 + 2 + 1 + 1 + 1 + 1 + 8 + 8 + 8 + 8 + 8 + 8 + 1 + 1 + 64;
+    pub const LEN: usize =
+        8 + 32 + 32 + 32 + 32 + 32 + 1 + 2 + 2 + 1 + 1 + 1 + 1 + 8 + 8 + 8 + 8 + 8 + 8 + 1 + 1 + 64;
     pub const VERSION: u8 = 2;
     pub const DEFAULT_MAX_ASSETS: u16 = 100;
     pub const FEATURE_MASP: u8 = 1 << 0;
@@ -281,11 +282,7 @@ impl PoolConfigV2 {
         self._reserved = [0u8; 64];
     }
 
-    pub fn set_registries(
-        &mut self,
-        relayer_registry: Pubkey,
-        compliance_config: Pubkey,
-    ) {
+    pub fn set_registries(&mut self, relayer_registry: Pubkey, compliance_config: Pubkey) {
         self.relayer_registry = relayer_registry;
         self.compliance_config = compliance_config;
     }
@@ -295,10 +292,7 @@ impl PoolConfigV2 {
     pub const SEED_PREFIX: &'static [u8] = b"pool_v2";
 
     pub fn find_pda(program_id: &Pubkey, authority: &Pubkey) -> (Pubkey, u8) {
-        Pubkey::find_program_address(
-            &[Self::SEED_PREFIX, authority.as_ref()],
-            program_id,
-        )
+        Pubkey::find_program_address(&[Self::SEED_PREFIX, authority.as_ref()], program_id)
     }
 
     pub fn seeds<'a>(authority: &'a Pubkey, bump: &'a [u8; 1]) -> [&'a [u8]; 3] {

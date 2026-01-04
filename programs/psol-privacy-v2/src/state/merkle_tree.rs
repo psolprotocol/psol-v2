@@ -19,7 +19,6 @@
 
 use anchor_lang::prelude::*;
 
-use crate::crypto::poseidon;
 use crate::error::PrivacyErrorV2;
 
 /// Maximum supported tree depth (2^24 = ~16M leaves)
@@ -100,7 +99,7 @@ impl MerkleTreeV2 {
             + 4 + (32 * (depth_usize + 1))      // zeros (vec)
             + 8                                 // total_leaves
             + 8                                 // last_insertion_at
-            + 1                                 // version
+            + 1 // version
     }
 
     pub const VERSION: u8 = 2;
@@ -116,12 +115,7 @@ impl MerkleTreeV2 {
     /// - `InvalidTreeDepth` if depth is out of range
     /// - `InvalidRootHistorySize` if history size < 30
     /// - `CryptographyError` if Poseidon hash fails
-    pub fn initialize(
-        &mut self,
-        pool: Pubkey,
-        depth: u8,
-        root_history_size: u16,
-    ) -> Result<()> {
+    pub fn initialize(&mut self, pool: Pubkey, depth: u8, root_history_size: u16) -> Result<()> {
         // Validate parameters
         require!(
             depth >= MIN_TREE_DEPTH && depth <= MAX_TREE_DEPTH,
@@ -178,7 +172,7 @@ impl MerkleTreeV2 {
         // Compute hash(zero[i-1], zero[i-1]) for each level
         for i in 1..=depth {
             let prev = &zeros[(i - 1) as usize];
-            let zero_at_level = poseidon::hash_two_to_one(prev, prev)?;
+            let zero_at_level = crate::crypto::hash_two_to_one(prev, prev)?;
             zeros.push(zero_at_level);
         }
 
@@ -205,7 +199,7 @@ impl MerkleTreeV2 {
     pub fn insert_leaf(&mut self, commitment: [u8; 32], timestamp: i64) -> Result<u32> {
         // Reject zero commitments (these are reserved for empty leaves)
         require!(
-            !poseidon::is_zero_hash(&commitment),
+            !crate::crypto::is_zero_hash(&commitment),
             PrivacyErrorV2::InvalidCommitment
         );
 
@@ -234,11 +228,11 @@ impl MerkleTreeV2 {
             if is_right_child {
                 // Right child: hash with left sibling from filled_subtrees
                 let left_sibling = self.filled_subtrees[level_usize];
-                current_hash = poseidon::hash_two_to_one(&left_sibling, &current_hash)?;
+                current_hash = crate::crypto::hash_two_to_one(&left_sibling, &current_hash)?;
             } else {
                 // Left child: update filled_subtree, hash with zero
                 self.filled_subtrees[level_usize] = current_hash;
-                current_hash = poseidon::hash_two_to_one(&current_hash, &self.zeros[level_usize])?;
+                current_hash = crate::crypto::hash_two_to_one(&current_hash, &self.zeros[level_usize])?;
             }
         }
 
@@ -266,33 +260,6 @@ impl MerkleTreeV2 {
         Ok(leaf_index)
     }
 
-    /// Insert multiple commitments in a batch (for join-split outputs)
-    ///
-    /// # Arguments
-    /// * `commitments` - Vector of commitment hashes
-    /// * `timestamp` - Current timestamp
-    ///
-    /// # Returns
-    /// Vector of leaf indices where commitments were inserted
-    ///
-    /// # Note
-    /// Each insertion updates the root, so root history will contain
-    /// intermediate roots. This is intentional for proper proof generation.
-    pub fn insert_batch(
-        &mut self,
-        commitments: &[[u8; 32]],
-        timestamp: i64,
-    ) -> Result<Vec<u32>> {
-        let mut indices = Vec::with_capacity(commitments.len());
-
-        for commitment in commitments {
-            let index = self.insert_leaf(*commitment, timestamp)?;
-            indices.push(index);
-        }
-
-        Ok(indices)
-    }
-
     /// Check if a root exists in recent history
     ///
     /// This allows users to generate proofs against slightly stale roots,
@@ -303,14 +270,28 @@ impl MerkleTreeV2 {
     ///
     /// # Returns
     /// `true` if root is current or in recent history
+    ///
+    /// # Security
+    /// Rejects all-zero root to prevent matching uninitialized history slots.
+    /// This is critical: the history buffer is initialized with zeros, so
+    /// without this check, an attacker could submit a withdrawal with root=[0;32]
+    /// and bypass the merkle membership proof entirely.
     pub fn is_known_root(&self, root: &[u8; 32]) -> bool {
+        // SECURITY: Reject zero root to prevent matching uninitialized slots
+        if root.iter().all(|&b| b == 0) {
+            return false;
+        }
+        
         // Check current root first (most common case)
         if *root == self.current_root {
             return true;
         }
 
-        // Check history buffer
-        self.root_history.iter().any(|r| r == root)
+        // Check history buffer - only match non-zero entries
+        self.root_history.iter().any(|r| {
+            // Skip zero entries (uninitialized slots)
+            !r.iter().all(|&b| b == 0) && r == root
+        })
     }
 
     /// Get the current Merkle root
@@ -418,10 +399,7 @@ impl MerkleTreeV2 {
     pub const SEED_PREFIX: &'static [u8] = b"merkle_tree_v2";
 
     pub fn find_pda(program_id: &Pubkey, pool: &Pubkey) -> (Pubkey, u8) {
-        Pubkey::find_program_address(
-            &[Self::SEED_PREFIX, pool.as_ref()],
-            program_id,
-        )
+        Pubkey::find_program_address(&[Self::SEED_PREFIX, pool.as_ref()], program_id)
     }
 
     pub fn seeds<'a>(pool: &'a Pubkey, bump: &'a [u8; 1]) -> [&'a [u8]; 3] {
@@ -524,6 +502,61 @@ mod tests {
         assert!(tree.is_known_root(&root1)); // Current root
         assert!(tree.is_known_root(&root2)); // In history
         assert!(!tree.is_known_root(&root3)); // Not known
+    }
+
+    /// CRITICAL SECURITY TEST: Zero root must always be rejected
+    /// to prevent matching uninitialized history slots.
+    #[test]
+    fn test_is_known_root_rejects_zero() {
+        let zero_root = [0u8; 32];
+        let valid_root = [1u8; 32];
+
+        // Tree with zero history slots (uninitialized)
+        let tree_with_zeros = MerkleTreeV2 {
+            pool: Pubkey::default(),
+            depth: 20,
+            next_leaf_index: 0,
+            current_root: valid_root,
+            root_history: vec![[0u8; 32], [0u8; 32], valid_root], // zeros in history
+            root_history_index: 3,
+            root_history_size: 100,
+            filled_subtrees: vec![],
+            zeros: vec![],
+            total_leaves: 0,
+            last_insertion_at: 0,
+            version: 2,
+        };
+
+        // Zero root must NEVER match, even when zeros are in history
+        assert!(
+            !tree_with_zeros.is_known_root(&zero_root),
+            "SECURITY: Zero root must be rejected to prevent uninitialized slot matching"
+        );
+
+        // Valid root still works
+        assert!(tree_with_zeros.is_known_root(&valid_root));
+
+        // Tree where current_root is zero (edge case after init)
+        let tree_with_zero_current = MerkleTreeV2 {
+            pool: Pubkey::default(),
+            depth: 20,
+            next_leaf_index: 0,
+            current_root: [0u8; 32], // empty tree
+            root_history: vec![[0u8; 32]],
+            root_history_index: 1,
+            root_history_size: 100,
+            filled_subtrees: vec![],
+            zeros: vec![],
+            total_leaves: 0,
+            last_insertion_at: 0,
+            version: 2,
+        };
+
+        // Even with zero current_root, zero input should be rejected
+        assert!(
+            !tree_with_zero_current.is_known_root(&zero_root),
+            "SECURITY: Zero root must be rejected even when current_root is zero"
+        );
     }
 
     #[test]

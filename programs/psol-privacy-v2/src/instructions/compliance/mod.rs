@@ -4,8 +4,8 @@
 //! - Configure compliance settings
 //! - Attach encrypted audit metadata to commitments
 
-pub mod configure_compliance;
 pub mod attach_metadata;
+pub mod configure_compliance;
 
-pub use configure_compliance::ConfigureCompliance;
 pub use attach_metadata::AttachAuditMetadata;
+pub use configure_compliance::ConfigureCompliance;

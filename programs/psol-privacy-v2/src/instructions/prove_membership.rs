@@ -99,7 +99,9 @@ pub fn handler(
     ctx.accounts.pool_config.require_membership_enabled()?;
 
     // Check VK is configured (even though we won't use it yet)
-    ctx.accounts.pool_config.require_vk_configured(ProofType::Membership)?;
+    ctx.accounts
+        .pool_config
+        .require_vk_configured(ProofType::Membership)?;
 
     // =========================================================================
     // FEATURE NOT YET IMPLEMENTED
@@ -108,7 +110,10 @@ pub fn handler(
 
     msg!("Membership proofs are reserved for pSOL v2.1");
     msg!("This feature requires the membership ZK circuit which is not yet deployed");
-    msg!("The circuit will allow proving balance >= {} without spending", threshold);
+    msg!(
+        "The circuit will allow proving balance >= {} without spending",
+        threshold
+    );
 
     Err(error!(PrivacyErrorV2::NotImplemented))
 }

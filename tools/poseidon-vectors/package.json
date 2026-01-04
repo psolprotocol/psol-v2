@@ -1,0 +1,25 @@
+{
+  "name": "poseidon-vectors",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Poseidon test vector and constant generation from circomlibjs",
+  "scripts": {
+    "vectors": "node generate_vectors.mjs",
+    "constants": "node generate_constants.mjs",
+    "verify": "node verify_vectors.mjs",
+    "all": "npm run vectors && npm run constants"
+  },
+  "keywords": [
+    "poseidon",
+    "circomlibjs",
+    "bn254",
+    "zk"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "circomlibjs": "0.1.7",
+    "ffjavascript": "0.3.1",
+    "poseidon-lite": "^0.3.0"
+  }
+}

@@ -7,7 +7,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
 
-use crate::crypto::{verify_proof_bytes, DepositPublicInputs};
+use crate::crypto::DepositPublicInputs;
 use crate::error::PrivacyErrorV2;
 use crate::events::DepositMaspEvent;
 #[cfg(feature = "event-debug")]
@@ -150,7 +150,15 @@ pub fn handler(
     let public_inputs_fields = public_inputs.to_field_elements();
 
     let vk = &ctx.accounts.deposit_vk;
-    let is_valid = verify_proof_bytes(vk, &proof_data, &public_inputs_fields)?;
+    let is_valid = crate::crypto::verify_proof_from_account(
+        &vk.vk_alpha_g1,
+        &vk.vk_beta_g2,
+        &vk.vk_gamma_g2,
+        &vk.vk_delta_g2,
+        &vk.vk_ic,
+        &proof_data,
+        &public_inputs_fields,
+    )?;
     require!(is_valid, PrivacyErrorV2::InvalidProof);
 
     // =========================================================================

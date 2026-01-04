@@ -8,8 +8,8 @@ use anchor_lang::prelude::*;
 use crate::error::PrivacyErrorV2;
 use crate::events::PoolInitializedV2;
 use crate::state::{
-    ComplianceConfig, MerkleTreeV2, PoolConfigV2, RelayerRegistry,
-    MAX_TREE_DEPTH, MIN_TREE_DEPTH, MIN_ROOT_HISTORY_SIZE,
+    ComplianceConfig, MerkleTreeV2, PoolConfigV2, RelayerRegistry, MAX_TREE_DEPTH,
+    MIN_ROOT_HISTORY_SIZE, MIN_TREE_DEPTH,
 };
 
 #[derive(Accounts)]
@@ -60,12 +60,18 @@ pub fn handler(
 
     // Derive registry addresses (will be created in Part 2)
     let (relayer_registry, _) = Pubkey::find_program_address(
-        &[RelayerRegistry::SEED_PREFIX, ctx.accounts.pool_config.key().as_ref()],
+        &[
+            RelayerRegistry::SEED_PREFIX,
+            ctx.accounts.pool_config.key().as_ref(),
+        ],
         ctx.program_id,
     );
 
     let (_compliance_config, _) = Pubkey::find_program_address(
-        &[ComplianceConfig::SEED_PREFIX, ctx.accounts.pool_config.key().as_ref()],
+        &[
+            ComplianceConfig::SEED_PREFIX,
+            ctx.accounts.pool_config.key().as_ref(),
+        ],
         ctx.program_id,
     );
 
@@ -95,7 +101,11 @@ pub fn handler(
         timestamp,
     });
 
-    msg!("Initialized pSOL v2 pool (part 1): depth={}, history_size={}", tree_depth, root_history_size);
+    msg!(
+        "Initialized pSOL v2 pool (part 1): depth={}, history_size={}",
+        tree_depth,
+        root_history_size
+    );
 
     Ok(())
 }

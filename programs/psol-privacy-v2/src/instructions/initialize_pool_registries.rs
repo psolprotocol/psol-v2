@@ -69,7 +69,10 @@ pub fn handler(ctx: Context<InitializePoolRegistries>) -> Result<()> {
         timestamp,
     );
 
-    msg!("Initialized pSOL v2 registries for pool: {}", ctx.accounts.pool_config.key());
+    msg!(
+        "Initialized pSOL v2 registries for pool: {}",
+        ctx.accounts.pool_config.key()
+    );
 
     Ok(())
 }

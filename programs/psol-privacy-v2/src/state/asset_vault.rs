@@ -109,7 +109,7 @@ impl AssetVault {
             + 1                     // decimals
             + 1                     // asset_type
             + 4 + metadata_uri_len  // metadata_uri (String)
-            + 32                    // reserved
+            + 32 // reserved
     }
 
     pub const DEFAULT_SPACE: usize = Self::space(MAX_METADATA_URI_LEN);
@@ -184,10 +184,7 @@ impl AssetVault {
     }
 
     pub fn validate_withdrawal_amount(&self, amount: u64) -> Result<()> {
-        require!(
-            amount <= self.shielded_balance,
-            PrivacyErrorV2::InsufficientBalance
-        );
+        require!(amount <= self.shielded_balance, PrivacyErrorV2::InsufficientBalance);
         Ok(())
     }
 
@@ -287,24 +284,23 @@ impl AssetVault {
 
 /// Helper to compute asset_id from mint address
 pub fn compute_asset_id(mint: &Pubkey) -> [u8; 32] {
-    // PLACEHOLDER: Using simple hash of pubkey bytes
-    // TODO: Replace with proper keccak256 when available
-    let mut hasher = [0u8; 32];
-    let bytes = mint.to_bytes();
-    for (i, chunk) in bytes.chunks(32).enumerate() {
-        for (j, &byte) in chunk.iter().enumerate() {
-            hasher[j] ^= byte.wrapping_add(i as u8);
-        }
-    }
-    hasher
+    // Canonical, deterministic asset_id suitable for BN254 Fr public inputs.
+    //
+    // Raw Keccak256(mint) is a random 256-bit value and will often be >= Fr modulus,
+    // which causes Groth16 verification to fail (public input not canonical).
+    //
+    // Off-chain circuits/SDK MUST use the same derivation:
+    //   asset_id = 0x00 || Keccak256("psol:asset_id:v1" || mint)[0..31]
+    let h = crate::crypto::keccak::keccak256_concat(&[b"psol:asset_id:v1", mint.as_ref()]);
+    let mut out = [0u8; 32];
+    out[1..32].copy_from_slice(&h[0..31]);
+    out
 }
 
 /// Native SOL asset ID (special case)
 pub const NATIVE_SOL_ASSET_ID: [u8; 32] = [
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
 ];
 
 #[cfg(test)]
@@ -326,6 +322,6 @@ mod tests {
     #[test]
     fn test_space_calculation() {
         let space = AssetVault::DEFAULT_SPACE;
-        assert!(space < 1000); // Should be reasonably small
+        assert!(space < 1000);
     }
 }

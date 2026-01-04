@@ -9,8 +9,8 @@ use crate::error::PrivacyErrorV2;
 #[cfg(feature = "event-debug")]
 use crate::events::ShieldedActionExecuted;
 use crate::state::{MerkleTreeV2, PoolConfigV2, VerificationKeyAccountV2};
-use crate::ShieldedActionType;
 use crate::ProofType;
+use crate::ShieldedActionType;
 
 /// Accounts for executing a shielded action
 #[derive(Accounts)]
@@ -103,7 +103,7 @@ pub fn handler(
 
     // Note: The code below is unreachable until the above TODO items are implemented
     // Keeping as reference for future implementation
-    
+
     // Placeholder: In a real implementation, we would:
     // 1. Verify the ZK proof authorizing this action
     // 2. Parse action_data to get action-specific parameters

@@ -71,7 +71,7 @@ impl ComplianceConfig {
         + 8                   // last_updated_at
         + 1                   // bump
         + 1                   // compliance_level
-        + 64;                 // reserved
+        + 64; // reserved
 
     /// Compliance levels
     pub const COMPLIANCE_NONE: u8 = 0;
@@ -79,12 +79,7 @@ impl ComplianceConfig {
     pub const COMPLIANCE_FULL: u8 = 2;
 
     /// Initialize compliance config
-    pub fn initialize(
-        &mut self,
-        pool: Pubkey,
-        bump: u8,
-        timestamp: i64,
-    ) {
+    pub fn initialize(&mut self, pool: Pubkey, bump: u8, timestamp: i64) {
         self.pool = pool;
         self.require_encrypted_note = false;
         self.audit_pubkey = Pubkey::default();
@@ -177,10 +172,7 @@ impl ComplianceConfig {
     pub const SEED_PREFIX: &'static [u8] = b"compliance";
 
     pub fn find_pda(program_id: &Pubkey, pool: &Pubkey) -> (Pubkey, u8) {
-        Pubkey::find_program_address(
-            &[Self::SEED_PREFIX, pool.as_ref()],
-            program_id,
-        )
+        Pubkey::find_program_address(&[Self::SEED_PREFIX, pool.as_ref()], program_id)
     }
 }
 
@@ -221,7 +213,7 @@ impl AuditMetadata {
             + 4 + data_len  // encrypted_data (vec)
             + 1             // schema_version
             + 8             // attached_at
-            + 1             // bump
+            + 1 // bump
     }
 
     pub const DEFAULT_SPACE: usize = Self::space(MAX_ENCRYPTED_METADATA_LEN);
@@ -255,11 +247,7 @@ impl AuditMetadata {
 impl AuditMetadata {
     pub const SEED_PREFIX: &'static [u8] = b"audit_metadata";
 
-    pub fn find_pda(
-        program_id: &Pubkey,
-        pool: &Pubkey,
-        commitment: &[u8; 32],
-    ) -> (Pubkey, u8) {
+    pub fn find_pda(program_id: &Pubkey, pool: &Pubkey, commitment: &[u8; 32]) -> (Pubkey, u8) {
         Pubkey::find_program_address(
             &[Self::SEED_PREFIX, pool.as_ref(), commitment.as_ref()],
             program_id,
@@ -294,7 +282,7 @@ impl EncryptedNoteSchema {
             + 32        // amount_ciphertext
             + 32        // asset_ciphertext
             + 32        // blinding
-            + 4 + self.memo.len()  // memo (vec)
+            + 4 + self.memo.len() // memo (vec)
     }
 }
 

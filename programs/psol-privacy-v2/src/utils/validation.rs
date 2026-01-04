@@ -1,7 +1,7 @@
 //! Input validation utilities for pSOL v2
 
-use anchor_lang::prelude::*;
 use crate::error::PrivacyErrorV2;
+use anchor_lang::prelude::*;
 
 /// Maximum length for metadata URIs (IPFS hash + prefix)
 pub const MAX_METADATA_URI_LEN: usize = 200;
@@ -18,30 +18,38 @@ pub fn validate_metadata_uri(uri: &str) -> Result<()> {
         msg!("Metadata URI cannot be empty");
         return Err(error!(PrivacyErrorV2::InvalidMetadata));
     }
-    
+
     if uri.len() > MAX_METADATA_URI_LEN {
-        msg!("Metadata URI too long: {} > {}", uri.len(), MAX_METADATA_URI_LEN);
+        msg!(
+            "Metadata URI too long: {} > {}",
+            uri.len(),
+            MAX_METADATA_URI_LEN
+        );
         return Err(error!(PrivacyErrorV2::InvalidMetadata));
     }
-    
+
     if uri.contains('\0') {
         msg!("Metadata URI contains null bytes");
         return Err(error!(PrivacyErrorV2::InvalidMetadata));
     }
-    
-    if uri.chars().any(|c| c.is_control() && c != '\n' && c != '\r' && c != '\t') {
+
+    if uri
+        .chars()
+        .any(|c| c.is_control() && c != '\n' && c != '\r' && c != '\t')
+    {
         msg!("Metadata URI contains invalid control characters");
         return Err(error!(PrivacyErrorV2::InvalidMetadata));
     }
-    
-    if !uri.starts_with("https://") 
-        && !uri.starts_with("http://") 
+
+    if !uri.starts_with("https://")
+        && !uri.starts_with("http://")
         && !uri.starts_with("ipfs://")
-        && !uri.starts_with("ar://") {
+        && !uri.starts_with("ar://")
+    {
         msg!("Metadata URI must start with https://, http://, ipfs://, or ar://");
         return Err(error!(PrivacyErrorV2::InvalidMetadata));
     }
-    
+
     Ok(())
 }
 
@@ -51,22 +59,29 @@ pub fn validate_relayer_name(name: &str) -> Result<()> {
         msg!("Relayer name cannot be empty");
         return Err(error!(PrivacyErrorV2::InvalidInput));
     }
-    
+
     if name.len() > MAX_RELAYER_NAME_LEN {
-        msg!("Relayer name too long: {} > {}", name.len(), MAX_RELAYER_NAME_LEN);
+        msg!(
+            "Relayer name too long: {} > {}",
+            name.len(),
+            MAX_RELAYER_NAME_LEN
+        );
         return Err(error!(PrivacyErrorV2::InvalidInput));
     }
-    
+
     if name.contains('\0') {
         msg!("Relayer name contains null bytes");
         return Err(error!(PrivacyErrorV2::InvalidInput));
     }
-    
-    if !name.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == ' ') {
+
+    if !name
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == ' ')
+    {
         msg!("Relayer name contains invalid characters");
         return Err(error!(PrivacyErrorV2::InvalidInput));
     }
-    
+
     Ok(())
 }
 
@@ -76,17 +91,17 @@ pub fn validate_pool_name(name: &str) -> Result<()> {
         msg!("Pool name cannot be empty");
         return Err(error!(PrivacyErrorV2::InvalidInput));
     }
-    
+
     if name.len() > MAX_POOL_NAME_LEN {
         msg!("Pool name too long: {} > {}", name.len(), MAX_POOL_NAME_LEN);
         return Err(error!(PrivacyErrorV2::InvalidInput));
     }
-    
+
     if name.contains('\0') {
         msg!("Pool name contains null bytes");
         return Err(error!(PrivacyErrorV2::InvalidInput));
     }
-    
+
     Ok(())
 }
 
@@ -96,11 +111,11 @@ pub fn validate_string_input(input: &str, max_len: usize, field_name: &str) -> R
         msg!("{} too long: {} > {}", field_name, input.len(), max_len);
         return Err(error!(PrivacyErrorV2::InvalidInput));
     }
-    
+
     if input.contains('\0') {
         msg!("{} contains null bytes", field_name);
         return Err(error!(PrivacyErrorV2::InvalidInput));
     }
-    
+
     Ok(())
 }

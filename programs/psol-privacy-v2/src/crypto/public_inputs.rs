@@ -14,7 +14,7 @@ use anchor_lang::prelude::*;
 
 use crate::error::PrivacyErrorV2;
 
-use super::curve_utils::{u64_to_scalar, i64_to_scalar, pubkey_to_scalar, ScalarField};
+use super::{u64_to_scalar, i64_to_scalar, pubkey_to_scalar, ScalarField};
 
 // ============================================================================
 // CONSTANTS
@@ -702,6 +702,7 @@ impl JoinSplitPublicInputsBuilder {
 // ============================================================================
 
 /// Convert u64 to 32-byte field element (big-endian)
+#[allow(dead_code)]
 fn u64_to_field(value: u64) -> [u8; 32] {
     let mut bytes = [0u8; 32];
     bytes[24..32].copy_from_slice(&value.to_be_bytes());

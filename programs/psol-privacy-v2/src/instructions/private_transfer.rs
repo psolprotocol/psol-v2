@@ -20,8 +20,7 @@ use anchor_spl::token::{Token, TokenAccount};
 
 use crate::error::PrivacyErrorV2;
 use crate::state::{
-    AssetVault, MerkleTreeV2, PoolConfigV2, RelayerRegistry,
-    VerificationKeyAccountV2,
+    AssetVault, MerkleTreeV2, PoolConfigV2, RelayerRegistry, VerificationKeyAccountV2,
 };
 use crate::ProofType;
 
@@ -165,7 +164,9 @@ pub fn handler(
     ctx.accounts.pool_config.require_join_split_enabled()?;
 
     // Check VK is configured (even though we won't use it yet)
-    ctx.accounts.pool_config.require_vk_configured(ProofType::JoinSplit)?;
+    ctx.accounts
+        .pool_config
+        .require_vk_configured(ProofType::JoinSplit)?;
 
     // =========================================================================
     // FEATURE NOT YET IMPLEMENTED

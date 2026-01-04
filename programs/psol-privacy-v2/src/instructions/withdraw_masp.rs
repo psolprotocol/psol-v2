@@ -25,7 +25,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 
-use crate::crypto::{verify_proof_bytes, WithdrawPublicInputs};
+use crate::crypto::WithdrawPublicInputs;
 use crate::error::PrivacyErrorV2;
 use crate::events::WithdrawMaspEvent;
 #[cfg(feature = "event-debug")]
@@ -106,17 +106,21 @@ pub struct WithdrawMasp<'info> {
     pub vault_token_account: Box<Account<'info, TokenAccount>>,
 
     /// Recipient's token account (destination)
-    /// CHECK: We verify the mint matches, recipient can be any valid token account
+    /// SECURITY: Must be owned by the recipient pubkey from the proof public inputs
+    /// to prevent fund redirection attacks.
     #[account(
         mut,
         constraint = recipient_token_account.mint == asset_vault.mint @ PrivacyErrorV2::InvalidMint,
+        constraint = recipient_token_account.owner == recipient @ PrivacyErrorV2::RecipientMismatch,
     )]
     pub recipient_token_account: Box<Account<'info, TokenAccount>>,
 
     /// Relayer's token account for fee (if relayer_fee > 0)
+    /// SECURITY: Must be owned by the relayer signer to prevent fee redirection attacks.
     #[account(
         mut,
         constraint = relayer_token_account.mint == asset_vault.mint @ PrivacyErrorV2::InvalidMint,
+        constraint = relayer_token_account.owner == relayer.key() @ PrivacyErrorV2::RelayerMismatch,
     )]
     pub relayer_token_account: Box<Account<'info, TokenAccount>>,
 
@@ -270,8 +274,13 @@ pub fn handler(
 
     // Verify the ZK proof
     let field_elements = public_inputs.to_field_elements();
-    let is_valid = verify_proof_bytes(
-        &ctx.accounts.vk_account,
+    let vk = &ctx.accounts.vk_account;
+    let is_valid = crate::crypto::verify_proof_from_account(
+        &vk.vk_alpha_g1,
+        &vk.vk_beta_g2,
+        &vk.vk_gamma_g2,
+        &vk.vk_delta_g2,
+        &vk.vk_ic,
         &proof_data,
         &field_elements,
     )?;
@@ -310,8 +319,9 @@ pub fn handler(
         &[vault_bump],
     ];
 
-            let vault_signer_seeds: &[&[&[u8]]] = &[vault_seeds];
-// Transfer tokens to recipient
+    let vault_signer_seeds: &[&[&[u8]]] = &[vault_seeds];
+
+    // Transfer tokens to recipient
     if recipient_amount > 0 {
         let transfer_ctx = CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),

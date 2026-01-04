@@ -60,7 +60,7 @@ impl SpentNullifierV2 {
         + 8                   // spent_at
         + 8                   // spent_slot
         + 32                  // relayer
-        + 1;                  // bump
+        + 1; // bump
 
     /// Initialize spent nullifier record
     #[allow(clippy::too_many_arguments)]
@@ -101,11 +101,7 @@ impl SpentNullifierV2 {
     pub const SEED_PREFIX: &'static [u8] = b"nullifier_v2";
 
     /// Derive the PDA address for a nullifier
-    pub fn find_pda(
-        program_id: &Pubkey,
-        pool: &Pubkey,
-        nullifier_hash: &[u8; 32],
-    ) -> (Pubkey, u8) {
+    pub fn find_pda(program_id: &Pubkey, pool: &Pubkey, nullifier_hash: &[u8; 32]) -> (Pubkey, u8) {
         Pubkey::find_program_address(
             &[Self::SEED_PREFIX, pool.as_ref(), nullifier_hash.as_ref()],
             program_id,
@@ -118,7 +114,12 @@ impl SpentNullifierV2 {
         nullifier_hash: &'a [u8; 32],
         bump: &'a [u8; 1],
     ) -> [&'a [u8]; 4] {
-        [Self::SEED_PREFIX, pool.as_ref(), nullifier_hash.as_ref(), bump]
+        [
+            Self::SEED_PREFIX,
+            pool.as_ref(),
+            nullifier_hash.as_ref(),
+            bump,
+        ]
     }
 }
 

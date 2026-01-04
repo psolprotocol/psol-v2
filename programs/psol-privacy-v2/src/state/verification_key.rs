@@ -1,7 +1,7 @@
 //! Verification Key storage for Groth16 proofs - pSOL v2
 
-use anchor_lang::prelude::*;
 use crate::ProofType;
+use anchor_lang::prelude::*;
 
 #[account]
 pub struct VerificationKeyAccountV2 {
@@ -24,7 +24,22 @@ pub struct VerificationKeyAccountV2 {
 
 impl VerificationKeyAccountV2 {
     pub fn space(max_ic_points: u8) -> usize {
-        8 + 32 + 1 + 64 + 128 + 128 + 128 + 1 + 4 + (64 * max_ic_points as usize) + 1 + 1 + 1 + 8 + 8 + 32 + 32
+        8 + 32
+            + 1
+            + 64
+            + 128
+            + 128
+            + 128
+            + 1
+            + 4
+            + (64 * max_ic_points as usize)
+            + 1
+            + 1
+            + 1
+            + 8
+            + 8
+            + 32
+            + 32
     }
 
     pub fn expected_ic_points(proof_type: ProofType) -> u8 {
@@ -92,7 +107,11 @@ impl VerificationKeyAccountV2 {
     }
 
     pub fn expected_public_inputs(&self) -> u8 {
-        if self.vk_ic_len > 0 { self.vk_ic_len - 1 } else { 0 }
+        if self.vk_ic_len > 0 {
+            self.vk_ic_len - 1
+        } else {
+            0
+        }
     }
 
     pub fn validate_ic_length(&self) -> bool {
@@ -117,9 +136,8 @@ impl VerificationKeyAccountV2 {
         }
     }
 
+    /// Compute VK hash using Keccak256 (sha3 crate) for cryptographic security.
     fn compute_vk_hash(&self) -> [u8; 32] {
-        // PLACEHOLDER: Using simple XOR hash
-        // TODO: Replace with proper keccak256 when available
         let mut data = Vec::with_capacity(512 + self.vk_ic.len() * 64);
         data.extend_from_slice(&self.vk_alpha_g1);
         data.extend_from_slice(&self.vk_beta_g2);
@@ -128,21 +146,12 @@ impl VerificationKeyAccountV2 {
         for ic in &self.vk_ic {
             data.extend_from_slice(ic);
         }
-        
-        let mut hash = [0u8; 32];
-        for (i, chunk) in data.chunks(32).enumerate() {
-            for (j, &byte) in chunk.iter().enumerate() {
-                if j < 32 {
-                    hash[j] ^= byte.wrapping_add(i as u8);
-                }
-            }
-        }
-        hash
+
+        crate::crypto::keccak::keccak256(&data)
     }
 
     pub fn verify_integrity(&self) -> bool {
-        let computed = self.compute_vk_hash();
-        computed == self.vk_hash
+        self.compute_vk_hash() == self.vk_hash
     }
 
     pub fn to_vk(&self) -> VerificationKeyV2 {
@@ -153,7 +162,11 @@ impl VerificationKeyAccountV2 {
         Pubkey::find_program_address(&[proof_type.as_seed(), pool.as_ref()], program_id)
     }
 
-    pub fn seeds<'a>(proof_type: &'a ProofType, pool: &'a Pubkey, bump: &'a [u8; 1]) -> [&'a [u8]; 3] {
+    pub fn seeds<'a>(
+        proof_type: &'a ProofType,
+        pool: &'a Pubkey,
+        bump: &'a [u8; 1],
+    ) -> [&'a [u8]; 3] {
         [proof_type.as_seed(), pool.as_ref(), bump]
     }
 }
