@@ -13,7 +13,7 @@
 //! `[b"batcher", pool.key().as_ref(), batcher.key().as_ref()]`
 //!
 //! # Authorization Pattern
-//! ```rust
+//! ```rust,ignore
 //! // Check if batcher is pool authority
 //! if batcher.key() == pool_config.authority {
 //!     // Always authorized
