@@ -1,11 +1,10 @@
-/**
- * PDA (Program Derived Address) Helpers for pSOL v2
- *
- * All seeds must match the Rust on-chain program exactly.
- */
-
 import { PublicKey } from '@solana/web3.js';
 import { ProofType, proofTypeSeed } from './types';
+
+/**
+ * Default program ID for pSOL v2
+ */
+export const PROGRAM_ID = new PublicKey('BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb');
 
 // ============================================================================
 // SEED CONSTANTS

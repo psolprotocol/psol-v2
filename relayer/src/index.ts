@@ -187,6 +187,10 @@ export class RelayerService {
       commitment: 'confirmed',
     });
     
+    // Initialize Anchor program
+    // Note: IDL is loaded dynamically - in production, embed the IDL
+    this.program = null as any; // Will be initialized in start()
+    
     // Setup Express app
     this.app = express();
     this.setupMiddleware();

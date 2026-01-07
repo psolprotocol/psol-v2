@@ -23,7 +23,7 @@ async function main() {
   );
 
   // Minimum allowed: depth 4 = 16 notes
-  const treeDepth = 4;
+  const treeDepth = 20;
   const rootHistorySize = 30;
 
   console.log("=== pSOL v2 Pool Initialization ===");

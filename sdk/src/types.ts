@@ -686,8 +686,9 @@ export const FEATURE_COMPLIANCE = 1 << 4;
 /**
  * Convert a number to BN
  */
-export function toBN(value: BN | number | string): BN {
+export function toBN(value: BN | number | string | bigint): BN {
   if (BN.isBN(value)) return value;
+  if (typeof value === "bigint") return new BN(value.toString());
   return new BN(value);
 }
 

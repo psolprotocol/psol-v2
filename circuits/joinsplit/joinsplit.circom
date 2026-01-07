@@ -46,13 +46,22 @@ template JoinSplit(levels, nInputs, nOutputs) {
     signal input output_amounts[nOutputs];
     
     // ================================
-    // INPUT NOTE VERIFICATION
+    // COMPONENT DECLARATIONS (must be outside loops)
     // ================================
     component input_commitment_hashers[nInputs];
     component input_nullifier_hashers_inner[nInputs];
     component input_nullifier_hashers_outer[nInputs];
     component input_merkle_verifiers[nInputs];
+    component input_amount_checks[nInputs];
     
+    component output_commitment_hashers[nOutputs];
+    component output_amount_checks[nOutputs];
+    
+    component fee_check = Num2Bits(64);
+    
+    // ================================
+    // INPUT NOTE VERIFICATION
+    // ================================
     signal input_total[nInputs + 1];
     input_total[0] <== 0;
     
@@ -88,13 +97,15 @@ template JoinSplit(levels, nInputs, nOutputs) {
         
         // Accumulate input total
         input_total[i + 1] <== input_total[i] + input_amounts[i];
+        
+        // Verify input amount is non-negative (using range check)
+        input_amount_checks[i] = Num2Bits(64);
+        input_amount_checks[i].in <== input_amounts[i];
     }
     
     // ================================
     // OUTPUT NOTE VERIFICATION
     // ================================
-    component output_commitment_hashers[nOutputs];
-    
     signal output_total[nOutputs + 1];
     output_total[0] <== 0;
     
@@ -113,8 +124,8 @@ template JoinSplit(levels, nInputs, nOutputs) {
         output_total[i + 1] <== output_total[i] + output_amounts[i];
         
         // Verify output amount is non-negative (using range check)
-        component output_amount_check = Num2Bits(64);
-        output_amount_check.in <== output_amounts[i];
+        output_amount_checks[i] = Num2Bits(64);
+        output_amount_checks[i].in <== output_amounts[i];
     }
     
     // ================================
@@ -127,7 +138,6 @@ template JoinSplit(levels, nInputs, nOutputs) {
     // FEE VALIDATION
     // Fee must be non-negative
     // ================================
-    component fee_check = Num2Bits(64);
     fee_check.in <== relayer_fee;
     
     // ================================

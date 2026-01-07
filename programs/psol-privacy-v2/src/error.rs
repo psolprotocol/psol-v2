@@ -19,6 +19,8 @@ pub enum PrivacyErrorV2 {
 
     #[msg("Verification key is locked and cannot be modified")]
     VerificationKeyLocked,
+    #[msg("Verification key already finalized")]
+    VkAlreadyFinalized,
 
     #[msg("Proof type not supported")]
     UnsupportedProofType,

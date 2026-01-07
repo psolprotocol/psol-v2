@@ -1,49 +1,25 @@
-import { AnchorProvider, Program, BN, Idl } from '@coral-xyz/anchor';
+/**
+ * pSOL v2 SDK Client
+ * 
+ * Simplified client for interacting with the pSOL v2 MASP protocol
+ */
+
+import { AnchorProvider, Program, BN } from '@coral-xyz/anchor';
 import {
   Connection,
   Keypair,
   PublicKey,
   SystemProgram,
-  SYSVAR_RENT_PUBKEY,
   TransactionSignature,
 } from '@solana/web3.js';
 import {
   TOKEN_PROGRAM_ID,
-  ASSOCIATED_TOKEN_PROGRAM_ID,
   getAssociatedTokenAddressSync,
-  createAssociatedTokenAccountInstruction,
 } from '@solana/spl-token';
-
 import {
-  InitializePoolRequest,
-  InitializePoolResult,
-  RegisterAssetRequest,
-  DepositRequest,
-  DepositResult,
-  WithdrawRequest,
-  WithdrawResult,
-  SetVerificationKeyRequest,
-  RegisterRelayerRequest,
-  UpdateRelayerRequest,
-  ConfigureRelayerRegistryRequest,
-  ConfigureComplianceRequest,
-  PoolConfigV2,
-  MerkleTreeV2,
-  AssetVault,
-  VerificationKeyAccountV2,
-  RelayerRegistry,
-  RelayerNode,
-  RelayerInfo,
-  ComplianceConfig,
   ProofType,
-  AssetId,
-  Commitment,
-  NullifierHash,
-  MerkleRoot,
   toBN,
-  PROOF_SIZE,
 } from './types';
-
 import {
   findPoolConfigPda,
   findMerkleTreePda,
@@ -51,27 +27,23 @@ import {
   findVerificationKeyPda,
   findSpentNullifierPda,
   findRelayerRegistryPda,
-  findRelayerNodePda,
   findComplianceConfigPda,
   computeAssetId,
-  derivePoolPdas,
   PROGRAM_ID,
 } from './pda';
 
-import IDL from './idl/psol_privacy_v2.json';
+/** Default program ID */
+
 
 /**
  * Options for creating a PsolV2Client
  */
 export interface PsolV2ClientOptions {
-  /** Anchor provider (preferred) */
   provider?: AnchorProvider;
-  /** Connection (alternative to provider) */
   connection?: Connection;
-  /** Wallet keypair (required if using connection) */
   wallet?: Keypair;
-  /** Custom program ID (defaults to PROGRAM_ID) */
   programId?: PublicKey;
+  idl?: any;
 }
 
 /**
@@ -88,7 +60,6 @@ export class PsolV2Client {
     if (options.provider) {
       this.provider = options.provider;
     } else if (options.connection && options.wallet) {
-      // Create a simple wallet adapter from keypair
       const wallet = {
         publicKey: options.wallet.publicKey,
         signTransaction: async (tx: any) => {
@@ -107,7 +78,18 @@ export class PsolV2Client {
       throw new Error('Either provider or connection+wallet must be provided');
     }
 
-    this.program = new Program(IDL as Idl, this.provider);
+    if (!options.idl) {
+      throw new Error('IDL must be provided');
+    }
+
+    this.program = new Program(options.idl, this.provider);
+  }
+
+  /**
+   * Get authority public key
+   */
+  get authority(): PublicKey {
+    return this.provider.publicKey;
   }
 
   // ============================================
@@ -117,23 +99,23 @@ export class PsolV2Client {
   /**
    * Initialize a new MASP pool
    */
-  async initializePool(args: InitializePoolRequest): Promise<InitializePoolResult> {
-    const authority = this.provider.publicKey;
-    const { poolConfig, merkleTree, relayerRegistry, complianceConfig } = derivePoolPdas(
-      authority,
-      this.programId
-    );
+  async initializePool(treeDepth: number, rootHistorySize: number): Promise<{
+    signature: TransactionSignature;
+    poolConfig: PublicKey;
+    merkleTree: PublicKey;
+  }> {
+    const authority = this.authority;
 
-    const tx = await this.program.methods
-      .initializePool(args.merkleTreeDepth, args.rootHistorySize)
+    const [poolConfig] = findPoolConfigPda(this.programId, authority);
+    const [merkleTree] = findMerkleTreePda(this.programId, poolConfig);
+
+    const tx = await (this.program.methods as any)
+      .initializePoolV2(treeDepth, rootHistorySize)
       .accounts({
         authority,
         poolConfig,
         merkleTree,
-        relayerRegistry,
-        complianceConfig,
         systemProgram: SystemProgram.programId,
-        rent: SYSVAR_RENT_PUBKEY,
       })
       .rpc();
 
@@ -141,34 +123,58 @@ export class PsolV2Client {
       signature: tx,
       poolConfig,
       merkleTree,
-      relayerRegistry,
-      complianceConfig,
     };
   }
 
   /**
-   * Register a new asset (SPL token) in the pool
+   * Initialize pool registries (relayer registry, compliance config)
+   */
+  async initializePoolRegistries(poolConfig: PublicKey): Promise<TransactionSignature> {
+    const authority = this.authority;
+
+    const [relayerRegistry] = findRelayerRegistryPda(this.programId, poolConfig);
+    const [complianceConfig] = findComplianceConfigPda(this.programId, poolConfig);
+
+    return await (this.program.methods as any)
+      .initializePoolRegistries()
+      .accounts({
+        authority,
+        poolConfig,
+        relayerRegistry,
+        complianceConfig,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+  }
+
+  /**
+   * Register an asset (SPL token) in the pool
    */
   async registerAsset(
     poolConfig: PublicKey,
-    args: RegisterAssetRequest
+    mint: PublicKey
   ): Promise<TransactionSignature> {
-    const assetId = computeAssetId(args.mint);
-    const [assetVault] = findAssetVaultPda(poolConfig, assetId, this.programId);
-    const vaultTokenAccount = getAssociatedTokenAddressSync(args.mint, assetVault, true);
+    const authority = this.authority;
+    const assetId = computeAssetId(mint);
 
-    return await this.program.methods
+    const [assetVault] = findAssetVaultPda(this.programId, poolConfig, assetId);
+    
+    // Vault token account PDA
+    const [vaultTokenAccount] = PublicKey.findProgramAddressSync(
+      [Buffer.from('vault_token'), assetVault.toBuffer()],
+      this.programId
+    );
+
+    return await (this.program.methods as any)
       .registerAsset(Array.from(assetId))
       .accounts({
-        authority: this.provider.publicKey,
+        authority,
         poolConfig,
-        mint: args.mint,
+        mint,
         assetVault,
         vaultTokenAccount,
         tokenProgram: TOKEN_PROGRAM_ID,
-        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
-        rent: SYSVAR_RENT_PUBKEY,
       })
       .rpc();
   }
@@ -178,18 +184,28 @@ export class PsolV2Client {
    */
   async setVerificationKey(
     poolConfig: PublicKey,
-    args: SetVerificationKeyRequest
+    proofType: ProofType,
+    vkAlphaG1: Uint8Array,
+    vkBetaG2: Uint8Array,
+    vkGammaG2: Uint8Array,
+    vkDeltaG2: Uint8Array,
+    vkIc: Uint8Array[]
   ): Promise<TransactionSignature> {
-    const [vkAccount] = findVerificationKeyPda(poolConfig, args.proofType, this.programId);
+    const authority = this.authority;
 
-    return await this.program.methods
-      .setVerificationKey(
-        { [args.proofType.toLowerCase()]: {} },
-        Array.from(args.vkData),
-        args.icLen
+    const [vkAccount] = findVerificationKeyPda(this.programId, poolConfig, proofType);
+
+    return await (this.program.methods as any)
+      .setVerificationKeyV2(
+        proofType,
+        Array.from(vkAlphaG1),
+        Array.from(vkBetaG2),
+        Array.from(vkGammaG2),
+        Array.from(vkDeltaG2),
+        vkIc.map((ic) => Array.from(ic))
       )
       .accounts({
-        authority: this.provider.publicKey,
+        authority,
         poolConfig,
         vkAccount,
         systemProgram: SystemProgram.programId,
@@ -197,408 +213,120 @@ export class PsolV2Client {
       .rpc();
   }
 
-  /**
-   * Lock verification key (make immutable)
-   */
-  async lockVerificationKey(
-    poolConfig: PublicKey,
-    proofType: ProofType
-  ): Promise<TransactionSignature> {
-    const [vkAccount] = findVerificationKeyPda(poolConfig, proofType, this.programId);
-
-    return await this.program.methods
-      .lockVerificationKey({ [proofType.toLowerCase()]: {} })
-      .accounts({
-        authority: this.provider.publicKey,
-        poolConfig,
-        vkAccount,
-      })
-      .rpc();
-  }
-
-  /**
-   * Pause the pool (emergency stop)
-   */
-  async pausePool(poolConfig: PublicKey): Promise<TransactionSignature> {
-    return await this.program.methods
-      .pausePool()
-      .accounts({
-        authority: this.provider.publicKey,
-        poolConfig,
-      })
-      .rpc();
-  }
-
-  /**
-   * Unpause the pool
-   */
-  async unpausePool(poolConfig: PublicKey): Promise<TransactionSignature> {
-    return await this.program.methods
-      .unpausePool()
-      .accounts({
-        authority: this.provider.publicKey,
-        poolConfig,
-      })
-      .rpc();
-  }
-
-  /**
-   * Initiate authority transfer (2-step process)
-   */
-  async initiateAuthorityTransfer(
-    poolConfig: PublicKey,
-    newAuthority: PublicKey
-  ): Promise<TransactionSignature> {
-    return await this.program.methods
-      .initiateAuthorityTransfer(newAuthority)
-      .accounts({
-        authority: this.provider.publicKey,
-        poolConfig,
-      })
-      .rpc();
-  }
-
-  /**
-   * Accept authority transfer (called by new authority)
-   */
-  async acceptAuthorityTransfer(poolConfig: PublicKey): Promise<TransactionSignature> {
-    return await this.program.methods
-      .acceptAuthorityTransfer()
-      .accounts({
-        newAuthority: this.provider.publicKey,
-        poolConfig,
-      })
-      .rpc();
-  }
-
-  /**
-   * Cancel pending authority transfer
-   */
-  async cancelAuthorityTransfer(poolConfig: PublicKey): Promise<TransactionSignature> {
-    return await this.program.methods
-      .cancelAuthorityTransfer()
-      .accounts({
-        authority: this.provider.publicKey,
-        poolConfig,
-      })
-      .rpc();
-  }
-
   // ============================================
-  // MASP Core Operations
+  // Deposits & Withdrawals
   // ============================================
 
   /**
-   * Deposit tokens into the shielded pool
-   *
-   * @param poolConfig - Pool configuration account
-   * @param args - Deposit parameters including commitment and amount
-   * @returns Deposit result with leaf index
+   * Deposit funds into the shielded pool
    */
-  async depositMasp(poolConfig: PublicKey, args: DepositRequest): Promise<DepositResult> {
-    const pool = await this.getPoolConfig(poolConfig);
-    const [merkleTree] = findMerkleTreePda(poolConfig, this.programId);
-    const assetId = computeAssetId(args.mint);
-    const [assetVault] = findAssetVaultPda(poolConfig, assetId, this.programId);
-    const vaultTokenAccount = getAssociatedTokenAddressSync(args.mint, assetVault, true);
-    const depositorTokenAccount = getAssociatedTokenAddressSync(
-      args.mint,
-      this.provider.publicKey
+  async deposit(
+    poolConfig: PublicKey,
+    mint: PublicKey,
+    amount: bigint | BN,
+    commitment: Uint8Array,
+    proofData: Uint8Array,
+    encryptedNote?: Uint8Array | null
+  ): Promise<{ signature: TransactionSignature; leafIndex: number }> {
+    const depositor = this.authority;
+    const assetId = computeAssetId(mint);
+
+    const [merkleTree] = findMerkleTreePda(this.programId, poolConfig);
+    const [assetVault] = findAssetVaultPda(this.programId, poolConfig, assetId);
+    const [vaultTokenAccount] = PublicKey.findProgramAddressSync(
+      [Buffer.from('vault_token'), assetVault.toBuffer()],
+      this.programId
     );
-    const [complianceConfig] = findComplianceConfigPda(poolConfig, this.programId);
+    const [depositVk] = findVerificationKeyPda(this.programId, poolConfig, ProofType.Deposit);
 
-    const tx = await this.program.methods
+    const userTokenAccount = getAssociatedTokenAddressSync(mint, depositor);
+
+    const tx = await (this.program.methods as any)
       .depositMasp(
-        Array.from(args.commitment),
+        toBN(amount),
+        Array.from(commitment),
         Array.from(assetId),
-        toBN(args.amount),
-        args.encryptedNote ? Array.from(args.encryptedNote) : null
+        Array.from(proofData),
+        encryptedNote ? Array.from(encryptedNote) : null
       )
       .accounts({
-        depositor: this.provider.publicKey,
+        depositor,
         poolConfig,
+        authority: depositor,
         merkleTree,
         assetVault,
         vaultTokenAccount,
-        depositorTokenAccount,
-        complianceConfig,
+        userTokenAccount,
+        mint,
+        depositVk,
         tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
       })
       .rpc();
 
-    // Get updated tree to find leaf index
-    const tree = await this.getMerkleTree(merkleTree);
-
     return {
       signature: tx,
-      leafIndex: tree.nextLeafIndex - 1,
-      merkleRoot: tree.currentRoot,
+      leafIndex: 0, // TODO: Parse from logs
     };
   }
 
   /**
-   * Withdraw tokens from the shielded pool with ZK proof
-   *
-   * @param poolConfig - Pool configuration account
-   * @param args - Withdrawal parameters including proof and nullifier
-   * @returns Withdrawal result
+   * Withdraw funds from the shielded pool
    */
-  async withdrawMasp(poolConfig: PublicKey, args: WithdrawRequest): Promise<WithdrawResult> {
-    // Validate proof size
-    if (args.proof.length !== PROOF_SIZE) {
-      throw new Error(`Invalid proof size: expected ${PROOF_SIZE}, got ${args.proof.length}`);
-    }
+  async withdraw(
+    poolConfig: PublicKey,
+    mint: PublicKey,
+    recipient: PublicKey,
+    amount: bigint | BN,
+    merkleRoot: Uint8Array,
+    nullifierHash: Uint8Array,
+    proofData: Uint8Array,
+    relayerFee?: bigint | BN
+  ): Promise<{ signature: TransactionSignature }> {
+    const relayer = this.authority;
+    const assetId = computeAssetId(mint);
 
-    const [merkleTree] = findMerkleTreePda(poolConfig, this.programId);
-    const assetId = computeAssetId(args.mint);
-    const [assetVault] = findAssetVaultPda(poolConfig, assetId, this.programId);
-    const vaultTokenAccount = getAssociatedTokenAddressSync(args.mint, assetVault, true);
-    const recipientTokenAccount = getAssociatedTokenAddressSync(args.mint, args.recipient);
-    const [vkAccount] = findVerificationKeyPda(poolConfig, ProofType.Withdraw, this.programId);
-    const [nullifierAccount] = findSpentNullifierPda(
-      poolConfig,
-      args.nullifierHash,
+    const [merkleTree] = findMerkleTreePda(this.programId, poolConfig);
+    const [assetVault] = findAssetVaultPda(this.programId, poolConfig, assetId);
+    const [vaultTokenAccount] = PublicKey.findProgramAddressSync(
+      [Buffer.from('vault_token'), assetVault.toBuffer()],
       this.programId
     );
-    const [complianceConfig] = findComplianceConfigPda(poolConfig, this.programId);
+    const [withdrawVk] = findVerificationKeyPda(this.programId, poolConfig, ProofType.Withdraw);
+    const [spentNullifier] = findSpentNullifierPda(this.programId, poolConfig, nullifierHash);
+    const [relayerRegistry] = findRelayerRegistryPda(this.programId, poolConfig);
 
-    // Handle relayer accounts
-    let relayerTokenAccount: PublicKey | null = null;
-    if (args.relayer) {
-      relayerTokenAccount = getAssociatedTokenAddressSync(args.mint, args.relayer);
-    }
+    const recipientTokenAccount = getAssociatedTokenAddressSync(mint, recipient);
+    const relayerTokenAccount = getAssociatedTokenAddressSync(mint, relayer);
 
-    const tx = await this.program.methods
+    const tx = await (this.program.methods as any)
       .withdrawMasp(
-        Array.from(args.proof),
-        Array.from(args.merkleRoot),
-        Array.from(args.nullifierHash),
+        Array.from(proofData),
+        Array.from(merkleRoot),
+        Array.from(nullifierHash),
+        recipient,
+        toBN(amount),
         Array.from(assetId),
-        toBN(args.amount),
-        toBN(args.relayerFee ?? 0)
+        toBN(relayerFee ?? 0n)
       )
       .accounts({
-        recipient: args.recipient,
+        relayer,
         poolConfig,
         merkleTree,
+        vkAccount: withdrawVk,
         assetVault,
         vaultTokenAccount,
         recipientTokenAccount,
-        vkAccount,
-        nullifierAccount,
-        relayer: args.relayer ?? null,
         relayerTokenAccount,
-        complianceConfig,
+        spentNullifier,
+        relayerRegistry,
+        relayerNode: null,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
       })
       .rpc();
 
-    return {
-      signature: tx,
-      nullifierHash: args.nullifierHash,
-    };
-  }
-
-  /**
-   * Private transfer (Join-Split) - NOT IMPLEMENTED IN V2.0
-   */
-  async privateTransferJoinSplit(): Promise<never> {
-    throw new Error(
-      'Join-Split transfers are not implemented in v2.0. This feature is reserved for v2.1.'
-    );
-  }
-
-  /**
-   * Prove membership in the shielded pool - NOT IMPLEMENTED IN V2.0
-   */
-  async proveMembership(): Promise<never> {
-    throw new Error(
-      'Membership proofs are not implemented in v2.0. This feature is reserved for v2.1.'
-    );
-  }
-
-  /**
-   * Execute shielded action via CPI - NOT IMPLEMENTED IN V2.0
-   */
-  async executeShieldedAction(): Promise<never> {
-    throw new Error(
-      'Shielded CPI actions are not implemented in v2.0. This feature is reserved for v2.1.'
-    );
-  }
-
-  // ============================================
-  // Relayer Registry
-  // ============================================
-
-  /**
-   * Configure relayer registry parameters
-   */
-  async configureRelayerRegistry(
-    poolConfig: PublicKey,
-    args: ConfigureRelayerRegistryRequest
-  ): Promise<TransactionSignature> {
-    const [relayerRegistry] = findRelayerRegistryPda(poolConfig, this.programId);
-
-    return await this.program.methods
-      .configureRelayerRegistry(
-        args.minFeeBps ?? null,
-        args.maxFeeBps ?? null,
-        args.minStake ? toBN(args.minStake) : null,
-        args.registrationOpen ?? null
-      )
-      .accounts({
-        authority: this.provider.publicKey,
-        poolConfig,
-        relayerRegistry,
-      })
-      .rpc();
-  }
-
-  /**
-   * Register as a relayer
-   */
-  async registerRelayer(
-    poolConfig: PublicKey,
-    args: RegisterRelayerRequest
-  ): Promise<TransactionSignature> {
-    const [relayerRegistry] = findRelayerRegistryPda(poolConfig, this.programId);
-    const [relayerNode] = findRelayerNodePda(
-      relayerRegistry,
-      this.provider.publicKey,
-      this.programId
-    );
-
-    return await this.program.methods
-      .registerRelayer(args.feeBps, args.metadata ?? '')
-      .accounts({
-        operator: this.provider.publicKey,
-        poolConfig,
-        relayerRegistry,
-        relayerNode,
-        systemProgram: SystemProgram.programId,
-      })
-      .rpc();
-  }
-
-  /**
-   * Update relayer configuration
-   */
-  async updateRelayer(
-    poolConfig: PublicKey,
-    args: UpdateRelayerRequest
-  ): Promise<TransactionSignature> {
-    const [relayerRegistry] = findRelayerRegistryPda(poolConfig, this.programId);
-    const [relayerNode] = findRelayerNodePda(
-      relayerRegistry,
-      this.provider.publicKey,
-      this.programId
-    );
-
-    return await this.program.methods
-      .updateRelayer(args.feeBps ?? null, args.metadata ?? null, args.active ?? null)
-      .accounts({
-        operator: this.provider.publicKey,
-        relayerRegistry,
-        relayerNode,
-      })
-      .rpc();
-  }
-
-  /**
-   * Deactivate relayer (convenience method)
-   */
-  async deactivateRelayer(poolConfig: PublicKey): Promise<TransactionSignature> {
-    return this.updateRelayer(poolConfig, { active: false });
-  }
-
-  /**
-   * Get all registered relayers
-   */
-  async getRelayers(poolConfig: PublicKey): Promise<RelayerInfo[]> {
-    const [relayerRegistry] = findRelayerRegistryPda(poolConfig, this.programId);
-
-    const accounts = await this.program.account.relayerNode.all([
-      {
-        memcmp: {
-          offset: 8, // After discriminator
-          bytes: relayerRegistry.toBase58(),
-        },
-      },
-    ]);
-
-    return accounts.map((acc) => ({
-      pubkey: acc.publicKey,
-      account: acc.account as unknown as RelayerNode,
-    }));
-  }
-
-  /**
-   * Get active relayers only
-   */
-  async getActiveRelayers(poolConfig: PublicKey): Promise<RelayerInfo[]> {
-    const relayers = await this.getRelayers(poolConfig);
-    return relayers.filter((r) => r.account.isActive);
-  }
-
-  /**
-   * Get specific relayer info
-   */
-  async getRelayer(poolConfig: PublicKey, operator: PublicKey): Promise<RelayerNode | null> {
-    const [relayerRegistry] = findRelayerRegistryPda(poolConfig, this.programId);
-    const [relayerNode] = findRelayerNodePda(relayerRegistry, operator, this.programId);
-
-    try {
-      return (await this.program.account.relayerNode.fetch(relayerNode)) as unknown as RelayerNode;
-    } catch {
-      return null;
-    }
-  }
-
-  // ============================================
-  // Compliance
-  // ============================================
-
-  /**
-   * Configure compliance settings
-   */
-  async configureCompliance(
-    poolConfig: PublicKey,
-    args: ConfigureComplianceRequest
-  ): Promise<TransactionSignature> {
-    const [complianceConfig] = findComplianceConfigPda(poolConfig, this.programId);
-
-    return await this.program.methods
-      .configureCompliance(
-        args.requireEncryptedNote ?? null,
-        args.auditPubkey ? Array.from(args.auditPubkey) : null
-      )
-      .accounts({
-        authority: this.provider.publicKey,
-        poolConfig,
-        complianceConfig,
-      })
-      .rpc();
-  }
-
-  /**
-   * Attach audit metadata to a commitment
-   */
-  async attachAuditMetadata(
-    poolConfig: PublicKey,
-    commitment: Commitment,
-    encryptedMetadata: Uint8Array
-  ): Promise<TransactionSignature> {
-    const [complianceConfig] = findComplianceConfigPda(poolConfig, this.programId);
-
-    return await this.program.methods
-      .attachAuditMetadata(Array.from(commitment), Array.from(encryptedMetadata))
-      .accounts({
-        authority: this.provider.publicKey,
-        poolConfig,
-        complianceConfig,
-      })
-      .rpc();
+    return { signature: tx };
   }
 
   // ============================================
@@ -608,149 +336,49 @@ export class PsolV2Client {
   /**
    * Fetch pool configuration
    */
-  async getPoolConfig(poolConfig: PublicKey): Promise<PoolConfigV2> {
-    return (await this.program.account.poolConfigV2.fetch(poolConfig)) as unknown as PoolConfigV2;
+  async fetchPoolConfig(poolConfig: PublicKey): Promise<any> {
+    return await (this.program.account as any).poolConfigV2.fetch(poolConfig);
   }
 
   /**
    * Fetch Merkle tree state
    */
-  async getMerkleTree(merkleTree: PublicKey): Promise<MerkleTreeV2> {
-    return (await this.program.account.merkleTreeV2.fetch(merkleTree)) as unknown as MerkleTreeV2;
+  async fetchMerkleTree(merkleTree: PublicKey): Promise<any> {
+    return await (this.program.account as any).merkleTreeV2.fetch(merkleTree);
   }
 
   /**
    * Fetch asset vault
    */
-  async getAssetVault(assetVault: PublicKey): Promise<AssetVault> {
-    return (await this.program.account.assetVault.fetch(assetVault)) as unknown as AssetVault;
+  async fetchAssetVault(assetVault: PublicKey): Promise<any> {
+    return await (this.program.account as any).assetVault.fetch(assetVault);
   }
 
   /**
-   * Fetch asset vault by mint
+   * Check if nullifier has been spent
    */
-  async getAssetVaultByMint(poolConfig: PublicKey, mint: PublicKey): Promise<AssetVault | null> {
-    const assetId = computeAssetId(mint);
-    const [assetVault] = findAssetVaultPda(poolConfig, assetId, this.programId);
-
+  async isNullifierSpent(poolConfig: PublicKey, nullifierHash: Uint8Array): Promise<boolean> {
+    const [spentNullifier] = findSpentNullifierPda(this.programId, poolConfig, nullifierHash);
     try {
-      return await this.getAssetVault(assetVault);
-    } catch {
-      return null;
-    }
-  }
-
-  /**
-   * Fetch verification key
-   */
-  async getVerificationKey(
-    poolConfig: PublicKey,
-    proofType: ProofType
-  ): Promise<VerificationKeyAccountV2 | null> {
-    const [vkAccount] = findVerificationKeyPda(poolConfig, proofType, this.programId);
-
-    try {
-      return (await this.program.account.verificationKeyAccountV2.fetch(
-        vkAccount
-      )) as unknown as VerificationKeyAccountV2;
-    } catch {
-      return null;
-    }
-  }
-
-  /**
-   * Fetch relayer registry
-   */
-  async getRelayerRegistry(poolConfig: PublicKey): Promise<RelayerRegistry> {
-    const [relayerRegistry] = findRelayerRegistryPda(poolConfig, this.programId);
-    return (await this.program.account.relayerRegistry.fetch(
-      relayerRegistry
-    )) as unknown as RelayerRegistry;
-  }
-
-  /**
-   * Fetch compliance configuration
-   */
-  async getComplianceConfig(poolConfig: PublicKey): Promise<ComplianceConfig> {
-    const [complianceConfig] = findComplianceConfigPda(poolConfig, this.programId);
-    return (await this.program.account.complianceConfig.fetch(
-      complianceConfig
-    )) as unknown as ComplianceConfig;
-  }
-
-  /**
-   * Check if a nullifier has been spent
-   */
-  async isNullifierSpent(poolConfig: PublicKey, nullifierHash: NullifierHash): Promise<boolean> {
-    const [nullifierAccount] = findSpentNullifierPda(poolConfig, nullifierHash, this.programId);
-
-    try {
-      await this.program.account.spentNullifierV2.fetch(nullifierAccount);
+      await (this.program.account as any).spentNullifierV2.fetch(spentNullifier);
       return true;
     } catch {
       return false;
     }
   }
-
-  /**
-   * Get current Merkle root
-   */
-  async getCurrentRoot(poolConfig: PublicKey): Promise<MerkleRoot> {
-    const [merkleTree] = findMerkleTreePda(poolConfig, this.programId);
-    const tree = await this.getMerkleTree(merkleTree);
-    return new Uint8Array(tree.currentRoot);
-  }
-
-  /**
-   * Check if a root is known (current or in history)
-   */
-  async isKnownRoot(poolConfig: PublicKey, root: MerkleRoot): Promise<boolean> {
-    const [merkleTree] = findMerkleTreePda(poolConfig, this.programId);
-    const tree = await this.getMerkleTree(merkleTree);
-
-    // Check current root
-    const rootArray = Array.from(root);
-    if (JSON.stringify(tree.currentRoot) === JSON.stringify(rootArray)) {
-      return true;
-    }
-
-    // Check history
-    for (const historicalRoot of tree.rootHistory) {
-      if (JSON.stringify(historicalRoot) === JSON.stringify(rootArray)) {
-        return true;
-      }
-    }
-
-    return false;
-  }
-
-  // ============================================
-  // Fee Helpers
-  // ============================================
-
-  /**
-   * Calculate relayer fee for an amount
-   */
-  calculateRelayerFee(amount: bigint | BN, feeBps: number): bigint {
-    const amountBig = typeof amount === 'bigint' ? amount : BigInt(amount.toString());
-    return (amountBig * BigInt(feeBps)) / BigInt(10000);
-  }
-
-  /**
-   * Get fee bounds from relayer registry
-   */
-  async getFeeBounds(poolConfig: PublicKey): Promise<{ minFeeBps: number; maxFeeBps: number }> {
-    const registry = await this.getRelayerRegistry(poolConfig);
-    return {
-      minFeeBps: registry.minFeeBps,
-      maxFeeBps: registry.maxFeeBps,
-    };
-  }
 }
 
 /**
- * Create a new PsolV2Client instance
+ * Create a PsolV2Client from IDL JSON
  */
-export function createClient(options: PsolV2ClientOptions): PsolV2Client {
-  return new PsolV2Client(options);
+export function createPsolClient(
+  provider: AnchorProvider,
+  idl: any,
+  programId?: PublicKey
+): PsolV2Client {
+  return new PsolV2Client({
+    provider,
+    idl,
+    programId,
+  });
 }

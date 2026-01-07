@@ -12,7 +12,7 @@
     "declarationMap": true,
     "outDir": "./dist",
     "rootDir": "./",
-    "types": ["mocha", "node"]
+    "types": ["node"]
   },
   "include": ["tests/**/*.ts", "sdk/src/**/*.ts"],
   "exclude": ["node_modules", "dist"]

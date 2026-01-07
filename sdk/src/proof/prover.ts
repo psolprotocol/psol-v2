@@ -8,9 +8,8 @@
  */
 
 import * as snarkjs from 'snarkjs';
-import { Note, NoteWithNullifier, computeNoteNullifier } from '../note/note';
-import { MerkleProof, MerkleTree } from '../merkle/tree';
-import { bigIntToBytes, initPoseidon, computeCommitment } from '../crypto/poseidon';
+import { Note, NoteWithNullifier } from '../note/note';
+import { MerkleProof } from '../merkle/tree';
 import { PublicKey } from '@solana/web3.js';
 
 /**
@@ -27,9 +26,9 @@ export enum ProofType {
  * Groth16 proof structure
  */
 export interface Groth16Proof {
-  pi_a: [string, string, string];
-  pi_b: [[string, string], [string, string], [string, string]];
-  pi_c: [string, string, string];
+  pi_a: string[];
+  pi_b: string[][];
+  pi_c: string[];
   protocol: string;
   curve: string;
 }
@@ -103,25 +102,28 @@ export interface CircuitPaths {
   zkeyPath: string;
 }
 
+/** Default Merkle tree depth (must match circuits) */
+export const DEFAULT_MERKLE_TREE_DEPTH = 20;
+
 /**
  * Default circuit paths (relative to project root)
  */
 export const DEFAULT_CIRCUIT_PATHS: Record<ProofType, CircuitPaths> = {
   [ProofType.Deposit]: {
-    wasmPath: 'circuits/deposit/deposit_js/deposit.wasm',
-    zkeyPath: 'circuits/deposit/deposit_final.zkey',
+    wasmPath: 'circuits/build/deposit_js/deposit.wasm',
+    zkeyPath: 'circuits/build/deposit.zkey',
   },
   [ProofType.Withdraw]: {
-    wasmPath: 'circuits/withdraw/withdraw_js/withdraw.wasm',
-    zkeyPath: 'circuits/withdraw/withdraw_final.zkey',
+    wasmPath: 'circuits/build/withdraw_js/withdraw.wasm',
+    zkeyPath: 'circuits/build/withdraw.zkey',
   },
   [ProofType.JoinSplit]: {
-    wasmPath: 'circuits/joinsplit/joinsplit_js/joinsplit.wasm',
-    zkeyPath: 'circuits/joinsplit/joinsplit_final.zkey',
+    wasmPath: 'circuits/build/joinsplit_js/joinsplit.wasm',
+    zkeyPath: 'circuits/build/joinsplit.zkey',
   },
   [ProofType.Membership]: {
-    wasmPath: 'circuits/membership/membership_js/membership.wasm',
-    zkeyPath: 'circuits/membership/membership_final.zkey',
+    wasmPath: 'circuits/build/membership_js/membership.wasm',
+    zkeyPath: 'circuits/build/membership.zkey',
   },
 };
 
@@ -130,18 +132,25 @@ export const DEFAULT_CIRCUIT_PATHS: Record<ProofType, CircuitPaths> = {
  */
 export class Prover {
   private circuitPaths: Record<ProofType, CircuitPaths>;
+  private merkleTreeDepth: number;
   
-  constructor(circuitPaths?: Partial<Record<ProofType, CircuitPaths>>) {
+  constructor(
+    circuitPaths?: Partial<Record<ProofType, CircuitPaths>>,
+    merkleTreeDepth: number = DEFAULT_MERKLE_TREE_DEPTH
+  ) {
     this.circuitPaths = {
       ...DEFAULT_CIRCUIT_PATHS,
       ...circuitPaths,
     };
+    this.merkleTreeDepth = merkleTreeDepth;
   }
   
   /**
    * Generate deposit proof
    */
   async generateDepositProof(inputs: DepositProofInputs): Promise<SerializedProof> {
+    this.assertCircuitArtifactsExist(ProofType.Deposit);
+    
     const circuitInputs = {
       commitment: inputs.commitment.toString(),
       amount: inputs.amount.toString(),
@@ -157,13 +166,16 @@ export class Prover {
       paths.zkeyPath
     );
     
-    return this.serializeProof(proof, publicSignals);
+    return this.serializeProof(proof as unknown as Groth16Proof, publicSignals);
   }
   
   /**
    * Generate withdrawal proof
    */
   async generateWithdrawProof(inputs: WithdrawProofInputs): Promise<SerializedProof> {
+    this.assertCircuitArtifactsExist(ProofType.Withdraw);
+    this.assertMerkleDepth(inputs.merkleProof.pathElements.length, 'withdraw');
+    
     const circuitInputs = {
       // Public inputs
       merkle_root: inputs.merkleRoot.toString(),
@@ -189,15 +201,21 @@ export class Prover {
       paths.zkeyPath
     );
     
-    return this.serializeProof(proof, publicSignals);
+    return this.serializeProof(proof as unknown as Groth16Proof, publicSignals);
   }
   
   /**
    * Generate JoinSplit proof
    */
   async generateJoinSplitProof(inputs: JoinSplitProofInputs): Promise<SerializedProof> {
+    this.assertCircuitArtifactsExist(ProofType.JoinSplit);
+    
     if (inputs.inputNotes.length !== 2 || inputs.outputNotes.length !== 2) {
       throw new Error('JoinSplit requires exactly 2 inputs and 2 outputs');
+    }
+    
+    for (const proof of inputs.inputMerkleProofs) {
+      this.assertMerkleDepth(proof.pathElements.length, 'joinsplit');
     }
     
     const circuitInputs = {
@@ -231,15 +249,13 @@ export class Prover {
       paths.zkeyPath
     );
     
-    return this.serializeProof(proof, publicSignals);
+    return this.serializeProof(proof as unknown as Groth16Proof, publicSignals);
   }
   
   /**
    * Serialize Groth16 proof to 256 bytes for on-chain verification
    */
   private serializeProof(proof: Groth16Proof, publicSignals: string[]): SerializedProof {
-    // Convert proof to bytes
-    // Format: A (64 bytes) || B (128 bytes) || C (64 bytes) = 256 bytes
     const proofData = new Uint8Array(256);
     
     // A point (G1): x, y each 32 bytes
@@ -264,27 +280,66 @@ export class Prover {
     proofData.set(cx, 192);
     proofData.set(cy, 224);
     
-    // Public inputs
     const publicInputs = publicSignals.map(s => BigInt(s));
     
     return { proofData, publicInputs };
   }
+  
+  private assertMerkleDepth(actualDepth: number, proofType: string): void {
+    if (actualDepth !== this.merkleTreeDepth) {
+      throw new Error(
+        `Merkle depth mismatch for ${proofType} proof: expected ${this.merkleTreeDepth}, got ${actualDepth}`
+      );
+    }
+  }
+  
+  private assertCircuitArtifactsExist(proofType: ProofType): void {
+    // Skip check in browser environment
+    if (typeof globalThis !== 'undefined' && 'window' in globalThis) return;
+    
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const fs = require('fs');
+      const paths = this.circuitPaths[proofType];
+      
+      if (!fs.existsSync(paths.wasmPath)) {
+        throw new Error(
+          `Missing ${ProofType[proofType]} circuit wasm at ${paths.wasmPath}. Run: cd circuits && ./build.sh`
+        );
+      }
+      if (!fs.existsSync(paths.zkeyPath)) {
+        throw new Error(
+          `Missing ${ProofType[proofType]} circuit zkey at ${paths.zkeyPath}. Run: cd circuits && ./build.sh`
+        );
+      }
+    } catch (e) {
+      // fs not available (browser), skip check
+      if ((e as any).code === 'MODULE_NOT_FOUND') return;
+      throw e;
+    }
+  }
 }
 
 /**
- * Convert Solana PublicKey to scalar field element
+ * Convert Solana PublicKey to scalar field element (canonical on-chain encoding)
+ * 
+ * CANONICAL ENCODING (matches on-chain exactly):
+ * scalar_bytes = 0x00 || pubkey_bytes[0..31]
+ * 
+ * This drops the last byte of the pubkey and prefixes with 0x00 to ensure
+ * the value fits in the BN254 scalar field without reduction.
  */
 export function pubkeyToScalar(pubkey: PublicKey): bigint {
   const bytes = pubkey.toBytes();
-  let result = BigInt(0);
-  for (let i = 0; i < bytes.length; i++) {
-    result = (result << BigInt(8)) | BigInt(bytes[i]);
+  const scalarBytes = new Uint8Array(32);
+  // 0x00 prefix + first 31 bytes of pubkey
+  scalarBytes.set(bytes.slice(0, 31), 1);
+  
+  let result = 0n;
+  for (let i = 0; i < scalarBytes.length; i++) {
+    result = (result << 8n) | BigInt(scalarBytes[i]);
   }
-  // Reduce modulo BN254 scalar field
-  const FIELD_MODULUS = BigInt(
-    '21888242871839275222246405745257275088548364400416034343698204186575808495617'
-  );
-  return result % FIELD_MODULUS;
+  return result;
 }
 
 /**

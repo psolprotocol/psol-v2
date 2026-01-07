@@ -34,6 +34,9 @@ pub(crate) use crate::instructions::relayer::update_relayer::__client_accounts_u
 pub(crate) use crate::instructions::set_verification_key_v2::__client_accounts_lock_verification_key_v2;
 pub(crate) use crate::instructions::set_verification_key_v2::__client_accounts_set_verification_key_v2;
 pub(crate) use crate::instructions::withdraw_masp::__client_accounts_withdraw_masp;
+pub(crate) use crate::instructions::set_verification_key_chunked::__client_accounts_initialize_vk_v2;
+pub(crate) use crate::instructions::set_verification_key_chunked::__client_accounts_append_vk_ic_v2;
+pub(crate) use crate::instructions::set_verification_key_chunked::__client_accounts_finalize_vk_v2;
 
 #[program]
 pub mod psol_privacy_v2 {
@@ -81,6 +84,44 @@ pub mod psol_privacy_v2 {
         proof_type: ProofType,
     ) -> Result<()> {
         instructions::set_verification_key_v2::lock_handler(ctx, proof_type)
+    }
+
+    /// Initialize VK with base curve points (chunked upload step 1)
+    pub fn initialize_vk_v2(
+        ctx: Context<InitializeVkV2>,
+        proof_type: ProofType,
+        vk_alpha_g1: [u8; 64],
+        vk_beta_g2: [u8; 128],
+        vk_gamma_g2: [u8; 128],
+        vk_delta_g2: [u8; 128],
+        expected_ic_count: u8,
+    ) -> Result<()> {
+        instructions::set_verification_key_chunked::initialize_vk_handler(
+            ctx,
+            proof_type,
+            vk_alpha_g1,
+            vk_beta_g2,
+            vk_gamma_g2,
+            vk_delta_g2,
+            expected_ic_count,
+        )
+    }
+
+    /// Append IC points to VK (chunked upload step 2, can call multiple times)
+    pub fn append_vk_ic_v2(
+        ctx: Context<AppendVkIcV2>,
+        proof_type: ProofType,
+        ic_points: Vec<[u8; 64]>,
+    ) -> Result<()> {
+        instructions::set_verification_key_chunked::append_vk_ic_handler(ctx, proof_type, ic_points)
+    }
+
+    /// Finalize VK after all IC points uploaded (chunked upload step 3)
+    pub fn finalize_vk_v2(
+        ctx: Context<FinalizeVkV2>,
+        proof_type: ProofType,
+    ) -> Result<()> {
+        instructions::set_verification_key_chunked::finalize_vk_handler(ctx, proof_type)
     }
 
     pub fn pause_pool_v2(ctx: Context<PausePoolV2>) -> Result<()> {

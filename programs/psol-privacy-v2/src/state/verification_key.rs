@@ -137,6 +137,19 @@ impl VerificationKeyAccountV2 {
     }
 
     /// Compute VK hash using Keccak256 (sha3 crate) for cryptographic security.
+    /// Compute VK hash (public version for chunked upload)
+    pub fn compute_vk_hash_internal(&self) -> [u8; 32] {
+        let mut data = Vec::with_capacity(512 + self.vk_ic.len() * 64);
+        data.extend_from_slice(&self.vk_alpha_g1);
+        data.extend_from_slice(&self.vk_beta_g2);
+        data.extend_from_slice(&self.vk_gamma_g2);
+        data.extend_from_slice(&self.vk_delta_g2);
+        for ic in &self.vk_ic {
+            data.extend_from_slice(ic);
+        }
+        crate::crypto::keccak::keccak256(&data)
+    }
+
     fn compute_vk_hash(&self) -> [u8; 32] {
         let mut data = Vec::with_capacity(512 + self.vk_ic.len() * 64);
         data.extend_from_slice(&self.vk_alpha_g1);

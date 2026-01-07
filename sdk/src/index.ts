@@ -15,17 +15,34 @@ export * from './note/note';
 // Re-export merkle module
 export * from './merkle/tree';
 
-// Re-export proof module
-export * from './proof/prover';
+// Re-export proof module (excluding ProofType to avoid duplicate)
+export { 
+  Prover, 
+  DEFAULT_CIRCUIT_PATHS,
+  type Groth16Proof,
+  type ProofWithSignals,
+  type SerializedProof,
+  type DepositProofInputs,
+  type WithdrawProofInputs,
+  type JoinSplitProofInputs,
+  type CircuitPaths,
+  pubkeyToScalar,
+  verifyProofLocally,
+  exportVerificationKey
+} from './proof/prover';
 
-// Re-export types from original SDK
+// Re-export types (source of truth for request/result types)
 export * from './types';
 
 // Re-export PDA helpers
 export * from './pda';
 
-// Re-export client
-export * from './client';
+// Re-export client (only the client class and factory, not duplicate types)
+export { 
+  PsolV2Client, 
+  createPsolClient,
+  type PsolV2ClientOptions 
+} from './client';
 
 /**
  * Initialize the SDK (must be called before using crypto functions)

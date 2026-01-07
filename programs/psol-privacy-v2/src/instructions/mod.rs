@@ -5,6 +5,7 @@ pub mod initialize_pool_registries_v2;
 pub mod initialize_pool_v2;
 pub mod register_asset;
 pub mod set_verification_key_v2;
+pub mod set_verification_key_chunked;
 
 pub mod batch_process_deposits;
 pub mod deposit_masp;
@@ -23,6 +24,7 @@ pub use initialize_pool_registries_v2::InitializePoolRegistriesV2;
 pub use initialize_pool_v2::InitializePoolV2;
 pub use register_asset::RegisterAsset;
 pub use set_verification_key_v2::{LockVerificationKeyV2, SetVerificationKeyV2};
+pub use set_verification_key_chunked::{InitializeVkV2, AppendVkIcV2, FinalizeVkV2};
 
 pub use batch_process_deposits::BatchProcessDeposits;
 pub use deposit_masp::DepositMasp;
