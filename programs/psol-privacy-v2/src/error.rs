@@ -66,6 +66,10 @@ pub enum PrivacyErrorV2 {
 
     #[msg("Invalid Merkle tree pool reference")]
     InvalidMerkleTreePool,
+
+    #[msg("Leaf index does not exist in Merkle tree")]
+    LeafIndexNotFound,
+
     #[msg("Invalid pool reference")]
     InvalidPoolReference,
     #[msg("Nullifier already spent")]
@@ -181,6 +185,9 @@ pub enum PrivacyErrorV2 {
 
     #[msg("Relayer fee out of allowed range")]
     RelayerFeeOutOfRange,
+
+    #[msg("Relayer fee calculation overflow - fee is unreasonably large")]
+    RelayerFeeOverflow,
 
     #[msg("Invalid fee configuration")]
     InvalidFeeConfiguration,

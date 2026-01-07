@@ -358,7 +358,7 @@ impl MerkleTreeV2 {
     pub fn get_merkle_path(&self, leaf_index: u32) -> Result<Vec<[u8; 32]>> {
         require!(
             leaf_index < self.next_leaf_index,
-            PrivacyErrorV2::InvalidAmount // Leaf doesn't exist
+            PrivacyErrorV2::LeafIndexNotFound
         );
 
         let mut path = Vec::with_capacity(self.depth as usize);

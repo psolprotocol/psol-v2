@@ -201,8 +201,13 @@ pub fn handler(
     // Using multiplication to avoid integer division edge cases:
     // relayer_fee <= amount * 10% is equivalent to relayer_fee * 10 <= amount
     // This correctly handles small amounts where amount/10 would truncate to 0
+    //
+    // SECURITY: Use checked_mul to reject overflow instead of silent saturation
+    let fee_times_ten = relayer_fee
+        .checked_mul(10)
+        .ok_or(error!(PrivacyErrorV2::RelayerFeeOverflow))?;
     require!(
-        relayer_fee.saturating_mul(10) <= amount,
+        fee_times_ten <= amount,
         PrivacyErrorV2::RelayerFeeOutOfRange
     );
 
@@ -416,22 +421,40 @@ mod tests {
         // amount = 100, max fee should be 10 (10%)
         let amount: u64 = 100;
         let relayer_fee: u64 = 10;
-        assert!(relayer_fee.saturating_mul(10) <= amount); // 100 <= 100 ✓
+        let fee_times_ten = relayer_fee.checked_mul(10).unwrap();
+        assert!(fee_times_ten <= amount); // 100 <= 100 ✓
 
         // amount = 15, max fee should be 1 (not 0!)
         let amount: u64 = 15;
         let relayer_fee: u64 = 1;
-        assert!(relayer_fee.saturating_mul(10) <= amount); // 10 <= 15 ✓
+        let fee_times_ten = relayer_fee.checked_mul(10).unwrap();
+        assert!(fee_times_ten <= amount); // 10 <= 15 ✓
 
         // amount = 5, max fee should be 0
         let amount: u64 = 5;
         let relayer_fee: u64 = 0;
-        assert!(relayer_fee.saturating_mul(10) <= amount); // 0 <= 5 ✓
+        let fee_times_ten = relayer_fee.checked_mul(10).unwrap();
+        assert!(fee_times_ten <= amount); // 0 <= 5 ✓
 
         // Reject excessive fee
         let amount: u64 = 100;
         let relayer_fee: u64 = 11;
-        assert!(!(relayer_fee.saturating_mul(10) <= amount)); // 110 > 100 ✗
+        let fee_times_ten = relayer_fee.checked_mul(10).unwrap();
+        assert!(!(fee_times_ten <= amount)); // 110 > 100 ✗
+    }
+
+    #[test]
+    fn test_relayer_fee_overflow_rejected() {
+        // This fee would overflow when multiplied by 10
+        let relayer_fee: u64 = u64::MAX / 5;
+        let amount: u64 = u64::MAX;
+
+        // With saturating_mul, this would incorrectly PASS (security bug)
+        // saturating_mul(relayer_fee, 10) = u64::MAX <= amount ✓
+        assert!(relayer_fee.saturating_mul(10) <= amount);
+
+        // With checked_mul, this correctly detects overflow and returns None
+        assert!(relayer_fee.checked_mul(10).is_none());
     }
 
     #[test]
