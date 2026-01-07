@@ -6,13 +6,13 @@ resolution = true
 skip-lint = false
 
 [programs.devnet]
-psol_privacy_v2 = "8qkJv1gEC1xLaVn2mMFcgThVeWuJYX9FRLef5Kb8HdPW"
+psol_privacy_v2 = "BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb"
 
 [programs.localnet]
-psol_privacy_v2 = "21DbY1WykakReEX8RjpirJMxtgoa6vhd77EF6d3oC6Xo"
+psol_privacy_v2 = "BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb"
 
 [programs.mainnet]
-psol_privacy_v2 = "21DbY1WykakReEX8RjpirJMxtgoa6vhd77EF6d3oC6Xo"
+psol_privacy_v2 = "BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb"
 
 [registry]
 url = "https://api.apr.dev"

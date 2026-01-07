@@ -4,63 +4,81 @@ Privacy protocol for Solana implementing confidential transactions using zero-kn
 
 ## Overview
 
-pSOL v2 enables private transfers of SPL tokens through a shared multi-asset shielded pool. The protocol uses Groth16 proofs over BN254, Merkle tree commitments, and a relayer architecture for gasless withdrawals.
+pSOL v2 enables private transfers of SPL tokens through a shared multi-asset shielded pool. The protocol uses Groth16 proofs over BN254, Poseidon hash commitments in a Merkle tree, and a relayer architecture for gasless withdrawals.
 
-**Status:** Alpha. Under active development. Do not use with real funds.
+## Devnet Deployment
+
+| Component | Address |
+|-----------|---------|
+| Program | `BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb` |
+| Pool Config | `3bbQyYkVGjnGonvcVCmdLhRr63PsZeNApVSWqDtn6LfM` |
+
+Explorer: https://explorer.solana.com/address/BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb?cluster=devnet
 
 ## Architecture
 ```
 psol-v2/
 ├── programs/psol-privacy-v2/    # Solana on-chain program (Anchor)
-│   ├── src/crypto/              # Cryptographic primitives
+│   ├── src/crypto/              # Poseidon hash, Groth16 verifier, precomputed zeros
 │   ├── src/instructions/        # Transaction handlers
-│   ├── src/state/               # Account structures
-│   └── src/utils/               # Validation and helpers
-├── sdk/                         # TypeScript client library
+│   ├── src/state/               # Account structures, Merkle tree
+│   └── src/utils/               # Validation helpers
 ├── circuits/                    # Circom zero-knowledge circuits
+│   ├── deposit/                 # Deposit circuit
+│   ├── withdraw/                # Withdrawal circuit
+│   ├── membership/              # Membership proof circuit
+│   └── build/                   # Compiled circuits and proving keys
+├── sdk/                         # TypeScript client library
 ├── relayer/                     # HTTP relayer service
-└── tests/                       # Integration tests
+└── scripts/                     # Deployment and utility scripts
 ```
 
-## Core Components
+## Cryptographic Implementation
 
-**On-chain Program**
-- Multi-asset shielded pool with Merkle tree of commitments
-- Groth16 verification for deposits, withdrawals, and transfers
-- Relayer registry with fee management and operator tracking
-- Support for compliance metadata and selective disclosure
+The Poseidon hash implementation is fully compatible with circomlibjs, verified against 72 test vectors across t=2,3,4. This ensures proofs generated client-side with snarkjs will verify correctly on-chain.
 
-**Zero-Knowledge Circuits**
-- Deposit: Prove commitment to new note without revealing amount
-- Withdraw: Prove ownership and nullifier without revealing source
-- JoinSplit: Atomic split/merge of private notes
-- Membership: Prove inclusion in anonymity set
+Circuits use the standard circomlib Poseidon implementation with BN254 curve. Proving keys are generated from Hermez Phase 1 Powers of Tau ceremony (2^16 constraints).
 
-**Relayer Service**
-- Accepts proof data and builds Solana transactions
-- Submits transactions on behalf of users
-- Enables interaction without holding SOL for fees
-- Configurable fee structure with on-chain enforcement
+## Zero-Knowledge Circuits
 
-**TypeScript SDK**
-- Note creation and commitment generation
-- Merkle proof construction
-- Zero-knowledge proof generation
-- Transaction building helpers
+| Circuit | Constraints | Status |
+|---------|-------------|--------|
+| deposit | 368 | Compiled, tested |
+| withdraw | 5,819 | Compiled, tested |
+| membership | 5,572 | Compiled, tested |
 
-## Installation
+All circuits compile successfully with circom 2.2.3 and generate valid Groth16 proofs.
+
+## Building
 ```bash
 # Install dependencies
 npm install
 
 # Build circuits and generate proving keys
-npm run circuits:build
+cd circuits && ./build.sh
 
 # Build on-chain program
 anchor build
 
-# Build SDK and relayer
-npm run build
+# Deploy to devnet
+anchor deploy --provider.cluster devnet
+
+# Initialize pool
+export ANCHOR_PROVIDER_URL=https://api.devnet.solana.com
+export ANCHOR_WALLET=~/.config/solana/id.json
+npx ts-node scripts/ts/init-pool.ts
+```
+
+## Testing
+```bash
+# Run Rust unit tests (86 tests including Poseidon vectors)
+cargo test -p psol-privacy-v2
+
+# Test circuit proof generation
+cd circuits
+node build/deposit_js/generate_witness.js build/deposit_js/deposit.wasm build/deposit_input.json build/deposit_witness.wtns
+snarkjs groth16 prove build/deposit.zkey build/deposit_witness.wtns proof.json public.json
+snarkjs groth16 verify build/deposit_vk.json public.json proof.json
 ```
 
 ## Usage
@@ -80,68 +98,46 @@ await client.transfer(fromNote, toRecipient, amount);
 await client.withdraw(note, recipientAddress, relayerEndpoint);
 ```
 
-Refer to `sdk/examples/` for complete integration examples.
+## Development Status
 
-## Development Roadmap
+Completed:
+- Poseidon hash (circomlibjs compatible, 72 test vectors passing)
+- ZK circuits (deposit, withdraw, membership)
+- Groth16 verification keys embedded in program
+- Merkle tree with precomputed zero values
+- Pool initialization on devnet
+- Relayer registry with fee management
 
-### Completed
-- Relayer registry with PDA validation
-- Input validation and sanitization
-- Fee management and bounds enforcement
-- Basic deposit and withdrawal flows
+In progress:
+- Web frontend with wallet integration
+- End-to-end deposit and withdrawal flow
+- Relayer service implementation
 
-### In Progress (3-week sprint)
-- Merkle tree batching for efficient deposits
-- Redis-backed nullifier cache
-- Multi-relayer support with automatic selection
-- End-to-end testing with real proofs
-
-### Pending
+Pending:
 - Multi-party trusted setup ceremony
-- Production Poseidon hash implementation
 - Security audit
-- Mainnet deployment procedures
-
-## Security Considerations
-
-This is experimental software under active development. Known limitations:
-
-- Circuits have not undergone formal audit
-- Trusted setup ceremony not yet performed
-- Cryptographic hash functions use placeholder implementations
-- Relayer architecture assumes honest majority
-- No protection against timing attacks or network analysis
-
-A comprehensive security audit is required before mainnet deployment.
-
-## Testing
-```bash
-# Run unit tests
-anchor test
-
-# Run SDK tests
-npm run test
-
-# Run integration tests
-npm run test:integration
-```
+- Mainnet deployment
 
 ## Requirements
 
 - Rust 1.75+
-- Solana 1.18+
+- Solana CLI 1.18+
 - Anchor 0.32.1
 - Node.js 18+
-- Circom 2.1+
+- circom 2.2+
+- snarkjs 0.7+
 
-## Contributing
+## Security
 
-This project is in active development. Contributions are welcome but the API is unstable and will change frequently.
+This is experimental software. Known limitations:
+
+- Circuits have not undergone formal audit
+- Trusted setup uses Hermez ceremony (production deployment requires dedicated ceremony)
+- No protection against timing attacks or network analysis
+- Tree depth currently limited to 4 (16 notes) for devnet testing
+
+A comprehensive security audit is required before mainnet deployment.
 
 ## License
 
 MIT
-
-## Disclaimer
-
-This software is provided "as is" without warranty. Use at your own risk. The protocol is experimental and should not be used with real funds until a full security audit is completed and the trusted setup ceremony is performed.

@@ -17,6 +17,7 @@
 pub mod field;
 pub mod alt_bn128;
 pub mod poseidon;
+pub mod precomputed_zeros;
 pub mod groth16;
 pub mod keccak;
 pub mod public_inputs;

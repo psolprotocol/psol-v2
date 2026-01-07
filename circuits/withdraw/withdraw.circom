@@ -10,7 +10,7 @@ pragma circom 2.1.6;
 include "../node_modules/circomlib/circuits/poseidon.circom";
 include "../node_modules/circomlib/circuits/bitify.circom";
 include "../node_modules/circomlib/circuits/comparators.circom";
-include "./merkle_tree.circom";
+include "../merkle_tree.circom";
 
 template Withdraw(levels) {
     // ================================

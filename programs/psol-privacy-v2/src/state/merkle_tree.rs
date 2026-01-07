@@ -136,7 +136,7 @@ impl MerkleTreeV2 {
         self.version = Self::VERSION;
 
         // Compute and store zero values for all levels
-        self.zeros = Self::compute_zero_values(depth)?;
+        self.zeros = crate::crypto::precomputed_zeros::get_precomputed_zeros(depth);
 
         // Initialize filled subtrees with zeros
         self.filled_subtrees = self.zeros[..depth as usize].to_vec();

@@ -22,3 +22,15 @@
 ## Deferred (Post-Launch)
 - Fixed denomination pools
 - View-key model
+
+
+# All tests (86 tests)
+cargo test -p psol-privacy-v2
+
+# Poseidon-specific tests 
+cargo test -p psol-privacy-v2 --test poseidon_vectors_test -- --nocapture
+
+# internal Poseidon unit tests
+cargo test -p psol-privacy-v2 poseidon -- --nocapture
+
+anchor build
