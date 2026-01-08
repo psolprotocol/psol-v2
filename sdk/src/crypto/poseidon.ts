@@ -7,10 +7,10 @@
  * @module crypto/poseidon
  */
 
-import { buildPoseidon, Poseidon } from 'circomlibjs';
+import { buildPoseidon } from 'circomlibjs';
 
-// Singleton instance of Poseidon
-let poseidonInstance: Poseidon | null = null;
+// Singleton instance of Poseidon (use any to avoid circomlibjs type issues)
+let poseidonInstance: any = null;
 
 /**
  * Initialize the Poseidon hasher
@@ -25,7 +25,7 @@ export async function initPoseidon(): Promise<void> {
 /**
  * Get the Poseidon instance (throws if not initialized)
  */
-function getPoseidon(): Poseidon {
+function getPoseidon(): any {
   if (!poseidonInstance) {
     throw new Error('Poseidon not initialized. Call initPoseidon() first.');
   }
@@ -163,5 +163,3 @@ export function isValidFieldElement(value: bigint): boolean {
 export function fieldMod(value: bigint): bigint {
   return ((value % FIELD_MODULUS) + FIELD_MODULUS) % FIELD_MODULUS;
 }
-
-export { Poseidon };
