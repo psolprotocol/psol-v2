@@ -6,10 +6,6 @@ use anchor_lang::prelude::*;
 #[inline(always)]
 pub fn cu(label: &str) {
     msg!(label);
-    #[cfg(any(target_os = "solana", target_arch = "bpf"))]
-    unsafe {
-        sol_log_compute_units_();
-    }
 }
 
 #[cfg(feature = "cu-debug")]

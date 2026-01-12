@@ -221,7 +221,6 @@ impl MerkleTreeV2 {
 
         // Walk up the tree, updating hashes
         for level in 0..self.depth {
-            cu("merkle: level");
             let level_usize = level as usize;
 
             // Determine if this node is a left (0) or right (1) child

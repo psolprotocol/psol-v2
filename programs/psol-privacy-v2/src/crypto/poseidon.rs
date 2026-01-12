@@ -11,11 +11,9 @@
 //! - All mix functions are #[inline(never)] to prevent frame bloat
 //! - Constants accessed by reference, never copied
 //! - Permutation functions are #[inline(never)]
-
-use ark_bn254::Fr;
 use ark_ff::{BigInteger, Field, PrimeField, AdditiveGroup};
 
-include!("poseidon_bn254_constants.in.rs");
+include!("poseidon_bn254_constants_fr.in.rs");
 
 /// Convert big-endian bytes to Fr.
 #[inline(never)]
@@ -48,9 +46,8 @@ fn fr_to_be32(x: &Fr) -> [u8; 32] {
 // =============================================================================
 
 #[inline(never)]
-fn acc_term(acc: &mut Fr, m_entry: &[u8; 32], state_val: Fr) {
-    let coeff = fr_from_be32(m_entry);
-    *acc += coeff * state_val;
+fn acc_term(acc: &mut Fr, coeff: &Fr, state_val: Fr) {
+    *acc += (*coeff) * state_val;
 }
 
 // =============================================================================
@@ -58,7 +55,7 @@ fn acc_term(acc: &mut Fr, m_entry: &[u8; 32], state_val: Fr) {
 // =============================================================================
 
 #[inline(never)]
-fn mix_dense_t3(state: &mut [Fr; 3], m: &[[[u8; 32]; 3]; 3]) {
+fn mix_dense_t3(state: &mut [Fr; 3], m: &[[Fr; 3]; 3]) {
     let s0 = state[0];
     let s1 = state[1];
     let s2 = state[2];
@@ -87,7 +84,7 @@ fn mix_dense_t3(state: &mut [Fr; 3], m: &[[[u8; 32]; 3]; 3]) {
 }
 
 #[inline(never)]
-fn mix_dense_t4(state: &mut [Fr; 4], m: &[[[u8; 32]; 4]; 4]) {
+fn mix_dense_t4(state: &mut [Fr; 4], m: &[[Fr; 4]; 4]) {
     let s0 = state[0];
     let s1 = state[1];
     let s2 = state[2];
@@ -128,7 +125,7 @@ fn mix_dense_t4(state: &mut [Fr; 4], m: &[[[u8; 32]; 4]; 4]) {
 }
 
 #[inline(never)]
-fn mix_dense_t5(state: &mut [Fr; 5], m: &[[[u8; 32]; 5]; 5]) {
+fn mix_dense_t5(state: &mut [Fr; 5], m: &[[Fr; 5]; 5]) {
     let s0 = state[0];
     let s1 = state[1];
     let s2 = state[2];
@@ -188,7 +185,7 @@ fn mix_dense_t5(state: &mut [Fr; 5], m: &[[[u8; 32]; 5]; 5]) {
 // =============================================================================
 
 #[inline(never)]
-fn mix_s_t3(state: &mut [Fr; 3], s_chunk: &[[u8; 32]]) {
+fn mix_s_t3(state: &mut [Fr; 3], s_chunk: &[Fr]) {
     let in0 = state[0];
     let in1 = state[1];
     let in2 = state[2];
@@ -213,7 +210,7 @@ fn mix_s_t3(state: &mut [Fr; 3], s_chunk: &[[u8; 32]]) {
 }
 
 #[inline(never)]
-fn mix_s_t4(state: &mut [Fr; 4], s_chunk: &[[u8; 32]]) {
+fn mix_s_t4(state: &mut [Fr; 4], s_chunk: &[Fr]) {
     let in0 = state[0];
     let in1 = state[1];
     let in2 = state[2];
@@ -241,7 +238,7 @@ fn mix_s_t4(state: &mut [Fr; 4], s_chunk: &[[u8; 32]]) {
 }
 
 #[inline(never)]
-fn mix_s_t5(state: &mut [Fr; 5], s_chunk: &[[u8; 32]]) {
+fn mix_s_t5(state: &mut [Fr; 5], s_chunk: &[Fr]) {
     let in0 = state[0];
     let in1 = state[1];
     let in2 = state[2];
@@ -279,27 +276,27 @@ fn mix_s_t5(state: &mut [Fr; 5], s_chunk: &[[u8; 32]]) {
 // =============================================================================
 
 #[inline(never)]
-fn ark_t3(state: &mut [Fr; 3], c: &[[u8; 32]], off: usize) {
-    state[0] += fr_from_be32(&c[off]);
-    state[1] += fr_from_be32(&c[off + 1]);
-    state[2] += fr_from_be32(&c[off + 2]);
+fn ark_t3(state: &mut [Fr; 3], c: &[Fr], off: usize) {
+    state[0] += c[off + 0];
+    state[1] += c[off + 1];
+    state[2] += c[off + 2];
 }
 
 #[inline(never)]
-fn ark_t4(state: &mut [Fr; 4], c: &[[u8; 32]], off: usize) {
-    state[0] += fr_from_be32(&c[off]);
-    state[1] += fr_from_be32(&c[off + 1]);
-    state[2] += fr_from_be32(&c[off + 2]);
-    state[3] += fr_from_be32(&c[off + 3]);
+fn ark_t4(state: &mut [Fr; 4], c: &[Fr], off: usize) {
+    state[0] += c[off + 0];
+    state[1] += c[off + 1];
+    state[2] += c[off + 2];
+    state[3] += c[off + 3];
 }
 
 #[inline(never)]
-fn ark_t5(state: &mut [Fr; 5], c: &[[u8; 32]], off: usize) {
-    state[0] += fr_from_be32(&c[off]);
-    state[1] += fr_from_be32(&c[off + 1]);
-    state[2] += fr_from_be32(&c[off + 2]);
-    state[3] += fr_from_be32(&c[off + 3]);
-    state[4] += fr_from_be32(&c[off + 4]);
+fn ark_t5(state: &mut [Fr; 5], c: &[Fr], off: usize) {
+    state[0] += c[off + 0];
+    state[1] += c[off + 1];
+    state[2] += c[off + 2];
+    state[3] += c[off + 3];
+    state[4] += c[off + 4];
 }
 
 // =============================================================================
@@ -366,8 +363,8 @@ fn poseidon_ex_t3(a: Fr, b: Fr) -> Fr {
     let c_part_base = (N_ROUNDS_F / 2 + 1) * t;
     for r in 0..N_ROUNDS_P_T3 {
         state[0] = sigma5(state[0]);
-        state[0] += fr_from_be32(&C_T3[c_part_base + r]);
-        mix_s_t3(&mut state, &S_T3[r * (t * 2 - 1)..]);
+        state[0] += C_T3[c_part_base + r];
+mix_s_t3(&mut state, &S_T3[r * (t * 2 - 1)..]);
     }
 
     // 5. Second half - 1 (3 rounds with M)
@@ -405,8 +402,8 @@ fn poseidon_ex_t4(a: Fr, b: Fr, c: Fr) -> Fr {
     let c_part_base = (N_ROUNDS_F / 2 + 1) * t;
     for r in 0..N_ROUNDS_P_T4 {
         state[0] = sigma5(state[0]);
-        state[0] += fr_from_be32(&C_T4[c_part_base + r]);
-        mix_s_t4(&mut state, &S_T4[r * (t * 2 - 1)..]);
+        state[0] += C_T4[c_part_base + r];
+mix_s_t4(&mut state, &S_T4[r * (t * 2 - 1)..]);
     }
 
     let c_full2_base = c_part_base + N_ROUNDS_P_T4;
@@ -442,8 +439,8 @@ fn poseidon_ex_t5(a: Fr, b: Fr, c: Fr, d: Fr) -> Fr {
     let c_part_base = (N_ROUNDS_F / 2 + 1) * t;
     for r in 0..N_ROUNDS_P_T5 {
         state[0] = sigma5(state[0]);
-        state[0] += fr_from_be32(&C_T5[c_part_base + r]);
-        mix_s_t5(&mut state, &S_T5[r * (t * 2 - 1)..]);
+        state[0] += C_T5[c_part_base + r];
+mix_s_t5(&mut state, &S_T5[r * (t * 2 - 1)..]);
     }
 
     let c_full2_base = c_part_base + N_ROUNDS_P_T5;

@@ -29,6 +29,7 @@ async function main() {
   
   const idl = JSON.parse(fs.readFileSync("./target/idl/psol_privacy_v2.json", "utf-8"));
   const programId = new PublicKey("BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb");
+const POOL_AUTHORITY = new PublicKey("8p3kSuCyDcRYJcgVkhZbKpshNpyeSs6Eu8dYeZnbvecL");
   const program = new anchor.Program(idl, provider);
 
   function bigIntToBytes32(bi) {
@@ -124,9 +125,13 @@ async function main() {
 
   // Derive PDAs
   const [poolConfig] = PublicKey.findProgramAddressSync(
-    [Buffer.from("pool_v2"), authorityKeypair.publicKey.toBuffer()],
+    [Buffer.from("pool_v2"), POOL_AUTHORITY.toBuffer()],
     programId
   );
+const [pendingBuffer] = PublicKey.findProgramAddressSync(
+  [Buffer.from("pending_deposits"), poolConfig.toBuffer()],
+  programId
+);
   const [depositVk] = PublicKey.findProgramAddressSync(
     [Buffer.from("vk_deposit"), poolConfig.toBuffer()],
     programId
@@ -161,6 +166,15 @@ async function main() {
 
   // Submit deposit - ONLY compute budget, no ATA creation
   console.log("\n[3] Submitting deposit...");
+console.log("DEBUG_PENDING_BUFFER poolConfig =", poolConfig?.toBase58?.() || poolConfig);
+console.log("DEBUG_PENDING_BUFFER pendingBuffer =", pendingBuffer?.toBase58?.() || pendingBuffer);
+try {
+  const ai = await connection.getAccountInfo(pendingBuffer, "confirmed");
+  console.log("DEBUG_PENDING_BUFFER exists =", !!ai, "owner =", ai?.owner?.toBase58?.(), "len =", ai?.data?.length);
+  if (ai) console.log("DEBUG_PENDING_BUFFER disc =", Buffer.from(ai.data.subarray(0,8)).toString("hex"));
+} catch (e) { console.log("DEBUG_PENDING_BUFFER getAccountInfo failed:", e?.message || e); }
+console.log("DEBUG_PENDING_BUFFER expected =", "DPxeTsLkZaWdenw6gqgU7M6arWhKbo99GDVf2gPtM4NH");
+const DEBUG_PENDING_BUFFER = true;
   
   try {
     const tx = await program.methods
@@ -174,7 +188,8 @@ async function main() {
       .accounts({
         depositor: authorityKeypair.publicKey,
         poolConfig,
-        authority: authorityKeypair.publicKey,
+        authority: POOL_AUTHORITY,
+      pendingBuffer: pendingBuffer,
         merkleTree,
         assetVault,
         vaultTokenAccount,

@@ -2,16 +2,16 @@ use anchor_lang::prelude::*;
 
 use crate::error::PrivacyErrorV2;
 use crate::events::BatchProcessedEvent;
+use crate::state::{MerkleTreeV2, PendingDepositsBuffer, PoolConfigV2};
 use crate::utils::cu;
-use crate::state::{BatcherRole, MerkleTreeV2, PendingDepositsBuffer, PoolConfigV2};
 
 /// Maximum deposits to process in a single batch
 pub const MAX_BATCH_SIZE: u16 = 50;
 
-/// Accounts for batch processing deposits - ROBUST VERSION
+/// Accounts for batch processing deposits (authority-only; no batcher_role account required)
 #[derive(Accounts)]
 pub struct BatchProcessDeposits<'info> {
-    /// Batcher (must be pool authority OR have enabled BatcherRole PDA)
+    /// Batcher (must be pool authority)
     #[account(mut)]
     pub batcher: Signer<'info>,
 
@@ -38,42 +38,12 @@ pub struct BatchProcessDeposits<'info> {
         constraint = pending_buffer.pool == pool_config.key() @ PrivacyErrorV2::InvalidPoolReference,
     )]
     pub pending_buffer: Box<Account<'info, PendingDepositsBuffer>>,
-
-    /// Batcher role PDA (optional - required if not pool authority)
-    ///
-    /// # ROBUST PDA ENFORCEMENT
-    ///
-    /// We do NOT use Anchor seeds/bump constraints here because:
-    /// 1. Option<Account> + bump constraint is fragile across Anchor versions
-    /// 2. Manual PDA check is more explicit and robust
-    ///
-    /// Instead, we:
-    /// 1. Accept optional account (no constraints)
-    /// 2. Manually derive expected PDA in handler
-    /// 3. Manually compare addresses
-    /// 4. Reject if mismatch
-    ///
-    /// This is Anchor-version-proof.
-    pub batcher_role: Option<Account<'info, BatcherRole>>,
 }
 
-/// Handler for batch_process_deposits instruction - ROBUST VERSION
-///
-/// # Arguments
-/// * `max_to_process` - Maximum number of deposits to process (1-50)
-///
-/// # Authorization (Manual PDA Check)
-///
-/// If batcher is pool authority → Always authorized
-/// Else:
-///   1. Require batcher_role account provided
-///   2. Derive expected PDA: find_program_address([b"batcher", pool, batcher])
-///   3. Require batcher_role.key() == expected_pda
-///   4. Require is_enabled == true
-///
-/// This manual check is robust and Anchor-version-proof.
+/// Handler for batch_process_deposits instruction (authority-only)
 pub fn handler(ctx: Context<BatchProcessDeposits>, max_to_process: u16) -> Result<()> {
     cu("batch: start");
+
     let pool_config = &mut ctx.accounts.pool_config;
     let merkle_tree = &mut ctx.accounts.merkle_tree;
     let pending_buffer = &mut ctx.accounts.pending_buffer;
@@ -83,56 +53,15 @@ pub fn handler(ctx: Context<BatchProcessDeposits>, max_to_process: u16) -> Resul
     let timestamp = clock.unix_timestamp;
 
     // =========================================================================
-    // 1. AUTHORIZATION CHECK (MANUAL PDA VERIFICATION)
+    // 1. AUTHORIZATION CHECK (AUTHORITY ONLY)
     // =========================================================================
-
-    let is_authority = batcher == pool_config.authority;
-
-    if !is_authority {
-        // Not authority - require valid BatcherRole PDA
-
-        // Step 1: Require account provided
-        let batcher_role = ctx
-            .accounts
-            .batcher_role
-            .as_ref()
-            .ok_or(PrivacyErrorV2::Unauthorized)?;
-
-        // Step 2: Derive expected PDA
-        let (expected_pda, _bump) = Pubkey::find_program_address(
-            &[
-                BatcherRole::SEED_PREFIX,
-                pool_config.key().as_ref(),
-                batcher.as_ref(),
-            ],
-            ctx.program_id,
-        );
-
-        // Step 3: Compare addresses (CRITICAL SECURITY CHECK)
-        require_keys_eq!(
-            batcher_role.key(),
-            expected_pda,
-            PrivacyErrorV2::Unauthorized
-        );
-
-        // Step 4: Check is_enabled flag
-        require!(batcher_role.is_enabled, PrivacyErrorV2::Unauthorized);
-
-        msg!("Authorized via BatcherRole PDA: {}", batcher_role.key());
-    } else {
-        msg!("Authorized as pool authority: {}", batcher);
-    }
-
-        cu("batch: after auth");
+    require_keys_eq!(batcher, pool_config.authority, PrivacyErrorV2::Unauthorized);
+    cu("batch: after auth");
 
     // =========================================================================
     // 2. VALIDATE BATCH PARAMETERS
     // =========================================================================
-
-    require!(
-        !pending_buffer.is_empty(),
-        PrivacyErrorV2::NoPendingDeposits
-    );
+    require!(!pending_buffer.is_empty(), PrivacyErrorV2::NoPendingDeposits);
 
     require!(
         max_to_process > 0 && max_to_process <= MAX_BATCH_SIZE,
@@ -150,7 +79,6 @@ pub fn handler(ctx: Context<BatchProcessDeposits>, max_to_process: u16) -> Resul
     // =========================================================================
     // 3. VALIDATE MERKLE TREE CAPACITY
     // =========================================================================
-
     let to_process = std::cmp::min(max_to_process as usize, pending_buffer.size());
 
     let tree_capacity = merkle_tree.capacity();
@@ -164,12 +92,11 @@ pub fn handler(ctx: Context<BatchProcessDeposits>, max_to_process: u16) -> Resul
     // =========================================================================
     // 4. PROCESS DEPOSITS
     // =========================================================================
-
     cu("batch: before prepare_batch");
     let deposits_to_process = pending_buffer.prepare_batch(max_to_process);
     cu("batch: after prepare_batch");
-    let actual_count = deposits_to_process.len();
 
+    let actual_count = deposits_to_process.len();
     require!(actual_count > 0, PrivacyErrorV2::NoPendingDeposits);
 
     let start_leaf_index = merkle_tree.next_leaf_index;
@@ -193,27 +120,16 @@ pub fn handler(ctx: Context<BatchProcessDeposits>, max_to_process: u16) -> Resul
     // =========================================================================
     // 5. UPDATE BUFFER
     // =========================================================================
-
     pending_buffer.clear_processed(actual_count as u32, timestamp)?;
 
     // =========================================================================
     // 6. UPDATE POOL STATISTICS
     // =========================================================================
-
     pool_config.record_batch(actual_count as u32, timestamp)?;
 
     // =========================================================================
-    // 7. UPDATE BATCHER STATISTICS (if using BatcherRole)
+    // 7. EMIT BATCH EVENT
     // =========================================================================
-
-    if let Some(batcher_role) = ctx.accounts.batcher_role.as_mut() {
-        batcher_role.record_batch(actual_count as u32, timestamp)?;
-    }
-
-    // =========================================================================
-    // 8. EMIT BATCH EVENT
-    // =========================================================================
-
     emit!(BatchProcessedEvent {
         pool: ctx.accounts.pool_config.key(),
         deposits_processed: actual_count as u16,
@@ -245,11 +161,5 @@ mod tests {
 
         let batch_cu = MAX_BATCH_SIZE as u32 * CU_PER_INSERTION;
         assert!(batch_cu + OVERHEAD_CU <= SOLANA_CU_LIMIT);
-    }
-
-    #[test]
-    fn test_pda_seeds_documented() {
-        // Seeds for manual PDA derivation
-        assert_eq!(BatcherRole::SEED_PREFIX, b"batcher");
     }
 }
