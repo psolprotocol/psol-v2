@@ -54,7 +54,14 @@ pub mod psol_privacy_v2 {
         instructions::initialize_pool_registries::handler(ctx)
     }
 
-    pub fn register_asset(ctx: Context<RegisterAsset>, asset_id: [u8; 32]) -> Result<()> {
+    
+    pub fn initialize_pending_deposits_buffer(
+        ctx: Context<InitializePendingDepositsBuffer>,
+    ) -> Result<()> {
+        instructions::initialize_pending_deposits_buffer::handler(ctx)
+    }
+
+pub fn register_asset(ctx: Context<RegisterAsset>, asset_id: [u8; 32]) -> Result<()> {
         instructions::register_asset::handler(ctx, asset_id)
     }
 

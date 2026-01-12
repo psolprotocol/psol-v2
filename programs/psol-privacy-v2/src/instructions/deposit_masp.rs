@@ -1,18 +1,10 @@
-// programs/psol-privacy-v2/src/instructions/deposit_masp.rs
-
-//! MASP Deposit Instruction - pSOL v2
-//!
-//! Handles deposits into the Multi-Asset Shielded Pool.
-
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
 
 use crate::crypto::DepositPublicInputs;
 use crate::error::PrivacyErrorV2;
-use crate::events::DepositMaspEvent;
 #[cfg(feature = "event-debug")]
-use crate::events::DepositMaspDebugEvent;
-use crate::state::{AssetVault, MerkleTreeV2, PoolConfigV2, VerificationKeyAccountV2};
+use crate::state::{AssetVault, MerkleTreeV2, PoolConfigV2, VerificationKeyAccountV2, PendingDepositsBuffer};
 use crate::ProofType;
 
 /// Accounts required for a MASP deposit.
@@ -47,6 +39,19 @@ pub struct DepositMasp<'info> {
         constraint = merkle_tree.pool == pool_config.key() @ PrivacyErrorV2::InvalidMerkleTreePool
     )]
     pub merkle_tree: Box<Account<'info, MerkleTreeV2>>,
+
+    /// Pending deposits buffer (commitments queued for batching)
+    #[account(
+        mut,
+        seeds = [
+            PendingDepositsBuffer::SEED_PREFIX,
+            pool_config.key().as_ref(),
+        ],
+        bump = pending_buffer.bump,
+        constraint = pending_buffer.pool == pool_config.key() @ PrivacyErrorV2::InvalidPoolReference,
+    )]
+    pub pending_buffer: Box<Account<'info, PendingDepositsBuffer>>,
+
 
     /// Asset vault configuration for this asset
     #[account(
@@ -119,7 +124,8 @@ pub fn handler(
 
     // Deref Box<Account<...>> to inner mutable account data for updates.
     let pool_config: &mut PoolConfigV2 = &mut *ctx.accounts.pool_config;
-    let merkle_tree: &mut MerkleTreeV2 = &mut *ctx.accounts.merkle_tree;
+    let merkle_tree: &MerkleTreeV2 = &*ctx.accounts.merkle_tree;
+    let pending_buffer: &mut PendingDepositsBuffer = &mut *ctx.accounts.pending_buffer;
     let asset_vault: &mut AssetVault = &mut *ctx.accounts.asset_vault;
 
     let timestamp = Clock::get()?.unix_timestamp;
@@ -129,6 +135,7 @@ pub fn handler(
     // =========================================================================
 
     require!(amount > 0, PrivacyErrorV2::InvalidAmount);
+    log_cu();
 
     require!(
         !commitment.iter().all(|&b| b == 0),
@@ -160,6 +167,7 @@ pub fn handler(
         &public_inputs_fields,
     )?;
     require!(is_valid, PrivacyErrorV2::InvalidProof);
+    log_cu();
 
     // =========================================================================
     // 3. TRANSFER TOKENS FROM USER TO VAULT
@@ -174,11 +182,17 @@ pub fn handler(
     token::transfer(cpi_ctx, amount)?;
 
     // =========================================================================
-    // 4. INSERT COMMITMENT INTO MERKLE TREE
+    // 4. QUEUE COMMITMENT FOR BATCHED MERKLE INSERTION
     // =========================================================================
 
-    let leaf_index = merkle_tree.insert_leaf(commitment, timestamp)?;
-    let merkle_root = merkle_tree.get_current_root();
+    // Ensure the Merkle tree can eventually fit all pending + this new deposit
+    let available = merkle_tree.available_space() as usize;
+    let pending = pending_buffer.size();
+    require!(available >= pending + 1, PrivacyErrorV2::MerkleTreeFull);
+
+    let pending_index = pending_buffer.add_pending(commitment, timestamp)?;
+    let pending_count = pending_buffer.size();
+    log_cu();
 
     // =========================================================================
     // 5. UPDATE STATISTICS
@@ -187,35 +201,10 @@ pub fn handler(
     asset_vault.record_deposit(amount, timestamp)?;
     pool_config.record_deposit(timestamp)?;
 
-    // =========================================================================
-    // 6. EMIT EVENT (privacy-preserving)
-    // =========================================================================
-
-    emit!(DepositMaspEvent {
-        pool: pool_key,
-        commitment,
-        leaf_index,
-        merkle_root,
-        asset_id,
-        timestamp,
-    });
-
-    #[cfg(feature = "event-debug")]
-    emit!(DepositMaspDebugEvent {
-        pool: pool_key,
-        commitment,
-        leaf_index,
-        amount,
-        asset_id,
-        depositor: ctx.accounts.depositor.key(),
-        has_encrypted_note: _encrypted_note.is_some(),
-        timestamp,
-    });
-
-    msg!(
-        "MASP deposit: leaf_index={}, root=0x{}...",
-        leaf_index,
-        hex::encode(&merkle_root[..4])
+        msg!(
+        "MASP deposit queued: pending_index={}, pending_count={}",
+        pending_index,
+        pending_count
     );
 
     Ok(())
@@ -228,3 +217,20 @@ mod tests {
         assert_eq!(256, 64 + 64 + 128);
     }
 }
+
+// --- Compute-unit instrumentation (syscall wrapper; compatible with older solana-program crates) ---
+#[cfg(any(target_os = "solana", target_arch = "bpf"))]
+#[inline(always)]
+fn log_cu() {
+    unsafe { sol_log_compute_units_(); }
+}
+
+#[cfg(any(target_os = "solana", target_arch = "bpf"))]
+extern "C" {
+    fn sol_log_compute_units_();
+}
+
+// On native/unit tests, do nothing.
+#[cfg(not(any(target_os = "solana", target_arch = "bpf")))]
+#[inline(always)]
+fn log_cu() {}

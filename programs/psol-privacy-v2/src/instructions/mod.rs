@@ -43,3 +43,6 @@ pub use compliance::{AttachAuditMetadata, ConfigureCompliance};
 pub use relayer::{ConfigureRelayerRegistry, DeactivateRelayer, RegisterRelayer, UpdateRelayer};
 
 pub use shielded_cpi::ExecuteShieldedAction;
+
+pub mod initialize_pending_deposits_buffer;
+pub use initialize_pending_deposits_buffer::*;
