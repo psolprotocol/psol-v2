@@ -249,7 +249,6 @@ async function testPublicInputEncoding() {
   }
   
   // Test Pubkey encoding
-  {
     // Example Solana pubkey (32 bytes)
   {
     // Example Solana pubkey (32 bytes)

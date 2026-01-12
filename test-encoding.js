@@ -1,109 +1,56 @@
 const snarkjs = require("snarkjs");
 const fs = require("fs");
-const { Connection, PublicKey } = require("@solana/web3.js");
 
-function fieldToBytes(value) {
-  const bn = BigInt(value);
-  const hex = bn.toString(16).padStart(64, '0');
-  const bytes = Buffer.alloc(32);
-  for (let i = 0; i < 32; i++) {
-    bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+async function main() {
+  // Load the VK to check the known generator point format
+  const vkJson = JSON.parse(fs.readFileSync("./circuits/build/deposit_vk.json", "utf-8"));
+  
+  console.log("=== snarkjs vk_beta_2 structure ===");
+  console.log("vk_beta_2[0] (x):", vkJson.vk_beta_2[0]);
+  console.log("vk_beta_2[1] (y):", vkJson.vk_beta_2[1]);
+  console.log("");
+  console.log("In snarkjs: point[0] = [c0, c1] means Fq2 element = c0 + c1*u");
+  console.log("So point[0][0] is the REAL part (c0)");
+  console.log("So point[0][1] is the IMAGINARY part (c1)");
+  console.log("");
+  
+  // The Solana alt_bn128 expects: | x_c1 | x_c0 | y_c1 | y_c0 |
+  // Which means: | x_imag | x_real | y_imag | y_real |
+  
+  // Check the gamma_g2 which has a known value
+  console.log("=== vk_gamma_2 (should be generator G2) ===");
+  console.log("gamma_g2:", vkJson.vk_gamma_2);
+  
+  // Known BN254 G2 generator point:
+  // x = 11559732032986387107991004021392285783925812861821192530917403151452391805634 
+  //   + 10857046999023057135944570762232829481370756359578518086990519993285655852781 * u
+  // y = 4082367875863433681332203403145435568316851327593401208105741076214120093531 
+  //   + 8495653923123431417604973247489272438418190587263600148770280649306958101930 * u
+  
+  const known_g2_x_real = BigInt("11559732032986387107991004021392285783925812861821192530917403151452391805634");
+  const known_g2_x_imag = BigInt("10857046999023057135944570762232829481370756359578518086990519993285655852781");
+  
+  console.log("\nKnown G2 generator x.real:", known_g2_x_real.toString());
+  console.log("Known G2 generator x.imag:", known_g2_x_imag.toString());
+  console.log("vk_gamma_2[0][0]:", vkJson.vk_gamma_2[0][0]);
+  console.log("vk_gamma_2[0][1]:", vkJson.vk_gamma_2[0][1]);
+  
+  // If vk_gamma_2[0][0] matches x_real, then [0] is real, [1] is imaginary
+  // If vk_gamma_2[0][0] matches x_imag, then [0] is imaginary, [1] is real
+  
+  if (BigInt(vkJson.vk_gamma_2[0][0]) === known_g2_x_real) {
+    console.log("\n✅ CONFIRMED: snarkjs [0][0] = REAL, [0][1] = IMAGINARY");
+  } else if (BigInt(vkJson.vk_gamma_2[0][0]) === known_g2_x_imag) {
+    console.log("\n⚠️ CONFIRMED: snarkjs [0][0] = IMAGINARY, [0][1] = REAL");
+  } else {
+    console.log("\n❓ gamma_g2 is NOT the generator - checking encoding anyway...");
   }
-  return bytes;
+  
+  // Now let's verify our encoding matches what Solana expects
+  // Solana's alt_bn128 uses Ethereum's format: | c1 | c0 | for Fq2 (imaginary first!)
+  console.log("\n=== Required byte encoding for Solana ===");
+  console.log("Solana G2: | x_c1 (imag) | x_c0 (real) | y_c1 (imag) | y_c0 (real) |");
+  console.log("So from snarkjs we need: | [0][1] | [0][0] | [1][1] | [1][0] |");
 }
 
-function formatProofForChain(proof) {
-  const proofBytes = Buffer.alloc(256);
-  
-  // pi_a (G1)
-  fieldToBytes(proof.pi_a[0]).copy(proofBytes, 0);
-  fieldToBytes(proof.pi_a[1]).copy(proofBytes, 32);
-  
-  // pi_b (G2) - matching VK provision: [0][1], [0][0], [1][1], [1][0]
-  fieldToBytes(proof.pi_b[0][1]).copy(proofBytes, 64);
-  fieldToBytes(proof.pi_b[0][0]).copy(proofBytes, 96);
-  fieldToBytes(proof.pi_b[1][1]).copy(proofBytes, 128);
-  fieldToBytes(proof.pi_b[1][0]).copy(proofBytes, 160);
-  
-  // pi_c (G1)
-  fieldToBytes(proof.pi_c[0]).copy(proofBytes, 192);
-  fieldToBytes(proof.pi_c[1]).copy(proofBytes, 224);
-  
-  return proofBytes;
-}
-
-async function test() {
-  // Generate proof
-  const input = {
-    commitment: "9274179873757484722790972680913611378235381165247299255712930975037833306539",
-    amount: "1000000000",
-    asset_id: "0",
-    secret: "12345",
-    nullifier: "67890"
-  };
-  
-  console.log("Generating proof...");
-  const { proof, publicSignals } = await snarkjs.groth16.fullProve(
-    input,
-    "build/deposit_js/deposit.wasm",
-    "build/deposit.zkey"
-  );
-  
-  console.log("\nPublic signals:", publicSignals);
-  
-  // Local verify
-  const vk = JSON.parse(fs.readFileSync("build/deposit_vk.json"));
-  const valid = await snarkjs.groth16.verify(vk, publicSignals, proof);
-  console.log("\nLocal verification:", valid ? "VALID ✅" : "INVALID ❌");
-  
-  // Format for chain
-  const proofBytes = formatProofForChain(proof);
-  console.log("\nProof bytes (hex):");
-  console.log("  A.x:", proofBytes.slice(0, 32).toString('hex'));
-  console.log("  A.y:", proofBytes.slice(32, 64).toString('hex'));
-  console.log("  B.x_re:", proofBytes.slice(64, 96).toString('hex'));
-  console.log("  B.x_im:", proofBytes.slice(96, 128).toString('hex'));
-  console.log("  B.y_re:", proofBytes.slice(128, 160).toString('hex'));
-  console.log("  B.y_im:", proofBytes.slice(160, 192).toString('hex'));
-  console.log("  C.x:", proofBytes.slice(192, 224).toString('hex'));
-  console.log("  C.y:", proofBytes.slice(224, 256).toString('hex'));
-  
-  // Check against on-chain VK format
-  console.log("\nComparing with on-chain VK...");
-  const PROGRAM_ID = new PublicKey("BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb");
-  const POOL_CONFIG = new PublicKey("DPZe7uST1mBxzVkEm215epHjsM7Sa8VCXHr3pv4eLp8X");
-  const [depositVk] = PublicKey.findProgramAddressSync(
-    [Buffer.from("vk_deposit"), POOL_CONFIG.toBuffer()],
-    PROGRAM_ID
-  );
-  
-  const connection = new Connection("https://api.devnet.solana.com", "confirmed");
-  const accountInfo = await connection.getAccountInfo(depositVk);
-  const data = accountInfo.data;
-  
-  // Parse on-chain VK
-  let offset = 8 + 32 + 1; // discriminator + pool + proof_type
-  const alphaG1 = data.slice(offset, offset + 64);
-  offset += 64;
-  const betaG2 = data.slice(offset, offset + 128);
-  
-  console.log("\nOn-chain VK beta_g2 (first 32 bytes - x_re):");
-  console.log("  ", betaG2.slice(0, 32).toString('hex'));
-  
-  console.log("\nLocal VK beta_2 conversion:");
-  console.log("  x[1] (x_re):", fieldToBytes(vk.vk_beta_2[0][1]).toString('hex'));
-  console.log("  x[0] (x_im):", fieldToBytes(vk.vk_beta_2[0][0]).toString('hex'));
-  
-  // Save proof for manual testing
-  fs.writeFileSync("build/test_proof_bytes.json", JSON.stringify({
-    proofHex: proofBytes.toString('hex'),
-    publicSignals,
-    pi_a: proof.pi_a,
-    pi_b: proof.pi_b,
-    pi_c: proof.pi_c,
-  }, null, 2));
-  
-  console.log("\nSaved to build/test_proof_bytes.json");
-}
-
-test().catch(console.error);
+main().catch(console.error);

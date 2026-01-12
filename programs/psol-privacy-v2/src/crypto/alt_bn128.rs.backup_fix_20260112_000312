@@ -69,8 +69,7 @@ extern "C" {
 /// G1 point addition: result = a + b
 #[cfg(any(target_os = "solana", target_arch = "bpf"))]
 pub fn g1_add(a: &[u8; 64], b: &[u8; 64]) -> Result<[u8; 64]> {
-    // Input: 128 bytes = G1(a) (64) + G1(b) (64)
-    let mut input = [0u8; 128];
+    let mut input = [0u8; 96];
     input[0..64].copy_from_slice(a);
     input[64..128].copy_from_slice(b);
 

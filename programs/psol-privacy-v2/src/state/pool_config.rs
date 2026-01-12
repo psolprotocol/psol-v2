@@ -164,8 +164,6 @@ impl PoolConfigV2 {
             .checked_add(1)
             .ok_or(error!(PrivacyErrorV2::ArithmeticOverflow))?;
         self.last_activity_at = timestamp;
-        self.max_assets = Self::DEFAULT_MAX_ASSETS;
-        self.registered_asset_count = 0;
         Ok(())
     }
 
@@ -175,8 +173,6 @@ impl PoolConfigV2 {
             .checked_add(1)
             .ok_or(error!(PrivacyErrorV2::ArithmeticOverflow))?;
         self.last_activity_at = timestamp;
-        self.max_assets = Self::DEFAULT_MAX_ASSETS;
-        self.registered_asset_count = 0;
         Ok(())
     }
 
@@ -186,8 +182,6 @@ impl PoolConfigV2 {
             .checked_add(1)
             .ok_or(error!(PrivacyErrorV2::ArithmeticOverflow))?;
         self.last_activity_at = timestamp;
-        self.max_assets = Self::DEFAULT_MAX_ASSETS;
-        self.registered_asset_count = 0;
         Ok(())
     }
 
@@ -197,15 +191,11 @@ impl PoolConfigV2 {
             .checked_add(1)
             .ok_or(error!(PrivacyErrorV2::ArithmeticOverflow))?;
         self.last_activity_at = timestamp;
-        self.max_assets = Self::DEFAULT_MAX_ASSETS;
-        self.registered_asset_count = 0;
         Ok(())
     }
 
     pub fn record_pending_deposit(&mut self, timestamp: i64) -> Result<()> {
         self.last_activity_at = timestamp;
-        self.max_assets = Self::DEFAULT_MAX_ASSETS;
-        self.registered_asset_count = 0;
         Ok(())
     }
 
@@ -215,8 +205,6 @@ impl PoolConfigV2 {
             .checked_add(count as u64)
             .ok_or(error!(PrivacyErrorV2::ArithmeticOverflow))?;
         self.last_activity_at = timestamp;
-        self.max_assets = Self::DEFAULT_MAX_ASSETS;
-        self.registered_asset_count = 0;
         Ok(())
     }
 

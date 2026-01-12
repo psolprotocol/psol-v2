@@ -20,6 +20,7 @@
 use anchor_lang::prelude::*;
 
 use crate::error::PrivacyErrorV2;
+use crate::utils::cu;
 
 /// Maximum supported tree depth (2^24 = ~16M leaves)
 pub const MAX_TREE_DEPTH: u8 = 24;
@@ -197,6 +198,7 @@ impl MerkleTreeV2 {
     /// - `ArithmeticOverflow` on counter overflow
     /// - `CryptographyError` if Poseidon hash fails
     pub fn insert_leaf(&mut self, commitment: [u8; 32], timestamp: i64) -> Result<u32> {
+        cu("merkle: insert_leaf start");
         // Reject zero commitments (these are reserved for empty leaves)
         require!(
             !crate::crypto::is_zero_hash(&commitment),
@@ -219,6 +221,7 @@ impl MerkleTreeV2 {
 
         // Walk up the tree, updating hashes
         for level in 0..self.depth {
+            cu("merkle: level");
             let level_usize = level as usize;
 
             // Determine if this node is a left (0) or right (1) child

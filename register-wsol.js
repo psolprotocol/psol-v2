@@ -10,8 +10,7 @@ const PROGRAM_ID = new PublicKey("BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb")
 
 function computeAssetId(mint) {
   const prefix = Buffer.from("psol:asset_id:v1");
-  const mintBytes = mint.toBuffer();
-  const combined = Buffer.concat([prefix, mintBytes]);
+  const combined = Buffer.concat([prefix, mint.toBuffer()]);
   const hash = Buffer.from(keccak256.arrayBuffer(combined));
   const out = Buffer.alloc(32);
   out[0] = 0x00;
@@ -20,7 +19,7 @@ function computeAssetId(mint) {
 }
 
 const assetId = computeAssetId(WRAPPED_SOL_MINT);
-console.log("Asset ID (hex):", assetId.toString('hex'));
+console.log("Asset ID:", assetId.toString('hex'));
 
 const [assetVault] = PublicKey.findProgramAddressSync(
   [Buffer.from("vault_v2"), POOL_CONFIG.toBuffer(), assetId],
@@ -37,11 +36,11 @@ async function main() {
   
   const idl = JSON.parse(fs.readFileSync("./target/idl/psol_privacy_v2.json", "utf8"));
   const program = new anchor.Program(idl, provider);
-
+  
   console.log("Authority:", provider.wallet.publicKey.toString());
   console.log("Pool Config:", POOL_CONFIG.toString());
   console.log("Asset Vault:", assetVault.toString());
-
+  
   const tx = await program.methods
     .registerAsset(Array.from(assetId))
     .accounts({
@@ -55,7 +54,7 @@ async function main() {
       rent: anchor.web3.SYSVAR_RENT_PUBKEY,
     })
     .rpc();
-
+  
   console.log("✅ Wrapped SOL registered! Tx:", tx);
 }
 

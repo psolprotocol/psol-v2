@@ -24,8 +24,12 @@
   "devDependencies": {
     "@coral-xyz/anchor-cli": "^0.30.1",
     "@noble/hashes": "^2.0.1",
+    "@types/chai": "^5.2.3",
+    "@types/mocha": "^10.0.10",
+    "chai": "^6.2.2",
     "js-sha3": "^0.9.3",
-    "snarkjs": "^0.7.3"
+    "snarkjs": "^0.7.3",
+    "ts-mocha": "^11.1.0"
   },
   "engines": {
     "node": ">=18.0.0"

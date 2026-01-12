@@ -2,6 +2,7 @@ use anchor_lang::prelude::*;
 
 use crate::error::PrivacyErrorV2;
 use crate::events::BatchProcessedEvent;
+use crate::utils::cu;
 use crate::state::{BatcherRole, MerkleTreeV2, PendingDepositsBuffer, PoolConfigV2};
 
 /// Maximum deposits to process in a single batch
@@ -72,6 +73,7 @@ pub struct BatchProcessDeposits<'info> {
 ///
 /// This manual check is robust and Anchor-version-proof.
 pub fn handler(ctx: Context<BatchProcessDeposits>, max_to_process: u16) -> Result<()> {
+    cu("batch: start");
     let pool_config = &mut ctx.accounts.pool_config;
     let merkle_tree = &mut ctx.accounts.merkle_tree;
     let pending_buffer = &mut ctx.accounts.pending_buffer;
@@ -121,6 +123,8 @@ pub fn handler(ctx: Context<BatchProcessDeposits>, max_to_process: u16) -> Resul
         msg!("Authorized as pool authority: {}", batcher);
     }
 
+        cu("batch: after auth");
+
     // =========================================================================
     // 2. VALIDATE BATCH PARAMETERS
     // =========================================================================
@@ -161,7 +165,9 @@ pub fn handler(ctx: Context<BatchProcessDeposits>, max_to_process: u16) -> Resul
     // 4. PROCESS DEPOSITS
     // =========================================================================
 
+    cu("batch: before prepare_batch");
     let deposits_to_process = pending_buffer.prepare_batch(max_to_process);
+    cu("batch: after prepare_batch");
     let actual_count = deposits_to_process.len();
 
     require!(actual_count > 0, PrivacyErrorV2::NoPendingDeposits);
@@ -169,13 +175,16 @@ pub fn handler(ctx: Context<BatchProcessDeposits>, max_to_process: u16) -> Resul
     let start_leaf_index = merkle_tree.next_leaf_index;
 
     // Insert each commitment into Merkle tree
+    cu("batch: insert_leaf loop start");
     for deposit in deposits_to_process {
         require!(
             !deposit.commitment.iter().all(|&b| b == 0),
             PrivacyErrorV2::InvalidCommitment
         );
 
+        cu("batch: before insert_leaf");
         merkle_tree.insert_leaf(deposit.commitment, deposit.timestamp)?;
+        cu("batch: after insert_leaf");
     }
 
     let end_leaf_index = merkle_tree.next_leaf_index - 1;

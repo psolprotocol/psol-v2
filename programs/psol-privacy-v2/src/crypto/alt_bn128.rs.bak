@@ -69,7 +69,6 @@ extern "C" {
 /// G1 point addition: result = a + b
 #[cfg(any(target_os = "solana", target_arch = "bpf"))]
 pub fn g1_add(a: &[u8; 64], b: &[u8; 64]) -> Result<[u8; 64]> {
-    // Input: 128 bytes = G1(a) (64) + G1(b) (64)
     let mut input = [0u8; 128];
     input[0..64].copy_from_slice(a);
     input[64..128].copy_from_slice(b);
@@ -86,19 +85,19 @@ pub fn g1_add(a: &[u8; 64], b: &[u8; 64]) -> Result<[u8; 64]> {
 }
 
 /// G1 scalar multiplication: result = scalar * point
-/// Input layout (96 bytes): G1 point (64) + scalar (32)
+/// Input layout (128 bytes): G1 point (64) + scalar (32) + padding (32)
 /// Reference: https://docs.rs/solana-program/latest/solana_program/alt_bn128/index.html
 #[cfg(any(target_os = "solana", target_arch = "bpf"))]
 pub fn g1_mul(point: &[u8; 64], scalar: &[u8; 32]) -> Result<[u8; 64]> {
-    // Input: 96 bytes = G1 point (64) + scalar (32) for Solana alt_bn128 MUL
-    let mut input = [0u8; 96];
+    // CRITICAL: Solana expects 128-byte input for MUL, NOT 96 bytes
+    let mut input = [0u8; 128];
     input[0..64].copy_from_slice(point);
     input[64..96].copy_from_slice(scalar);
-    // No padding: exactly 96 bytes
+    // bytes [96..128] are zero padding (required by syscall)
 
     let mut result = [0u8; 64];
     let ret = unsafe {
-        sol_alt_bn128_group_op(ALT_BN128_MUL, input.as_ptr(), 96, result.as_mut_ptr())
+        sol_alt_bn128_group_op(ALT_BN128_MUL, input.as_ptr(), 128, result.as_mut_ptr())
     };
 
     if ret != 0 {

@@ -1,5 +1,6 @@
 import { PublicKey } from '@solana/web3.js';
 import { ProofType, proofTypeSeed } from './types';
+import { keccak_256 } from '@noble/hashes/sha3';
 
 /**
  * Default program ID for pSOL v2
@@ -209,49 +210,29 @@ export function findComplianceConfigPda(
 /**
  * Compute asset ID from mint address using keccak256
  *
- * This matches the on-chain computation: asset_id = keccak256(mint.as_ref())
+ * This matches the on-chain computation:
+ * asset_id = 0x00 || keccak256("psol:asset_id:v1" || mint)[0..31]
+ *
+ * The leading zero byte ensures the value fits in BN254 Fr field.
  *
  * @param mint - SPL token mint address
  * @returns 32-byte asset identifier
  */
 export function computeAssetId(mint: PublicKey): Uint8Array {
-  // Use js-sha3 or @noble/hashes for keccak256
-  // For now, we'll use a simple approach that works in both Node and browser
-  return computeAssetIdKeccak(mint.toBuffer());
-}
-
-/**
- * Compute keccak256 hash of input bytes
- *
- * Note: In production, use a proper keccak256 implementation.
- * This is a placeholder that should be replaced with @noble/hashes or js-sha3.
- *
- * @param input - Input bytes
- * @returns 32-byte hash
- */
-export function computeAssetIdKeccak(input: Uint8Array): Uint8Array {
-  // IMPORTANT: In production, replace this with proper keccak256
-  // For SDK purposes, we use the solana/web3.js approach or external lib
-
-  // Temporary: Use the @solana/web3.js internal keccak256 if available,
-  // otherwise this requires adding a dependency
-  try {
-    // Try to use Node.js crypto (available in Node environment)
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const crypto = require('crypto');
-    // Node.js crypto has keccak256 as 'sha3-256' with different semantics
-    // Actually keccak256 != sha3-256, so we need a proper library
-    // For now, fall back to sha256 for structure (NOT for production!)
-    const hash = crypto.createHash('sha256').update(input).digest();
-    return new Uint8Array(hash);
-  } catch {
-    // In browser or if crypto not available, throw error
-    // Production code should use @noble/hashes/sha3 keccak_256
-    throw new Error(
-      'keccak256 not available. Install @noble/hashes and use: ' +
-      'import { keccak_256 } from "@noble/hashes/sha3"'
-    );
-  }
+  // Concatenate prefix and mint bytes
+  const prefix = Buffer.from('psol:asset_id:v1');
+  const mintBytes = mint.toBuffer();
+  const input = Buffer.concat([prefix, mintBytes]);
+  
+  // Compute keccak256 hash
+  const hash = keccak_256(input);
+  
+  // Build output: 0x00 || hash[0..31]
+  const out = new Uint8Array(32);
+  out[0] = 0; // Leading zero for BN254 compatibility
+  out.set(hash.slice(0, 31), 1);
+  
+  return out;
 }
 
 // ============================================================================
