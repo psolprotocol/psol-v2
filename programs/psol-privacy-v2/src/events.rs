@@ -536,3 +536,14 @@ mod tests {
         assert_eq!(event.output_count, 2);
     }
 }
+
+/// Emitted when a batch of deposits is settled via off-chain proof
+#[event]
+pub struct BatchSettledEvent {
+    pub pool: Pubkey,
+    pub batch_size: u16,
+    pub start_index: u32,
+    pub new_root: [u8; 32],
+    pub commitments_hash: [u8; 32],
+    pub timestamp: i64,
+}

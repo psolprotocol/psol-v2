@@ -217,6 +217,16 @@ pub fn register_asset(ctx: Context<RegisterAsset>, asset_id: [u8; 32]) -> Result
         instructions::batch_process_deposits::handler(ctx, max_to_process)
     }
 
+    /// Settle a batch of deposits using off-chain ZK proof.
+    ///
+    /// Production-grade: verifies Groth16 proof instead of on-chain Merkle insertion.
+    pub fn settle_deposits_batch(
+        ctx: Context<SettleDepositsBatch>,
+        args: SettleDepositsBatchArgs,
+    ) -> Result<()> {
+        instructions::settle_deposits_batch::handler(ctx, args)
+    }
+
     /// Withdraw tokens from the shielded pool using a ZK proof.
     ///
     /// # Security
@@ -255,6 +265,7 @@ pub enum ProofType {
     Withdraw = 1,
     JoinSplit = 2,
     Membership = 3,
+    MerkleBatchUpdate = 4,
 }
 
 impl ProofType {
@@ -264,6 +275,7 @@ impl ProofType {
             ProofType::Withdraw => b"vk_withdraw",
             ProofType::JoinSplit => b"vk_joinsplit",
             ProofType::Membership => b"vk_membership",
+            ProofType::MerkleBatchUpdate => b"vk_merkle_batch",
         }
     }
 }

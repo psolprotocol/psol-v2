@@ -51,3 +51,8 @@ node_modules/
 psol-v2-actually-corrected/
 psol-v2-actually-corrected*
 *.zip
+
+# Large circuit artifacts - do not commit
+*.ptau
+*.zkey
+circuits/build/
