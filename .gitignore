@@ -56,3 +56,8 @@ psol-v2-actually-corrected*
 *.ptau
 *.zkey
 circuits/build/
+
+# Local test data
+data/
+*.bak
+*.backup

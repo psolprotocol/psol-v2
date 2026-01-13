@@ -6,13 +6,6 @@
  * Users submit proofs to the relayer, which submits them on-chain
  * and collects a fee.
  *
- * Features:
- * - Local ZK proof verification before chain submission
- * - Asset registration validation
- * - Retry logic with exponential backoff
- * - Rate limiting per recipient
- * - Comprehensive request validation
- *
  * @module relayer
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
@@ -549,23 +542,23 @@ class RelayerService {
         const vaultTokenAccount = (0, spl_token_1.getAssociatedTokenAddressSync)(params.mint, assetVault, true);
         const recipientTokenAccount = (0, spl_token_1.getAssociatedTokenAddressSync)(params.mint, params.recipient);
         const relayerTokenAccount = (0, spl_token_1.getAssociatedTokenAddressSync)(params.mint, this.config.walletKeypair.publicKey);
-        // Build instruction
+        // Build instruction - FIXED: correct args and snake_case accounts
         const ix = await this.program.methods
-            .withdrawMasp(Array.from(params.proofData), Array.from(params.merkleRoot), Array.from(params.nullifierHash), new anchor_1.BN(params.amount.toString()), new anchor_1.BN(params.fee.toString()))
-            .accounts({
+            .withdrawMasp(Buffer.from(params.proofData), Array.from(params.merkleRoot), Array.from(params.nullifierHash), params.recipient, new anchor_1.BN(params.amount.toString()), Array.from(params.assetId), new anchor_1.BN(params.fee.toString()))
+            .accountsStrict({
             relayer: this.config.walletKeypair.publicKey,
-            poolConfig: this.config.poolConfig,
-            merkleTree,
-            assetVault,
-            vkAccount,
-            nullifierAccount: nullifierPda,
-            relayerRegistry,
-            relayerNode,
-            recipient: params.recipient,
-            vaultTokenAccount,
-            recipientTokenAccount,
-            relayerTokenAccount,
-            mint: params.mint,
+            pool_config: this.config.poolConfig,
+            merkle_tree: merkleTree,
+            vk_account: vkAccount,
+            asset_vault: assetVault,
+            vault_token_account: vaultTokenAccount,
+            recipient_token_account: recipientTokenAccount,
+            relayer_token_account: relayerTokenAccount,
+            spent_nullifier: nullifierPda,
+            relayer_registry: relayerRegistry,
+            relayer_node: relayerNode,
+            token_program: new web3_js_1.PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"),
+            system_program: new web3_js_1.PublicKey("11111111111111111111111111111111"),
         })
             .instruction();
         // Build and send transaction

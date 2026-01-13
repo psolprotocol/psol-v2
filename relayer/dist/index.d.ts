@@ -5,13 +5,6 @@
  * Users submit proofs to the relayer, which submits them on-chain
  * and collects a fee.
  *
- * Features:
- * - Local ZK proof verification before chain submission
- * - Asset registration validation
- * - Retry logic with exponential backoff
- * - Rate limiting per recipient
- * - Comprehensive request validation
- *
  * @module relayer
  */
 import { Keypair, PublicKey } from '@solana/web3.js';

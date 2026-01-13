@@ -1,17 +1,10 @@
 /**
  * pSOL v2 Relayer Service
- * 
+ *
  * HTTP service that relays withdrawal transactions for users.
  * Users submit proofs to the relayer, which submits them on-chain
  * and collects a fee.
- * 
- * Features:
- * - Local ZK proof verification before chain submission
- * - Asset registration validation
- * - Retry logic with exponential backoff
- * - Rate limiting per recipient
- * - Comprehensive request validation
- * 
+ *
  * @module relayer
  */
 
@@ -717,33 +710,34 @@ export class RelayerService {
       params.mint,
       this.config.walletKeypair.publicKey
     );
-    
-    // Build instruction
+    // Build instruction - FIXED: correct args and snake_case accounts
     const ix = await this.program.methods
       .withdrawMasp(
-        Array.from(params.proofData),
+        Buffer.from(params.proofData),
         Array.from(params.merkleRoot),
         Array.from(params.nullifierHash),
+        params.recipient,
         new BN(params.amount.toString()),
+        Array.from(params.assetId),
         new BN(params.fee.toString())
       )
-      .accounts({
+      .accountsStrict({
         relayer: this.config.walletKeypair.publicKey,
-        poolConfig: this.config.poolConfig,
-        merkleTree,
-        assetVault,
-        vkAccount,
-        nullifierAccount: nullifierPda,
-        relayerRegistry,
-        relayerNode,
-        recipient: params.recipient,
-        vaultTokenAccount,
-        recipientTokenAccount,
-        relayerTokenAccount,
-        mint: params.mint,
+        pool_config: this.config.poolConfig,
+        merkle_tree: merkleTree,
+        vk_account: vkAccount,
+        asset_vault: assetVault,
+        vault_token_account: vaultTokenAccount,
+        recipient_token_account: recipientTokenAccount,
+        relayer_token_account: relayerTokenAccount,
+        spent_nullifier: nullifierPda,
+        relayer_registry: relayerRegistry,
+        relayer_node: relayerNode,
+        token_program: new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"),
+        system_program: new PublicKey("11111111111111111111111111111111"),
       })
       .instruction();
-    
+
     // Build and send transaction
     const tx = new Transaction().add(ix);
     const signature = await sendAndConfirmTransaction(

@@ -13,7 +13,7 @@ use anchor_lang::prelude::*;
 use sha2::{Sha256, Digest};
 
 use crate::error::PrivacyErrorV2;
-use crate::events::BatchSettledEvent;
+use crate::events::{BatchSettledEvent, CommitmentInsertedEvent};
 use crate::state::{MerkleTreeV2, PendingDepositsBuffer, PoolConfigV2, VerificationKeyAccountV2};
 use crate::crypto::groth16::{Proof, VerificationKey, verify};
 use crate::ProofType;
@@ -212,6 +212,21 @@ pub fn handler(ctx: Context<SettleDepositsBatch>, args: SettleDepositsBatchArgs)
     let history_idx = merkle_tree.root_history_index as usize;
     merkle_tree.root_history[history_idx] = args.new_root;
     merkle_tree.root_history_index = (merkle_tree.root_history_index + 1) % merkle_tree.root_history_size;
+
+    // =========================================================================
+    // 6b. EMIT PER-COMMITMENT EVENTS (RECOVERY LOG)
+    // =========================================================================
+    // Critical for sequencer recoverability - allows deterministic tree rebuild
+    for (i, commitment) in commitments.iter().enumerate() {
+        let leaf_index = start_index + i as u32;
+        emit!(CommitmentInsertedEvent {
+            pool: pool_config.key(),
+            commitment: *commitment,
+            leaf_index,
+            merkle_root: args.new_root,
+            timestamp,
+        });
+    }
 
     // =========================================================================
     // 7. CLEAR PROCESSED DEPOSITS FROM BUFFER

@@ -547,3 +547,42 @@ pub struct BatchSettledEvent {
     pub commitments_hash: [u8; 32],
     pub timestamp: i64,
 }
+
+// =========================================================================
+// BATCH SETTLEMENT RECOVERY EVENTS
+// =========================================================================
+
+/// Emitted for EACH commitment inserted during batch settlement.
+/// 
+/// # Recovery Purpose
+/// 
+/// This event enables deterministic sequencer state recovery:
+/// 1. Query all CommitmentInsertedEvent logs for the pool
+/// 2. Sort by leaf_index
+/// 3. Rebuild Merkle tree by inserting commitments in order
+/// 4. Verify rebuilt root matches on-chain current_root
+///
+/// # Why Per-Commitment Events?
+///
+/// BatchSettledEvent only contains the commitments_hash (SHA256 of all commitments),
+/// which is insufficient to rebuild tree state. This per-commitment event provides
+/// the actual commitment values needed for reconstruction.
+///
+/// # Fields
+///
+/// - `commitment` - The actual commitment bytes (needed to rebuild tree)
+/// - `leaf_index` - Position in tree (needed for ordering)
+/// - `merkle_root` - Root after batch (same for all in batch, for verification)
+#[event]
+pub struct CommitmentInsertedEvent {
+    /// Pool this commitment belongs to
+    pub pool: Pubkey,
+    /// The commitment hash (Poseidon(secret, nullifier, amount, asset))
+    pub commitment: [u8; 32],
+    /// Leaf index where this commitment was inserted
+    pub leaf_index: u32,
+    /// Merkle root after the batch containing this commitment
+    pub merkle_root: [u8; 32],
+    /// Unix timestamp when inserted
+    pub timestamp: i64,
+}
