@@ -4,156 +4,180 @@ Privacy protocol for Solana implementing confidential transactions using zero-kn
 
 ## Overview
 
-pSOL v2 enables private transfers of SPL tokens through a shared multi-asset shielded pool. The protocol uses Groth16 proofs over BN254, Poseidon hash commitments in a Merkle tree, and a relayer architecture for gasless withdrawals.
+pSOL v2 enables private transfers of SPL tokens through a shared multi-asset shielded pool. The protocol uses Groth16 proofs over BN254, Poseidon hash commitments in a Merkle tree, and an off-chain batch sequencer for scalable settlement.
 
 ## Devnet Deployment
 
-| Component | Address |
-|-----------|---------|
-| Program | `BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb` |
-| Pool Config | `HiStZaTziXH3u742d3vDGgzU478LKZZZr9mkRPo37R9v` |
-| Authority | `6GxzJ2P9fEdSNyq1tEuFV4DSpYExpGWA6UBZ5p7tmjZD` |
+|Component     |Address                                       |
+|--------------|----------------------------------------------|
+|Program       |`BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb`|
+|Pool Config   |`DPZe7uST1mBxzVkEm215epHjsM7Sa8VCXHr3pv4eLp8X`|
+|Merkle Tree   |`3NPUEWkbkyv7XDjVg98CWmkUz1XFNZ6ogqi18AiTnqgm`|
+|Pending Buffer|`DPxeTsLkZaWdenw6gqgU7M6arWhKbo99GDVf2gPtM4NH`|
+|Batch VK      |`GrhXXDsauwTJiXGbywJPykWPcbb8AKcndMPioGuResp2`|
+|Authority     |`8p3kSuCyDcRYJcgVkhZbKpshNpyeSs6Eu8dYeZnbvecL`|
 
 Explorer: https://explorer.solana.com/address/BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb?cluster=devnet
 
-### Pool Configuration
-- **Tree Depth**: 20 (capacity: ~1M notes)
-- **VKs Configured**: All 4 (Deposit, Withdraw, JoinSplit, Membership)
-- **Status**: Ready for testing
+### Verified Transactions
+
+- Batch Settlement: [4zTPJKYd8YjT…](https://explorer.solana.com/tx/4zTPJKYd8YjTooyvUZbV3YgnZb99Xu7TqLvHD12vSpwbARaUPiEPn8Fy27hfgCrS15KQLwrSrtSV9zmr1uLJuAjs?cluster=devnet)
+- Deposit: [QXB83MCMWENt…](https://explorer.solana.com/tx/QXB83MCMWENtrLXM97Qf99FynB1pk4bA3HDu8vHKiksGSUN5tMdA7KF8gbTCxdRFoU9AAxmNDDJnXXmKwvhdRXN?cluster=devnet)
+
+## Pool Configuration
+
+- Tree Depth: 20 (capacity: ~1M notes)
+- Batch Size: 1-16 deposits per settlement
+- VKs Configured: Deposit, Withdraw, JoinSplit, Membership, MerkleBatchUpdate
+- Status: Active on devnet
 
 ## Architecture
+
+The protocol uses a two-phase commit for deposits:
+
+1. **Deposit Phase**: User deposits tokens with ZK proof, commitment queued to pending buffer
+1. **Settlement Phase**: Off-chain sequencer batches commitments, generates Merkle update proof, settles on-chain
+
+This architecture solves Solana’s compute unit limitation. On-chain Poseidon hashing for Merkle insertion would require 1.4M CU per deposit (exceeds limit). Batch settlement with off-chain proof verification uses ~300k CU regardless of batch size.
+
+```
+User Deposit --> Pending Buffer (on-chain)
+                      |
+              Sequencer (off-chain)
+                      |
+                      v
+            Generate batch ZK proof
+                      |
+                      v
+         settle_deposits_batch (on-chain, ~300k CU)
+                      |
+                      v
+              Merkle Tree Updated
+```
+
+### Directory Structure
+
 ```
 psol-v2/
-├── programs/psol-privacy-v2/    # Solana on-chain program (Anchor)
-│   ├── src/crypto/              # Poseidon hash, Groth16 verifier, precomputed zeros
+├── programs/psol-privacy-v2/    # Solana program (Anchor)
+│   ├── src/crypto/              # Poseidon hash, Groth16 verifier
 │   ├── src/instructions/        # Transaction handlers
-│   ├── src/state/               # Account structures, Merkle tree
-│   └── src/utils/               # Validation helpers
-├── circuits/                    # Circom zero-knowledge circuits
-│   ├── deposit/                 # Deposit circuit
+│   │   ├── deposit_masp.rs      # Queue deposit to pending buffer
+│   │   ├── settle_deposits_batch.rs  # Batch settlement with ZK proof
+│   │   └── withdraw_v2.rs       # Withdrawal with membership proof
+│   └── src/state/               # Account structures
+├── circuits/                    # Circom circuits
+│   ├── deposit/                 # Deposit commitment circuit
 │   ├── withdraw/                # Withdrawal circuit
-│   ├── joinsplit/               # Private transfer circuit (2-in-2-out)
-│   ├── membership/              # Membership proof circuit
-│   └── build/                   # Compiled circuits and proving keys
+│   ├── merkle_batch_update/     # Batch Merkle insertion circuit
+│   └── build/                   # Compiled circuits, proving keys
 ├── sdk/                         # TypeScript client library
-├── relayer/                     # HTTP relayer service
-└── scripts/                     # Deployment and utility scripts
+├── scripts/                     # Deployment, sequencer, utilities
+│   ├── sequencer.ts             # Batch settlement service
+│   ├── upload-merkle-batch-vk.ts
+│   └── check-state.ts
+└── tests/                       # Integration tests
 ```
-
-## Cryptographic Implementation
-
-The Poseidon hash implementation is fully compatible with circomlibjs, verified against 72 test vectors across t=2,3,4. This ensures proofs generated client-side with snarkjs will verify correctly on-chain.
-
-### Encoding Compatibility (Audit Fixes Applied)
-- **Asset ID**: `0x00 || keccak256("psol:asset_id:v1" || mint)[0..31]`
-- **Pubkey Scalar**: `0x00 || pubkey[0..31]` (ensures fit in BN254 field)
-
-Circuits use the standard circomlib Poseidon implementation with BN254 curve. Proving keys are generated from Hermez Phase 1 Powers of Tau ceremony (2^16 constraints).
 
 ## Zero-Knowledge Circuits
 
-| Circuit | Constraints | IC Points | Status |
-|---------|-------------|-----------|--------|
-| deposit | 368 | 4 | ✅ Compiled, VK provisioned |
-| withdraw | 5,819 | 9 | ✅ Compiled, VK provisioned |
-| joinsplit | 12,293 | 10 | ✅ Compiled, VK provisioned |
-| membership | 5,572 | 5 | ✅ Compiled, VK provisioned |
+|Circuit            |Constraints|Public Inputs|Purpose                         |
+|-------------------|-----------|-------------|--------------------------------|
+|deposit            |368        |4            |Prove knowledge of note preimage|
+|withdraw           |5,819      |9            |Prove membership + nullifier    |
+|joinsplit          |12,293     |10           |Private transfer (2-in-2-out)   |
+|membership         |5,572      |5            |Prove note exists in tree       |
+|merkle_batch_update|~464,000   |5            |Batch Merkle tree insertion     |
 
-All circuits compile successfully with circom 2.1.6 and generate valid Groth16 proofs.
+The batch circuit uses SHA256 commitment binding for variable batch sizes (1-16 deposits). This allows the sequencer to process any number of pending deposits in a single proof.
+
+## Cryptographic Implementation
+
+Poseidon hash is fully compatible with circomlibjs, verified against 72 test vectors across t=2,3,4. Proofs generated client-side with snarkjs verify correctly on-chain.
+
+**Encoding (Audit Fixes Applied):**
+
+- Asset ID: `0x00 || keccak256("psol:asset_id:v1" || mint)[0..31]`
+- Pubkey Scalar: `0x00 || pubkey[0..31]` (ensures fit in BN254 field)
+
+Proving keys generated from Hermez Phase 1 Powers of Tau ceremony.
 
 ## Building
+
 ```bash
-# Install dependencies
 npm install
 
-# Build circuits and generate proving keys
+# Build circuits
 cd circuits && ./build.sh
 
-# Build on-chain program
+# Build program
 anchor build
 
-# Deploy to devnet
+# Deploy
 anchor deploy --provider.cluster devnet
+```
 
-# Initialize pool (depth 20)
+## Running the Sequencer
+
+The sequencer monitors the pending deposits buffer and settles batches automatically:
+
+```bash
 export ANCHOR_PROVIDER_URL=https://api.devnet.solana.com
-export ANCHOR_WALLET=~/.config/solana/id.json
-npx ts-node scripts/ts/init-pool.ts
+export ANCHOR_WALLET=~/.config/solana/pool-authority-v3.json
 
-# Provision verification keys
-npx ts-node scripts/ts/provision-vks.ts
-
-# Optionally lock VKs for production
-npx ts-node scripts/ts/provision-vks.ts --lock
+npx ts-node --transpile-only scripts/sequencer.ts
 ```
 
-## SDK
-```bash
-cd sdk
-npm install
-npm run build
-npm test  # Run encoding compatibility tests
-```
+## SDK Usage
 
-## Relayer
-```bash
-cd relayer
-npm install
-npm run build
-cp .env.example .env  # Configure your settings
-npm run dev
+```typescript
+import { PsolV2Client, initializeSDK, createNote } from '@psol/sdk';
+
+await initializeSDK();
+
+const client = new PsolV2Client({ provider, programId });
+
+// Deposit (queues to pending buffer)
+const note = createNote(amount, assetId, recipientPubkey);
+await client.deposit(poolConfig, mint, amount, commitment, proof, null);
+
+// Withdrawal (after batch settlement)
+await client.withdraw(poolConfig, mint, recipient, amount, merkleProof, nullifier, proof);
 ```
 
 ## Testing
+
 ```bash
-# Run Rust unit tests (86 tests including Poseidon vectors)
+# Rust unit tests
 cargo test -p psol-privacy-v2
 
-# Run SDK encoding tests
-cd sdk && npm test
+# Circuit proof test
+npx ts-node --transpile-only scripts/test-circuit.ts
 
-# Test circuit proof generation
-cd circuits
-node build/deposit_js/generate_witness.js build/deposit_js/deposit.wasm build/deposit_input.json build/deposit_witness.wtns
-snarkjs groth16 prove build/deposit.zkey build/deposit_witness.wtns proof.json public.json
-snarkjs groth16 verify build/deposit_vk.json public.json proof.json
-```
-
-## Usage
-```typescript
-import { createPsolClient } from '@psol/sdk';
-
-const client = await createPsolClient(connection, wallet);
-
-// Deposit into shielded pool
-const { note, commitment } = await client.createNote(amount, assetId);
-await client.deposit(poolConfig, mint, amount, commitment, proofData);
-
-// Private transfer (JoinSplit)
-await client.privateTransfer(inputNotes, outputNotes, proofData);
-
-// Withdraw via relayer
-await client.withdraw(poolConfig, mint, recipient, amount, merkleRoot, nullifierHash, proofData);
+# Check on-chain state
+npx ts-node --transpile-only scripts/check-state.ts
 ```
 
 ## Development Status
 
-### Completed ✅
-- Poseidon hash (circomlibjs compatible, 72 test vectors passing)
-- ZK circuits (deposit, withdraw, joinsplit, membership)
-- Chunked VK upload for large verification keys
-- Merkle tree with precomputed zero values (depth 20)
-- Pool initialization on devnet with all VKs provisioned
-- Relayer registry with fee management
-- SDK with encoding compatibility (audit fixes applied)
-- Relayer service (basic implementation)
+**Completed:**
 
-### In Progress 🔄
-- Web frontend with wallet integration
-- End-to-end deposit and withdrawal flow testing
-- Relayer service production hardening
+- Poseidon hash (circomlibjs compatible)
+- All ZK circuits compiled with VKs on devnet
+- Batch settlement system (sequencer + on-chain verification)
+- Pending deposits buffer for scalable queuing
+- SDK with wallet integration
+- Live deposits working on devnet
 
-### Pending ⏳
+**In Progress:**
+
+- Sequencer state persistence (event indexing)
+- Web frontend integration
+- End-to-end withdrawal testing
+
+**Pending:**
+
+- Relayer service for gasless withdrawals
 - Multi-party trusted setup ceremony
 - Security audit
 - Mainnet deployment
@@ -169,13 +193,13 @@ await client.withdraw(poolConfig, mint, recipient, amount, merkleRoot, nullifier
 
 ## Security
 
-This is experimental software. Known limitations:
+Experimental software. Known limitations:
 
-- Circuits have not undergone formal audit
-- Trusted setup uses Hermez ceremony (production deployment requires dedicated ceremony)
-- No protection against timing attacks or network analysis
+- Circuits not formally audited
+- Trusted setup uses Hermez ceremony (production needs dedicated ceremony)
+- No timing attack protection
 
-A comprehensive security audit is required before mainnet deployment.
+Security audit required before mainnet.
 
 ## License
 
