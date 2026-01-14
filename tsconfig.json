@@ -26,6 +26,7 @@
     "node_modules",
     "dist",
     "target",
+    "tools/_scratch",
     "tests/encoding-verification.ts",
     "tests/withdraw-only.ts",
     "tests/test-withdraw-debug.ts",

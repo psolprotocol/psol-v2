@@ -11,9 +11,9 @@ pSOL v2 enables private transfers of SPL tokens through a shared multi-asset shi
 |Component     |Address                                       |
 |--------------|----------------------------------------------|
 |Program       |`BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb`|
-|Pool Config   |`DPZe7uST1mBxzVkEm215epHjsM7Sa8VCXHr3pv4eLp8X`|
-|Merkle Tree   |`3NPUEWkbkyv7XDjVg98CWmkUz1XFNZ6ogqi18AiTnqgm`|
-|Pending Buffer|`DPxeTsLkZaWdenw6gqgU7M6arWhKbo99GDVf2gPtM4NH`|
+|Pool Config   |`GZiRVMV7FjrGxjE379HiEyHyVCisHkFnjMJen95kEVEQ`|
+|Merkle Tree   |`GCG4QojHbjs15ucxHfW9G1bFzYyYZGzsvWRNEAj6pckk`|
+|Pending Buffer|`6xMy76sHFVCvFewzL6FaSDts4fd1K86QwXVNy6RyhhL2`|
 |Batch VK      |`GrhXXDsauwTJiXGbywJPykWPcbb8AKcndMPioGuResp2`|
 |Authority     |`8p3kSuCyDcRYJcgVkhZbKpshNpyeSs6Eu8dYeZnbvecL`|
 
@@ -125,7 +125,7 @@ The sequencer monitors the pending deposits buffer and settles batches automatic
 export ANCHOR_PROVIDER_URL=https://api.devnet.solana.com
 export ANCHOR_WALLET=~/.config/solana/pool-authority-v3.json
 
-npx ts-node --transpile-only scripts/sequencer.ts
+npx ts-node --transpile-only scripts/sequencer-production.ts
 ```
 
 ## SDK Usage
@@ -157,6 +157,41 @@ npx ts-node --transpile-only scripts/test-circuit.ts
 # Check on-chain state
 npx ts-node --transpile-only scripts/check-state.ts
 ```
+## Withdraw Public Inputs
+
+The withdraw operation verifies a zero-knowledge proof with 8 public inputs assembled on-chain at [`programs/psol-privacy-v2/src/instructions/withdraw_masp.rs:267-276`](programs/psol-privacy-v2/src/instructions/withdraw_masp.rs#L267-L276):
+
+| # | Input | Description | Type |
+|---|-------|-------------|------|
+| 1 | `merkle_root` | Root of merkle tree containing the commitment | `[u8; 32]` |
+| 2 | `nullifier_hash` | Hash of nullifier (prevents double-spends) | `[u8; 32]` |
+| 3 | `asset_id` | Public key of asset being withdrawn | `Pubkey` |
+| 4 | `recipient` | Address receiving withdrawn funds | `Pubkey` |
+| 5 | `amount` | Total withdrawal amount (before relayer fee) | `u64` |
+| 6 | `relayer` | Relayer processing this transaction | `Pubkey` |
+| 7 | `relayer_fee` | Fee paid to relayer | `u64` |
+| 8 | `public_data_hash` | **Hardcoded to zero** (reserved) | `[u8; 32]` |
+
+### Critical: public_data_hash Hardcoding
+
+The on-chain verifier **always sets `public_data_hash` to `[0u8; 32]`** (line 276):
+```rust
+// programs/psol-privacy-v2/src/instructions/withdraw_masp.rs:267-276
+let public_inputs = WithdrawPublicInputs::new(
+    merkle_root,
+    nullifier_hash,
+    asset_id,
+    recipient,
+    amount,
+    ctx.accounts.relayer.key(),
+    relayer_fee,
+    [0u8; 32], // public_data_hash (reserved for future use)
+);
+```
+
+**SDK Requirement:** Off-chain proof generation must set `publicDataHash = 0n`. Failure causes `InvalidProof` error.
+
+**References:** [`withdraw_masp.rs:267-276`](programs/psol-privacy-v2/src/instructions/withdraw_masp.rs#L267-L276) | [`tests/test-withdraw-e2e-fixed.ts`](tests/test-withdraw-e2e-fixed.ts)
 
 ## Development Status
 

@@ -61,3 +61,12 @@ circuits/build/
 data/
 *.bak
 *.backup
+
+# Local Solana keypairs / secrets
+pool-authority*.json
+*keypair*.json
+*.secret.json
+
+# Generated artifacts (Stage A debug)
+pool-authority-*.json
+past_commitments.json
