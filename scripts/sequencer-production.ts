@@ -36,9 +36,9 @@ const CONFIG = {
   PROGRAM_ID: new PublicKey("BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb"),
   
   // FRESH POOL ADDRESSES
-  POOL_CONFIG: new PublicKey("73MzPg5UFz869CA5XWaEFUYDoS8ezzmjtvARJDMkNSgw"),
-  MERKLE_TREE: new PublicKey("E1vS4WWQZ6j3jrbtr9gE8yotTAVqq1HNqEWN7ybjC8s3"),
-  PENDING_BUFFER: new PublicKey("AWyMRtNEfA4AvVUFmyVmdzupUQtHUbnnJeqGCYZ3pZ1m"),
+  POOL_CONFIG: new PublicKey("GZiRVMV7FjrGxjE379HiEyHyVCisHkFnjMJen95kEVEQ"),
+  MERKLE_TREE: new PublicKey("GCG4QojHbjs15ucxHfW9G1bFzYyYZGzsvWRNEAj6pckk"),
+  PENDING_BUFFER: new PublicKey("6xMy76sHFVCvFewzL6FaSDts4fd1K86QwXVNy6RyhhL2"),
   
   // Circuit parameters
   MAX_BATCH_SIZE: 16,

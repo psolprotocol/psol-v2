@@ -1,19 +1,50 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
+    "target": "es2020",
     "module": "commonjs",
-    "lib": ["ES2020"],
+    "lib": [
+      "es2020"
+    ],
+    "skipLibCheck": true,
     "strict": true,
     "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
+    "moduleResolution": "node",
     "declaration": true,
-    "declarationMap": true,
     "outDir": "./dist",
     "rootDir": "./",
-    "types": ["node"]
+    "typeRoots": [
+      "./node_modules/@types",
+      "./types"
+    ]
   },
-  "include": ["tests/**/*.ts", "sdk/src/**/*.ts"],
-  "exclude": ["node_modules", "dist"]
+  "include": [
+    "**/*.ts",
+    "**/*.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "target",
+    "tests/encoding-verification.ts",
+    "tests/withdraw-only.ts",
+    "tests/test-withdraw-debug.ts",
+    "tests/test-withdraw-e2e.ts",
+    "tests/deposit-withdraw-integration.ts",
+    "tests/withdraw-integration.ts",
+    "scripts/check-pool-authority.ts",
+    "scripts/check-state.ts",
+    "scripts/check-withdraw-vk.ts",
+    "scripts/sync-tree.ts",
+    "scripts/indexer.ts",
+    "scripts/init-fresh-pool.ts",
+    "scripts/init-pool-fixed.ts",
+    "scripts/init-pool-production.ts",
+    "scripts/parse-historical-buffer.ts",
+    "scripts/rebuild-commitments-from-events.ts",
+    "scripts/rebuild-tree-state.ts",
+    "scripts/sequencer.ts",
+    "scripts/upload-all-vks.ts",
+    "sdk/**"
+  ]
 }

@@ -230,7 +230,6 @@ export class PsolV2Client {
   ): Promise<{ signature: TransactionSignature; leafIndex: number }> {
     const depositor = this.authority;
     const assetId = computeAssetId(mint);
-
     const [merkleTree] = findMerkleTreePda(this.programId, poolConfig);
     const [assetVault] = findAssetVaultPda(this.programId, poolConfig, assetId);
     const [vaultTokenAccount] = PublicKey.findProgramAddressSync(
@@ -238,21 +237,54 @@ export class PsolV2Client {
       this.programId
     );
     const [depositVk] = findVerificationKeyPda(this.programId, poolConfig, ProofType.Deposit);
-
     const userTokenAccount = getAssociatedTokenAddressSync(mint, depositor);
-
+    
+    // Fetch pool config to get authority
+    const poolConfigData = await (this.program.account as any).poolConfigV2.fetch(poolConfig);
+    const poolAuthority = poolConfigData.authority as PublicKey;
+    
+    // Check if user token account exists, create if needed
+    const connection = this.provider.connection;
+    const userTokenAccountInfo = await connection.getAccountInfo(userTokenAccount);
+    const preInstructions: any[] = [];
+    
+    if (!userTokenAccountInfo) {
+      const { createAssociatedTokenAccountInstruction, NATIVE_MINT: NM } = await import('@solana/spl-token');
+      const createAtaIx = createAssociatedTokenAccountInstruction(
+        depositor,
+        userTokenAccount,
+        depositor,
+        mint
+      );
+      preInstructions.push(createAtaIx);
+    }
+    
+    // For native SOL, fund and sync
+    const { NATIVE_MINT: NM, createSyncNativeInstruction } = await import('@solana/spl-token');
+    if (mint.equals(NM)) {
+      const transferIx = SystemProgram.transfer({
+        fromPubkey: depositor,
+        toPubkey: userTokenAccount,
+        lamports: Number(amount),
+      });
+      preInstructions.push(transferIx);
+      
+      const syncIx = createSyncNativeInstruction(userTokenAccount);
+      preInstructions.push(syncIx);
+    }
+    
     const tx = await (this.program.methods as any)
       .depositMasp(
         toBN(amount),
         Array.from(commitment),
         Array.from(assetId),
-        Array.from(proofData),
-        encryptedNote ? Array.from(encryptedNote) : null
+        Buffer.from(proofData),
+        encryptedNote || null
       )
       .accounts({
         depositor,
         poolConfig,
-        authority: depositor,
+        authority: poolAuthority,
         merkleTree,
         assetVault,
         vaultTokenAccount,
@@ -262,6 +294,7 @@ export class PsolV2Client {
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
       })
+      .preInstructions(preInstructions)
       .rpc();
 
     return {
@@ -269,10 +302,6 @@ export class PsolV2Client {
       leafIndex: 0, // TODO: Parse from logs
     };
   }
-
-  /**
-   * Withdraw funds from the shielded pool
-   */
   async withdraw(
     poolConfig: PublicKey,
     mint: PublicKey,
@@ -299,9 +328,38 @@ export class PsolV2Client {
     const recipientTokenAccount = getAssociatedTokenAddressSync(mint, recipient);
     const relayerTokenAccount = getAssociatedTokenAddressSync(mint, relayer);
 
+    // Check if recipient token account exists, create if needed
+    const connection = this.provider.connection;
+    const recipientAccountInfo = await connection.getAccountInfo(recipientTokenAccount);
+    const preInstructions: any[] = [];
+    
+    if (!recipientAccountInfo) {
+      const { createAssociatedTokenAccountInstruction } = await import("@solana/spl-token");
+      const createAtaIx = createAssociatedTokenAccountInstruction(
+        relayer,
+        recipientTokenAccount,
+        recipient,
+        mint
+      );
+      preInstructions.push(createAtaIx);
+    }
+
+    // Check if relayer token account exists, create if needed
+    const relayerAccountInfo = await connection.getAccountInfo(relayerTokenAccount);
+    if (!relayerAccountInfo) {
+      const { createAssociatedTokenAccountInstruction } = await import("@solana/spl-token");
+      const createRelayerAtaIx = createAssociatedTokenAccountInstruction(
+        relayer,
+        relayerTokenAccount,
+        relayer,
+        mint
+      );
+      preInstructions.push(createRelayerAtaIx);
+    }
+
     const tx = await (this.program.methods as any)
       .withdrawMasp(
-        Array.from(proofData),
+        Buffer.from(proofData),
         Array.from(merkleRoot),
         Array.from(nullifierHash),
         recipient,
@@ -324,6 +382,7 @@ export class PsolV2Client {
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
       })
+      .preInstructions(preInstructions)
       .rpc();
 
     return { signature: tx };
