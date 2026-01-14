@@ -321,11 +321,40 @@ async function main() {
   
   // Initialize local Merkle tree
   const localTree = new LocalMerkleTree(MERKLE_DEPTH);
+
+  // ✅ LOAD PAST COMMITMENTS FROM FILE
+  const pastCommitmentsPath = path.join(__dirname, '..', 'past_commitments.json');
+  
+  if (fs.existsSync(pastCommitmentsPath)) {
+    console.log('📂 Loading past commitments...');
+    const pastData = JSON.parse(fs.readFileSync(pastCommitmentsPath, 'utf8'));
+    
+    for (const commitmentHex of pastData.commitments) {
+      const commitment = BigInt('0x' + commitmentHex);
+      localTree.insert(commitment);
+      console.log(`   ✓ Preloaded commitment at index ${localTree.leaves.length - 1}`);
+    }
+    
+    console.log(`✓ Local tree synced: ${localTree.leaves.length} past leaves loaded\n`);
+  }
   
   // Load on-chain state
+  console.log("");
   const merkleTreeAccount = await program.account.merkleTreeV2.fetch(MERKLE_TREE);
   const startIndex = merkleTreeAccount.nextLeafIndex;
   const onChainRoot = bytes32ToBigint(merkleTreeAccount.currentRoot);
+
+  // 🐛 DEBUG: Verify local tree matches on-chain
+  console.log("\n🐛 DEBUG - Tree State Comparison:");
+  console.log("   Local leaves count:", localTree.leaves.length);
+  const localRoot = localTree.getRoot();
+  console.log("   Local root:   ", localRoot.toString(16).slice(0, 16) + "...");
+  console.log("   On-chain root:", onChainRoot.toString(16).slice(0, 16) + "...");
+  console.log("   Roots match:  ", localRoot === onChainRoot ? "✅ YES" : "❌ NO");
+  if (localRoot !== onChainRoot) {
+    console.log("\n   ❌ ROOT MISMATCH! Preloaded commitment or tree logic is wrong.");
+    console.log("   Expected on-chain root but got different local root.");
+  }
   
   console.log(`✓ On-chain state: nextLeafIndex=${startIndex}, root=${onChainRoot.toString(16).slice(0, 16)}...`);
   

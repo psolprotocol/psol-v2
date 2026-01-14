@@ -28,6 +28,7 @@ import { createHash } from "crypto";
 // @ts-ignore
 const snarkjs = require("snarkjs");
 
+let forceMode = false;
 // ============================================================================
 // CONFIGURATION - FRESH POOL
 // ============================================================================
@@ -97,6 +98,7 @@ let poseidon: any;
 let F: any;
 
 async function initPoseidon(): Promise<void> {
+  // @ts-ignore
   const circomlibjs = await import("circomlibjs");
   poseidon = await circomlibjs.buildPoseidon();
   F = poseidon.F;
@@ -343,8 +345,8 @@ async function processBatch(
   state: SequencerState
 ): Promise<{ processed: boolean; newState: SequencerState }> {
   // Fetch on-chain state
-  const merkleTreeAccount = await program.account.merkleTreeV2.fetch(CONFIG.MERKLE_TREE);
-  const pendingBufferAccount = await program.account.pendingDepositsBuffer.fetch(CONFIG.PENDING_BUFFER);
+  const merkleTreeAccount = await (program.account as any).merkleTreeV2.fetch(CONFIG.MERKLE_TREE);
+  const pendingBufferAccount = await (program.account as any).pendingDepositsBuffer.fetch(CONFIG.PENDING_BUFFER);
 
   const onChainIndex = merkleTreeAccount.nextLeafIndex;
   const onChainRoot = bytes32ToBigint(merkleTreeAccount.currentRoot);
@@ -361,7 +363,7 @@ async function processBatch(
   console.log(`   Leaves: ${localTree.leaves.length}`);
   console.log(`   Root: ${localRoot.toString(16).slice(0, 16)}...`);
 
-  if (localRoot !== onChainRoot) {
+  if (localRoot !== onChainRoot && !forceMode) {
     console.log(`\n⚠️  ROOT MISMATCH - local tree out of sync`);
     console.log(`   Run with --rebuild to sync from chain`);
     return { processed: false, newState: state };
@@ -499,6 +501,7 @@ async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const onceMode = args.includes("--once");
   const rebuildMode = args.includes("--rebuild");
+  forceMode = args.includes("--force");
 
   console.log("═══════════════════════════════════════════════════════════════");
   console.log("           pSOL v2 Production Batch Sequencer                  ");

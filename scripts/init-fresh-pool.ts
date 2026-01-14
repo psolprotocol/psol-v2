@@ -77,9 +77,9 @@ async function main() {
       .initializePoolV2(TREE_DEPTH)
       .accounts({
         authority: authorityKeypair.publicKey,
-        poolConfig: poolConfig,
-        merkleTree: merkleTree,
-        systemProgram: SystemProgram.programId,
+        pool_config: poolConfig,
+        merkle_tree: merkleTree,
+        system_program: SystemProgram.programId,
       })
       .signers([authorityKeypair])
       .rpc();
@@ -93,9 +93,9 @@ async function main() {
       .initializePendingDepositsBuffer()
       .accounts({
         authority: authorityKeypair.publicKey,
-        poolConfig: poolConfig,
-        pendingBuffer: pendingBuffer,
-        systemProgram: SystemProgram.programId,
+        pool_config: poolConfig,
+        pending_buffer: pendingBuffer,
+        system_program: SystemProgram.programId,
       })
       .signers([authorityKeypair])
       .rpc();
@@ -110,9 +110,9 @@ async function main() {
       network: "devnet",
       rpc: HELIUS_RPC,
       programId: PROGRAM_ID.toString(),
-      poolConfig: poolConfig.toString(),
-      merkleTree: merkleTree.toString(),
-      pendingBuffer: pendingBuffer.toString(),
+      pool_config: poolConfig.toString(),
+      merkle_tree: merkleTree.toString(),
+      pending_buffer: pendingBuffer.toString(),
       authority: authorityKeypair.publicKey.toString(),
       treeDepth: TREE_DEPTH,
       timestamp: new Date().toISOString(),
