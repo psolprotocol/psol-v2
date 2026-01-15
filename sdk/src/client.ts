@@ -28,6 +28,7 @@ import {
   findSpentNullifierPda,
   findRelayerRegistryPda,
   findComplianceConfigPda,
+  findPendingBufferPda,
   computeAssetId,
   PROGRAM_ID,
 } from './pda';
@@ -377,6 +378,121 @@ export class PsolV2Client {
         recipientTokenAccount,
         relayerTokenAccount,
         spentNullifier,
+        relayerRegistry,
+        relayerNode: null,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .preInstructions(preInstructions)
+      .rpc();
+
+    return { signature: tx };
+  }
+
+  /**
+   * Withdraw V2 (join-split with change)
+   * Enables partial withdrawals with a change output
+   * 
+   * @param poolConfig - Pool configuration account
+   * @param mint - Token mint address
+   * @param recipient - Recipient address for withdrawn funds
+   * @param amount - Gross withdrawal amount (includes relayer fee)
+   * @param merkleRoot - Merkle root for proof verification
+   * @param nullifierHash0 - Primary nullifier hash
+   * @param nullifierHash1 - Secondary nullifier hash (pass zeros if unused)
+   * @param changeCommitment - Change output commitment
+   * @param proofData - ZK proof bytes (256 bytes)
+   * @param relayerFee - Fee for relayer service
+   */
+  async withdrawV2(
+    poolConfig: PublicKey,
+    mint: PublicKey,
+    recipient: PublicKey,
+    amount: bigint | BN,
+    merkleRoot: Uint8Array,
+    nullifierHash0: Uint8Array,
+    nullifierHash1: Uint8Array,
+    changeCommitment: Uint8Array,
+    proofData: Uint8Array,
+    relayerFee?: bigint | BN
+  ): Promise<{ signature: TransactionSignature }> {
+    const relayer = this.authority;
+    const assetId = computeAssetId(mint);
+
+    // Derive all required PDAs
+    const [merkleTree] = findMerkleTreePda(this.programId, poolConfig);
+    const [assetVault] = findAssetVaultPda(this.programId, poolConfig, assetId);
+    const [vaultTokenAccount] = PublicKey.findProgramAddressSync(
+      [Buffer.from('vault_token'), assetVault.toBuffer()],
+      this.programId
+    );
+    const [withdrawV2Vk] = findVerificationKeyPda(this.programId, poolConfig, ProofType.WithdrawV2);
+    const [spentNullifier0] = findSpentNullifierPda(this.programId, poolConfig, nullifierHash0);
+    const [relayerRegistry] = findRelayerRegistryPda(this.programId, poolConfig);
+    const [pendingBuffer] = findPendingBufferPda(this.programId, poolConfig);
+
+    // Check if second nullifier is used (not all zeros)
+    const hasSecondNullifier = !nullifierHash1.every(byte => byte === 0);
+    const spentNullifier1 = hasSecondNullifier 
+      ? findSpentNullifierPda(this.programId, poolConfig, nullifierHash1)[0]
+      : null;
+
+    const recipientTokenAccount = getAssociatedTokenAddressSync(mint, recipient);
+    const relayerTokenAccount = getAssociatedTokenAddressSync(mint, relayer);
+
+    // Check if recipient token account exists, create if needed
+    const connection = this.provider.connection;
+    const recipientAccountInfo = await connection.getAccountInfo(recipientTokenAccount);
+    const preInstructions: any[] = [];
+    
+    if (!recipientAccountInfo) {
+      const { createAssociatedTokenAccountInstruction } = await import("@solana/spl-token");
+      const createAtaIx = createAssociatedTokenAccountInstruction(
+        relayer,
+        recipientTokenAccount,
+        recipient,
+        mint
+      );
+      preInstructions.push(createAtaIx);
+    }
+
+    // Check if relayer token account exists, create if needed
+    const relayerAccountInfo = await connection.getAccountInfo(relayerTokenAccount);
+    if (!relayerAccountInfo) {
+      const { createAssociatedTokenAccountInstruction } = await import("@solana/spl-token");
+      const createRelayerAtaIx = createAssociatedTokenAccountInstruction(
+        relayer,
+        relayerTokenAccount,
+        relayer,
+        mint
+      );
+      preInstructions.push(createRelayerAtaIx);
+    }
+
+    const tx = await (this.program.methods as any)
+      .withdrawV2(
+        Buffer.from(proofData),
+        Array.from(merkleRoot),
+        Array.from(assetId),
+        Array.from(nullifierHash0),
+        Array.from(nullifierHash1),
+        Array.from(changeCommitment),
+        recipient,
+        toBN(amount),
+        toBN(relayerFee ?? 0n)
+      )
+      .accounts({
+        relayer,
+        poolConfig,
+        merkleTree,
+        vkAccount: withdrawV2Vk,
+        assetVault,
+        vaultTokenAccount,
+        recipientTokenAccount,
+        relayerTokenAccount,
+        spentNullifier0,
+        spentNullifier1,
+        pendingBuffer,
         relayerRegistry,
         relayerNode: null,
         tokenProgram: TOKEN_PROGRAM_ID,

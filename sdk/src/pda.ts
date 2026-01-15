@@ -31,6 +31,8 @@ export const RELAYER_SEED = Buffer.from('relayer');
 
 /** Seed for ComplianceConfig PDA */
 export const COMPLIANCE_SEED = Buffer.from('compliance');
+/** Seed for PendingDepositsBuffer PDA */
+export const PENDING_DEPOSITS_SEED = Buffer.from('pending_deposits');
 
 // ============================================================================
 // PDA DERIVATION FUNCTIONS
@@ -164,6 +166,25 @@ export function findRelayerRegistryPda(
 }
 
 /**
+ * Derive PendingDepositsBuffer PDA address
+ *
+ * Seeds: ["pending_deposits", pool_config]
+ *
+ * @param programId - pSOL v2 program ID
+ * @param poolConfig - Pool configuration public key
+ * @returns [PDA address, bump seed]
+ */
+export function findPendingBufferPda(
+  programId: PublicKey,
+  poolConfig: PublicKey
+): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync(
+    [PENDING_DEPOSITS_SEED, poolConfig.toBuffer()],
+    programId
+  );
+}
+
+/**
  * Derive RelayerNode PDA address
  *
  * Seeds: ["relayer", registry, operator]
@@ -193,6 +214,15 @@ export function findRelayerNodePda(
  * @param poolConfig - Pool configuration account address
  * @returns [PDA address, bump seed]
  */
+/**
+ * Derive ComplianceConfig PDA address
+ *
+ * Seeds: ["compliance", pool_config]
+ *
+ * @param programId - pSOL v2 program ID
+ * @param poolConfig - Pool configuration account address
+ * @returns [PDA address, bump seed]
+ */
 export function findComplianceConfigPda(
   programId: PublicKey,
   poolConfig: PublicKey
@@ -206,6 +236,7 @@ export function findComplianceConfigPda(
 // ============================================================================
 // ASSET ID HELPERS
 // ============================================================================
+
 
 /**
  * Compute asset ID from mint address using keccak256
@@ -308,5 +339,6 @@ export function deriveVerificationKeyPdas(
     [ProofType.Withdraw]: findVerificationKeyPda(programId, poolConfig, ProofType.Withdraw),
     [ProofType.JoinSplit]: findVerificationKeyPda(programId, poolConfig, ProofType.JoinSplit),
     [ProofType.Membership]: findVerificationKeyPda(programId, poolConfig, ProofType.Membership),
+    [ProofType.WithdrawV2]: findVerificationKeyPda(programId, poolConfig, ProofType.WithdrawV2),
   };
 }
