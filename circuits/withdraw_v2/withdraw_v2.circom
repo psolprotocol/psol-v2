@@ -3,7 +3,7 @@
 // 1. Input commitment exists in Merkle tree at merkle_root
 // 2. Nullifier hashes computed correctly
 // 3. Change commitment computed correctly
-// 4. Value conservation: input_amount = withdrawal_amount + change_amount + relayer_fee
+// 4. Value conservation: input_amount = amount + change_amount
 
 pragma circom 2.1.6;
 
@@ -109,10 +109,10 @@ template WithdrawV2(levels) {
     
     // ================================
     // VALUE CONSERVATION
-    // input_amount = amount + change_amount + relayer_fee
+    // input_amount = amount + change_amount
     // ================================
     signal sum_outputs;
-    sum_outputs <== amount + change_amount + relayer_fee;
+    sum_outputs <== amount + change_amount;
     sum_outputs === input_amount;
     
     // ================================
