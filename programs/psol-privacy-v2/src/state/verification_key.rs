@@ -49,6 +49,7 @@ impl VerificationKeyAccountV2 {
             ProofType::JoinSplit => 10,
             ProofType::Membership => 5,
             ProofType::MerkleBatchUpdate => 6,
+            ProofType::WithdrawV2 => 13,
         }
     }
 
@@ -134,6 +135,7 @@ impl VerificationKeyAccountV2 {
             2 => Some(ProofType::JoinSplit),
             3 => Some(ProofType::Membership),
             4 => Some(ProofType::MerkleBatchUpdate),
+            5 => Some(ProofType::WithdrawV2),
             _ => None,
         }
     }

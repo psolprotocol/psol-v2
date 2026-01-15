@@ -266,6 +266,7 @@ pub enum ProofType {
     JoinSplit = 2,
     Membership = 3,
     MerkleBatchUpdate = 4,
+    WithdrawV2 = 5,
 }
 
 impl ProofType {
@@ -276,6 +277,7 @@ impl ProofType {
             ProofType::JoinSplit => b"vk_joinsplit",
             ProofType::Membership => b"vk_membership",
             ProofType::MerkleBatchUpdate => b"vk_merkle_batch",
+            ProofType::WithdrawV2 => b"vk_withdraw_v2",
         }
     }
 }
