@@ -713,6 +713,231 @@ fn u64_to_field(value: u64) -> [u8; 32] {
 // TESTS
 // ============================================================================
 
+
+// ============================================================================
+// WITHDRAW V2 (JOIN-SPLIT WITH CHANGE) PUBLIC INPUTS
+// ============================================================================
+
+/// Public input schema version for withdraw V2 (join-split with change)
+pub const WITHDRAW_V2_SCHEMA_VERSION: u64 = 2;
+
+/// Public inputs for join-split style withdrawal with a change note output.
+///
+/// The withdrawal circuit proves:
+/// - Input commitment was in tree at merkle_root
+/// - Input nullifier hashes are correctly computed
+/// - Output change commitment is correctly formed
+/// - Value conservation: input_amount = withdrawal_amount + change_amount + relayer_fee
+///
+/// # Fields (12 inputs, in order)
+/// 1. schema_version - Versioned schema identifier (WITHDRAW_V2_SCHEMA_VERSION)
+/// 2. merkle_root - Tree root for membership proof
+/// 3. asset_id - Asset being withdrawn
+/// 4. nullifier_hash_0 - First nullifier hash (required)
+/// 5. nullifier_hash_1 - Second nullifier hash (0 if unused)
+/// 6. change_commitment - Commitment for the change output note
+/// 7. recipient - Address receiving withdrawn funds
+/// 8. amount - Withdrawal amount (before fee)
+/// 9. relayer - Relayer address
+/// 10. relayer_fee - Fee paid to relayer
+/// 11. public_data_hash - Optional hash of encrypted metadata
+/// 12. reserved_0 - Reserved field (must be zero; schema-versioned)
+#[derive(Clone, Debug)]
+pub struct WithdrawV2PublicInputs {
+    /// Schema version for explicit ordering
+    pub schema_version: u64,
+
+    /// Merkle root of the commitment tree
+    pub merkle_root: [u8; 32],
+
+    /// Asset identifier
+    pub asset_id: [u8; 32],
+
+    /// Primary nullifier hash (prevents double-spend)
+    pub nullifier_hash_0: [u8; 32],
+
+    /// Optional second nullifier hash (zero if unused)
+    pub nullifier_hash_1: [u8; 32],
+
+    /// Change output commitment
+    pub change_commitment: [u8; 32],
+
+    /// Recipient address (who receives the tokens)
+    pub recipient: Pubkey,
+
+    /// Withdrawal amount (before fee)
+    pub amount: u64,
+
+    /// Relayer address (submits tx on behalf of user)
+    pub relayer: Pubkey,
+
+    /// Fee paid to relayer (deducted from amount)
+    pub relayer_fee: u64,
+
+    /// Optional hash of encrypted metadata (0 if none)
+    pub public_data_hash: [u8; 32],
+
+    /// Reserved (must be zero)
+    pub reserved_0: [u8; 32],
+}
+
+impl WithdrawV2PublicInputs {
+    /// Number of public inputs for withdrawal v2 verification
+    pub const COUNT: usize = 12;
+
+    /// Create new withdrawal v2 public inputs
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        merkle_root: [u8; 32],
+        asset_id: [u8; 32],
+        nullifier_hash_0: [u8; 32],
+        nullifier_hash_1: [u8; 32],
+        change_commitment: [u8; 32],
+        recipient: Pubkey,
+        amount: u64,
+        relayer: Pubkey,
+        relayer_fee: u64,
+        public_data_hash: [u8; 32],
+    ) -> Self {
+        Self {
+            schema_version: WITHDRAW_V2_SCHEMA_VERSION,
+            merkle_root,
+            asset_id,
+            nullifier_hash_0,
+            nullifier_hash_1,
+            change_commitment,
+            recipient,
+            amount,
+            relayer,
+            relayer_fee,
+            public_data_hash,
+            reserved_0: [0u8; 32],
+        }
+    }
+
+    /// Validate withdrawal v2 public inputs
+    pub fn validate(&self) -> Result<()> {
+        use super::is_valid_fr;
+
+        // Schema version must match
+        require!(
+            self.schema_version == WITHDRAW_V2_SCHEMA_VERSION,
+            PrivacyErrorV2::InvalidProof
+        );
+
+        // Canonical Fr validation for all scalar fields
+        require!(
+            is_valid_fr(&self.merkle_root),
+            PrivacyErrorV2::InvalidMerkleRoot
+        );
+        require!(
+            is_valid_fr(&self.asset_id),
+            PrivacyErrorV2::InvalidPublicInputs
+        );
+        require!(
+            is_valid_fr(&self.nullifier_hash_0),
+            PrivacyErrorV2::InvalidNullifier
+        );
+        require!(
+            is_valid_fr(&self.change_commitment),
+            PrivacyErrorV2::InvalidCommitment
+        );
+        require!(
+            is_valid_fr(&self.public_data_hash),
+            PrivacyErrorV2::InvalidPublicInputs
+        );
+        require!(
+            is_valid_fr(&self.reserved_0),
+            PrivacyErrorV2::InvalidPublicInputs
+        );
+
+        // Merkle root cannot be zero
+        require!(
+            !self.merkle_root.iter().all(|&b| b == 0),
+            PrivacyErrorV2::InvalidMerkleRoot
+        );
+
+        // Asset ID cannot be zero
+        require!(
+            !self.asset_id.iter().all(|&b| b == 0),
+            PrivacyErrorV2::AssetNotRegistered
+        );
+
+        // Primary nullifier cannot be zero
+        require!(
+            !self.nullifier_hash_0.iter().all(|&b| b == 0),
+            PrivacyErrorV2::InvalidNullifier
+        );
+
+        // Nullifier uniqueness: nullifier_hash_1 must be zero OR different from nullifier_hash_0
+        let null1_is_zero = self.nullifier_hash_1.iter().all(|&b| b == 0);
+        if !null1_is_zero {
+            require!(
+                is_valid_fr(&self.nullifier_hash_1),
+                PrivacyErrorV2::InvalidNullifier
+            );
+            require!(
+                self.nullifier_hash_1 != self.nullifier_hash_0,
+                PrivacyErrorV2::DuplicateNullifier
+            );
+        }
+
+        // Change commitment cannot be zero
+        require!(
+            !self.change_commitment.iter().all(|&b| b == 0),
+            PrivacyErrorV2::InvalidCommitment
+        );
+
+        // Amount must be positive
+        require!(self.amount > 0, PrivacyErrorV2::InvalidAmount);
+
+        // Fee cannot exceed amount
+        require!(
+            self.relayer_fee <= self.amount,
+            PrivacyErrorV2::RelayerFeeExceedsAmount
+        );
+
+        // Reserved must be zero to avoid ambiguous extensions
+        require!(
+            self.reserved_0.iter().all(|&b| b == 0),
+            PrivacyErrorV2::InvalidProof
+        );
+
+        Ok(())
+    }
+
+    /// Convert to field elements for Groth16 verification
+    /// ORDER MUST MATCH CIRCUIT PUBLIC SIGNALS EXACTLY
+    pub fn to_field_elements(&self) -> Vec<ScalarField> {
+        vec![
+            u64_to_scalar(self.schema_version),
+            self.merkle_root,
+            self.asset_id,
+            self.nullifier_hash_0,
+            self.nullifier_hash_1,
+            self.change_commitment,
+            pubkey_to_scalar(&self.recipient),
+            u64_to_scalar(self.amount),
+            pubkey_to_scalar(&self.relayer),
+            u64_to_scalar(self.relayer_fee),
+            self.public_data_hash,
+            self.reserved_0,
+        ]
+    }
+
+    /// Calculate net amount after fee
+    pub fn net_amount(&self) -> Result<u64> {
+        self.amount
+            .checked_sub(self.relayer_fee)
+            .ok_or_else(|| error!(PrivacyErrorV2::ArithmeticOverflow))
+    }
+
+    /// Check if second nullifier is used
+    pub fn has_second_nullifier(&self) -> bool {
+        !self.nullifier_hash_1.iter().all(|&b| b == 0)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

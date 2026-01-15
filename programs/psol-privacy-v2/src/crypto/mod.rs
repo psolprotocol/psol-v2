@@ -162,8 +162,10 @@ pub use keccak::{
 // ============================================================================
 
 pub use public_inputs::{
+    WITHDRAW_V2_SCHEMA_VERSION,
     DepositPublicInputs,
     WithdrawPublicInputs,
+    WithdrawV2PublicInputs,
     JoinSplitPublicInputs,
     MembershipPublicInputs,
     WithdrawPublicInputsBuilder,
