@@ -40,6 +40,8 @@ export enum ProofType {
   JoinSplit = 2,
   /** Membership proof - proves stake >= threshold without spending */
   Membership = 3,
+  /** Withdraw V2 proof - proves join-split with change output */
+  WithdrawV2 = 5,
 }
 
 /**
@@ -51,6 +53,7 @@ export function proofTypeSeed(proofType: ProofType): Uint8Array {
     [ProofType.Withdraw]: 'vk_withdraw',
     [ProofType.JoinSplit]: 'vk_joinsplit',
     [ProofType.Membership]: 'vk_membership',
+    [ProofType.WithdrawV2]: 'vk_withdraw_v2',
   };
   return Buffer.from(seeds[proofType]);
 }

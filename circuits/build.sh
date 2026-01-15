@@ -32,6 +32,7 @@ compile_circuit() {
 # Compile each circuit
 compile_circuit "deposit" "$CIRCUITS_DIR/deposit/deposit.circom"
 compile_circuit "withdraw" "$CIRCUITS_DIR/withdraw/withdraw.circom"
+compile_circuit "withdraw_v2" "$CIRCUITS_DIR/withdraw_v2/withdraw_v2.circom"
 compile_circuit "membership" "$CIRCUITS_DIR/membership/membership.circom"
 
 echo "=== Build Complete ==="

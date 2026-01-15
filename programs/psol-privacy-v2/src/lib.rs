@@ -34,6 +34,7 @@ pub(crate) use crate::instructions::relayer::update_relayer::__client_accounts_u
 pub(crate) use crate::instructions::set_verification_key_v2::__client_accounts_lock_verification_key_v2;
 pub(crate) use crate::instructions::set_verification_key_v2::__client_accounts_set_verification_key_v2;
 pub(crate) use crate::instructions::withdraw_masp::__client_accounts_withdraw_masp;
+pub(crate) use crate::instructions::withdraw_v2::__client_accounts_withdraw_v2;
 pub(crate) use crate::instructions::set_verification_key_chunked::__client_accounts_initialize_vk_v2;
 pub(crate) use crate::instructions::set_verification_key_chunked::__client_accounts_append_vk_ic_v2;
 pub(crate) use crate::instructions::set_verification_key_chunked::__client_accounts_finalize_vk_v2;
@@ -257,6 +258,34 @@ pub fn register_asset(ctx: Context<RegisterAsset>, asset_id: [u8; 32]) -> Result
             relayer_fee,
         )
     }
+
+    /// Withdraw V2 (join-split with change output)
+    #[allow(clippy::too_many_arguments)]
+    pub fn withdraw_v2(
+        ctx: Context<WithdrawV2>,
+        proof_data: Vec<u8>,
+        merkle_root: [u8; 32],
+        asset_id: [u8; 32],
+        nullifier_hash_0: [u8; 32],
+        nullifier_hash_1: [u8; 32],
+        change_commitment: [u8; 32],
+        recipient: Pubkey,
+        amount: u64,
+        relayer_fee: u64,
+    ) -> Result<()> {
+        instructions::withdraw_v2::handler(
+            ctx,
+            proof_data,
+            merkle_root,
+            asset_id,
+            nullifier_hash_0,
+            nullifier_hash_1,
+            change_commitment,
+            recipient,
+            amount,
+            relayer_fee,
+        )
+    }
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug)]
@@ -266,6 +295,7 @@ pub enum ProofType {
     JoinSplit = 2,
     Membership = 3,
     MerkleBatchUpdate = 4,
+    WithdrawV2 = 5,
 }
 
 impl ProofType {
@@ -276,6 +306,7 @@ impl ProofType {
             ProofType::JoinSplit => b"vk_joinsplit",
             ProofType::Membership => b"vk_membership",
             ProofType::MerkleBatchUpdate => b"vk_merkle_batch",
+            ProofType::WithdrawV2 => b"vk_withdraw_v2",
         }
     }
 }
