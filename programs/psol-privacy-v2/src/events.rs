@@ -207,6 +207,32 @@ pub struct WithdrawMaspEvent {
     pub timestamp: i64,
 }
 
+/// Withdrawal V2 event (join-split with change)
+///
+/// Privacy considerations:
+/// - Does NOT include recipient or amounts (prevents correlation)
+/// - Includes change_commitment for sequencer indexing
+/// - Nullifier hashes are public (spent nullifier tracking)
+#[event]
+pub struct WithdrawV2Event {
+    /// Pool this withdrawal belongs to
+    pub pool: Pubkey,
+    /// Asset identifier
+    pub asset_id: [u8; 32],
+    /// Primary spent nullifier
+    pub nullifier_hash_0: [u8; 32],
+    /// Secondary spent nullifier (0 if unused)
+    pub nullifier_hash_1: [u8; 32],
+    /// Change commitment (for sequencer indexing)
+    pub change_commitment: [u8; 32],
+    /// Merkle root used for proof
+    pub merkle_root: [u8; 32],
+    /// Event timestamp
+    pub timestamp: i64,
+    /// Slot number
+    pub slot: u64,
+}
+
 /// Debug-only withdrawal event with full telemetry.
 ///
 /// # Security Warning

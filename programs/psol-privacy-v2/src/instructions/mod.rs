@@ -9,6 +9,7 @@ pub mod set_verification_key_chunked;
 pub mod batch_process_deposits;
 pub mod deposit_masp;
 pub mod withdraw_masp;
+pub mod withdraw_v2;
 pub mod private_transfer;
 pub mod prove_membership;
 pub mod admin;
@@ -27,6 +28,7 @@ pub use set_verification_key_chunked::{InitializeVkV2, AppendVkIcV2, FinalizeVkV
 pub use batch_process_deposits::BatchProcessDeposits;
 pub use deposit_masp::DepositMasp;
 pub use withdraw_masp::WithdrawMasp;
+pub use withdraw_v2::WithdrawV2;
 pub use private_transfer::PrivateTransferJoinSplit;
 pub use prove_membership::ProveMembership;
 pub use admin::{
