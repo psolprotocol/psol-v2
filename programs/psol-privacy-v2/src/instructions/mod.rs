@@ -40,3 +40,6 @@ pub use relayer::{ConfigureRelayerRegistry, DeactivateRelayer, RegisterRelayer, 
 pub use shielded_cpi::ExecuteShieldedAction;
 pub use initialize_pending_deposits_buffer::*;
 pub use settle_deposits_batch::*;
+
+pub mod withdraw_yield_v2;
+pub use withdraw_yield_v2::WithdrawYieldV2;

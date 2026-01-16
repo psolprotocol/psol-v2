@@ -10,6 +10,10 @@ pub struct PoolConfigV2 {
     pub merkle_tree: Pubkey,
     pub relayer_registry: Pubkey,
     pub compliance_config: Pubkey,
+    
+    /// Yield Mode: relayer that can sign yield withdrawals (5% fee enforcement)
+    pub yield_relayer: Pubkey,
+    
     pub tree_depth: u8,
     pub registered_asset_count: u16,
     pub max_assets: u16,
@@ -17,6 +21,10 @@ pub struct PoolConfigV2 {
     pub is_paused: bool,
     pub vk_configured: u8,
     pub vk_locked: u8,
+    
+    /// Yield Mode: performance fee in basis points (500 = 5%)
+    pub yield_fee_bps: u16,
+    
     pub total_deposits: u64,
     pub total_withdrawals: u64,
     pub total_join_splits: u64,
@@ -25,12 +33,12 @@ pub struct PoolConfigV2 {
     pub last_activity_at: i64,
     pub version: u8,
     pub feature_flags: u8,
-    pub _reserved: [u8; 64],
+    pub _reserved: [u8; 30],
 }
 
 impl PoolConfigV2 {
     pub const LEN: usize =
-        8 + 32 + 32 + 32 + 32 + 32 + 1 + 2 + 2 + 1 + 1 + 1 + 1 + 8 + 8 + 8 + 8 + 8 + 8 + 1 + 1 + 64;
+        8 + 32 + 32 + 32 + 32 + 32 + 32 + 1 + 2 + 2 + 1 + 1 + 1 + 1 + 2 + 8 + 8 + 8 + 8 + 8 + 8 + 1 + 1 + 30;
     pub const VERSION: u8 = 2;
     pub const DEFAULT_MAX_ASSETS: u16 = 100;
     pub const FEATURE_MASP: u8 = 1 << 0;
@@ -38,6 +46,7 @@ impl PoolConfigV2 {
     pub const FEATURE_MEMBERSHIP: u8 = 1 << 2;
     pub const FEATURE_SHIELDED_CPI: u8 = 1 << 3;
     pub const FEATURE_COMPLIANCE: u8 = 1 << 4;
+    pub const YIELD_FEE_BPS: u16 = 500; // 5% performance fee
 
     #[allow(clippy::too_many_arguments)]
     pub fn initialize(
@@ -49,12 +58,15 @@ impl PoolConfigV2 {
         tree_depth: u8,
         bump: u8,
         timestamp: i64,
+        yield_relayer: Pubkey,
     ) {
         self.authority = authority;
         self.pending_authority = Pubkey::default();
         self.merkle_tree = merkle_tree;
         self.relayer_registry = relayer_registry;
         self.compliance_config = compliance_config;
+        self.yield_relayer = yield_relayer;
+        self.yield_fee_bps = Self::YIELD_FEE_BPS;
         self.tree_depth = tree_depth;
         self.registered_asset_count = 0;
         self.max_assets = Self::DEFAULT_MAX_ASSETS;
@@ -72,7 +84,7 @@ impl PoolConfigV2 {
         self.registered_asset_count = 0;
         self.version = Self::VERSION;
         self.feature_flags = Self::FEATURE_MASP;
-        self._reserved = [0u8; 64];
+        self._reserved = [0u8; 30];
     }
 
     #[inline]
@@ -274,6 +286,8 @@ impl PoolConfigV2 {
         self.merkle_tree = merkle_tree;
         self.relayer_registry = Pubkey::default();
         self.compliance_config = Pubkey::default();
+        self.yield_relayer = Pubkey::default();
+        self.yield_fee_bps = Self::YIELD_FEE_BPS;
         self.tree_depth = tree_depth;
         self.total_deposits = 0;
         self.total_withdrawals = 0;
@@ -283,12 +297,19 @@ impl PoolConfigV2 {
         self.last_activity_at = timestamp;
         self.max_assets = Self::DEFAULT_MAX_ASSETS;
         self.registered_asset_count = 0;
-        self._reserved = [0u8; 64];
+        self._reserved = [0u8; 30];
     }
 
-    pub fn set_registries(&mut self, relayer_registry: Pubkey, compliance_config: Pubkey) {
+    pub fn set_registries(
+        &mut self,
+        relayer_registry: Pubkey,
+        compliance_config: Pubkey,
+        yield_relayer: Pubkey,
+    ) {
         self.relayer_registry = relayer_registry;
         self.compliance_config = compliance_config;
+        self.yield_relayer = yield_relayer;
+        self.yield_fee_bps = Self::YIELD_FEE_BPS;
     }
 }
 
