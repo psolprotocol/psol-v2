@@ -62,3 +62,7 @@ export const SDK_VERSION = '2.0.0';
  */
 export const IS_PRODUCTION_READY = false;
 export const SDK_STATUS = "alpha";
+
+// Yield Mode
+export * from './yield';
+export { SUPPORTED_LST_MINTS } from './client';

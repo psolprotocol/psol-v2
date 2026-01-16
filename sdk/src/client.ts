@@ -33,7 +33,15 @@ import {
   PROGRAM_ID,
 } from './pda';
 
+import { jupiterQuoteExactIn, jupiterSwapExactIn } from "./yield/jupiter";
+import { NATIVE_MINT } from "@solana/spl-token";
 /** Default program ID */
+
+/** Supported LST mints for Yield Mode */
+export const SUPPORTED_LST_MINTS = {
+  JitoSOL: new PublicKey("J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn"),
+  mSOL: new PublicKey("mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So"),
+};
 
 
 /**
@@ -540,6 +548,142 @@ export class PsolV2Client {
     } catch {
       return false;
     }
+  }
+
+  // ==========================================================================
+  // YIELD MODE METHODS
+  // ==========================================================================
+
+  /**
+   * Deposit SOL with Yield Mode (swap to LST first)
+   * 
+   * Flow:
+   * 1. Swap SOL -> LST using Jupiter
+   * 2. Deposit LST to pool (existing deposit flow)
+   * 3. Store note metadata with principal SOL amount
+   * 
+   * @param params - Deposit parameters with yield mode options
+   * @returns Swap signature and deposit signature
+   */
+  async depositYieldSol(params: {
+    poolConfig: PublicKey;
+    merkleTree: PublicKey;
+    assetVault: PublicKey;
+    mintLST: PublicKey;
+    amountSolLamports: bigint;
+    slippageBps?: number;
+  }): Promise<{
+    swapSig: string;
+    depositSig: string;
+    lstAmountDeposited: bigint;
+    principalSol: bigint;
+  }> {
+    const slippageBps =
+      params.slippageBps ??
+      Number(process.env.JUPITER_SLIPPAGE_BPS ?? "50");
+
+    const connection = this.provider.connection;
+    const payer = this.provider.publicKey;
+    if (!payer) throw new Error("Provider missing publicKey");
+
+    // 1) Swap SOL -> LST into payer wallet
+    const quote = await jupiterQuoteExactIn({
+      inputMint: NATIVE_MINT,
+      outputMint: params.mintLST,
+      amount: params.amountSolLamports,
+      slippageBps,
+    });
+
+    const { signature: swapSig } = await jupiterSwapExactIn({
+      connection,
+      userPublicKey: payer,
+      quote,
+      signTransaction: async (tx) => {
+        const w: any = this.provider.wallet;
+        if (!w?.signTransaction) {
+          throw new Error("Provider wallet missing signTransaction");
+        }
+        return await w.signTransaction(tx);
+      },
+    });
+
+    const lstAmount = BigInt(quote.outAmount);
+
+    // 2) Deposit received LST into pSOL pool
+    // TODO: Wire to actual deposit method - needs proof generation
+    throw new Error(
+      "depositYieldSol: Proof generation wiring not yet implemented. " +
+      "Need to generate deposit proof and call deposit instruction."
+    );
+  }
+
+  /**
+   * Withdraw with Yield Mode (5% performance fee on positive yield)
+   * 
+   * Flow:
+   * 1. Fetch current LST -> SOL quote
+   * 2. Calculate fee: max(0, current_value - principal) * 0.05
+   * 3. Generate withdraw_v2 proof with relayer_fee
+   * 4. Submit via relayer endpoint (relayer signs)
+   * 
+   * @param params - Withdraw parameters with yield mode options
+   * @returns Withdraw signature and optional swap signature
+   */
+  async withdrawYieldV2(params: {
+    poolConfig: PublicKey;
+    merkleTree: PublicKey;
+    assetVault: PublicKey;
+    mintLST: PublicKey;
+    recipient: PublicKey;
+    amountLstAtomic: bigint;
+    principalSolLamports: bigint;
+    swapToSol?: boolean;
+    slippageBps?: number;
+  }): Promise<{
+    withdrawSig: string;
+    lstAmount: bigint;
+    feeSol: bigint;
+    feeLst: bigint;
+    swapSig?: string;
+  }> {
+    const slippageBps =
+      params.slippageBps ??
+      Number(process.env.JUPITER_SLIPPAGE_BPS ?? "50");
+
+    const connection = this.provider.connection;
+    const payer = this.provider.publicKey;
+    if (!payer) throw new Error("Provider missing publicKey");
+
+    // 1) Get current LST -> SOL quote
+    const quote = await jupiterQuoteExactIn({
+      inputMint: params.mintLST,
+      outputMint: NATIVE_MINT,
+      amount: params.amountLstAtomic,
+      slippageBps,
+    });
+
+    const currentValueSol = BigInt(quote.outAmount);
+
+    // 2) Calculate fee: 5% of positive yield only
+    const yieldSol =
+      currentValueSol > params.principalSolLamports
+        ? currentValueSol - params.principalSolLamports
+        : 0n;
+
+    const feeSol = (yieldSol * 5n) / 100n;
+
+    // 3) Convert fee to LST amount
+    const feeLst =
+      feeSol > 0n
+        ? (feeSol * params.amountLstAtomic) / currentValueSol
+        : 0n;
+
+    // 4) Generate proof and submit via relayer
+    // TODO: Wire to proof generation and relayer submission
+    throw new Error(
+      "withdrawYieldV2: Proof generation and relayer submission not yet implemented. " +
+      `Fee calculation: feeSol=${feeSol}, feeLst=${feeLst}`
+    );
   }
 }
 
