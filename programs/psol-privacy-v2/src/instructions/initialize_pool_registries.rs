@@ -53,6 +53,7 @@ pub fn handler(ctx: Context<InitializePoolRegistries>) -> Result<()> {
     ctx.accounts.pool_config.set_registries(
         ctx.accounts.relayer_registry.key(),
         ctx.accounts.compliance_config.key(),
+        ctx.accounts.authority.key(), // Default yield_relayer to authority
     );
 
     // Initialize relayer registry
