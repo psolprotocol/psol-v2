@@ -288,6 +288,36 @@ pub fn register_asset(ctx: Context<RegisterAsset>, asset_id: [u8; 32]) -> Result
     }
 }
 
+    /// Withdraw Yield V2 - Yield Mode with 5% performance fee
+    ///
+    /// Gated by yield_relayer signer for fee enforcement on positive yield
+    #[allow(clippy::too_many_arguments)]
+    pub fn withdraw_yield_v2(
+        ctx: Context<WithdrawYieldV2>,
+        proof_data: Vec<u8>,
+        merkle_root: [u8; 32],
+        asset_id: [u8; 32],
+        nullifier_hash_0: [u8; 32],
+        nullifier_hash_1: [u8; 32],
+        change_commitment: [u8; 32],
+        recipient: Pubkey,
+        amount: u64,
+        relayer_fee: u64,
+    ) -> Result<()> {
+        withdraw_yield_v2::handler(
+            ctx,
+            proof_data,
+            merkle_root,
+            asset_id,
+            nullifier_hash_0,
+            nullifier_hash_1,
+            change_commitment,
+            recipient,
+            amount,
+            relayer_fee,
+        )
+    }
+
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ProofType {
     Deposit = 0,
