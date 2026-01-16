@@ -61,7 +61,10 @@ pub fn handler(ctx: Context<BatchProcessDeposits>, max_to_process: u16) -> Resul
     // =========================================================================
     // 2. VALIDATE BATCH PARAMETERS
     // =========================================================================
-    require!(!pending_buffer.is_empty(), PrivacyErrorV2::NoPendingDeposits);
+    require!(
+        !pending_buffer.is_empty(),
+        PrivacyErrorV2::NoPendingDeposits
+    );
 
     require!(
         max_to_process > 0 && max_to_process <= MAX_BATCH_SIZE,

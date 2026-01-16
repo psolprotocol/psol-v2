@@ -27,12 +27,12 @@ use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 
 use crate::crypto::WithdrawPublicInputs;
 use crate::error::PrivacyErrorV2;
-use crate::events::WithdrawMaspEvent;
 #[cfg(feature = "event-debug")]
 use crate::events::WithdrawMaspDebugEvent;
+use crate::events::WithdrawMaspEvent;
 use crate::state::{
-    AssetVault, MerkleTreeV2, PoolConfigV2, RelayerNode, RelayerRegistry,
-    SpentNullifierV2, SpendType, VerificationKeyAccountV2,
+    AssetVault, MerkleTreeV2, PoolConfigV2, RelayerNode, RelayerRegistry, SpendType,
+    SpentNullifierV2, VerificationKeyAccountV2, YieldRegistry,
 };
 use crate::ProofType;
 
@@ -100,7 +100,7 @@ pub struct WithdrawMasp<'info> {
     /// Vault's token account (source)
     #[account(
         mut,
-        constraint = vault_token_account.key() == asset_vault.token_account 
+        constraint = vault_token_account.key() == asset_vault.token_account
             @ PrivacyErrorV2::InvalidVaultTokenAccount,
     )]
     pub vault_token_account: Box<Account<'info, TokenAccount>>,
@@ -144,6 +144,9 @@ pub struct WithdrawMasp<'info> {
     /// Relayer node (optional, for registered relayers)
     pub relayer_node: Option<Account<'info, RelayerNode>>,
 
+    /// Optional: Yield registry (for yield asset enforcement)
+    pub yield_registry: Option<Account<'info, YieldRegistry>>,
+
     /// Token program
     pub token_program: Program<'info, Token>,
 
@@ -168,10 +171,7 @@ pub fn handler(
     // =========================================================================
 
     // Validate proof data length (Groth16: 2*G1 + 1*G2 = 256 bytes)
-    require!(
-        proof_data.len() == 256,
-        PrivacyErrorV2::InvalidProofFormat
-    );
+    require!(proof_data.len() == 256, PrivacyErrorV2::InvalidProofFormat);
 
     // Validate amount is above minimum (prevents dust attacks)
     require!(
@@ -217,6 +217,23 @@ pub fn handler(
         PrivacyErrorV2::AssetIdMismatch
     );
 
+    // =========================================================================
+    // YIELD ENFORCEMENT: Reject yield assets in permissionless withdraw
+    // =========================================================================
+    if ctx.accounts.pool_config.is_yield_enforcement_enabled() {
+        // CRITICAL: Require yield_registry when enforcement enabled
+        let yield_registry = ctx
+            .accounts
+            .yield_registry
+            .as_ref()
+            .ok_or(PrivacyErrorV2::YieldRegistryRequired)?;
+
+        require!(
+            !yield_registry.is_yield_asset(&asset_id),
+            PrivacyErrorV2::YieldAssetRequiresYieldExit
+        );
+    }
+
     // Validate sufficient vault balance
     require!(
         ctx.accounts.vault_token_account.amount >= amount,
@@ -234,11 +251,7 @@ pub fn handler(
             &relayer_node_key,
         )?;
 
-
-        require!(
-            relayer_node.is_active,
-            PrivacyErrorV2::RelayerNotActive
-        );
+        require!(relayer_node.is_active, PrivacyErrorV2::RelayerNotActive);
         require!(
             relayer_node.operator == ctx.accounts.relayer.key(),
             PrivacyErrorV2::Unauthorized
@@ -355,7 +368,9 @@ pub fn handler(
     }
 
     // Update asset vault statistics
-    ctx.accounts.asset_vault.record_withdrawal(amount, timestamp)?;
+    ctx.accounts
+        .asset_vault
+        .record_withdrawal(amount, timestamp)?;
 
     // Update pool statistics
     ctx.accounts.pool_config.record_withdrawal(timestamp)?;

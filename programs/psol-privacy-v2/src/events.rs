@@ -579,9 +579,9 @@ pub struct BatchSettledEvent {
 // =========================================================================
 
 /// Emitted for EACH commitment inserted during batch settlement.
-/// 
+///
 /// # Recovery Purpose
-/// 
+///
 /// This event enables deterministic sequencer state recovery:
 /// 1. Query all CommitmentInsertedEvent logs for the pool
 /// 2. Sort by leaf_index

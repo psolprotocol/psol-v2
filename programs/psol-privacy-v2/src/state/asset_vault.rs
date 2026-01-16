@@ -173,18 +173,30 @@ impl AssetVault {
 
     #[inline]
     pub fn require_withdrawals_enabled(&self) -> Result<()> {
-        require!(self.withdrawals_enabled, PrivacyErrorV2::WithdrawalsDisabled);
+        require!(
+            self.withdrawals_enabled,
+            PrivacyErrorV2::WithdrawalsDisabled
+        );
         Ok(())
     }
 
     pub fn validate_deposit_amount(&self, amount: u64) -> Result<()> {
-        require!(amount >= self.min_deposit, PrivacyErrorV2::BelowMinimumDeposit);
-        require!(amount <= self.max_deposit, PrivacyErrorV2::ExceedsMaximumDeposit);
+        require!(
+            amount >= self.min_deposit,
+            PrivacyErrorV2::BelowMinimumDeposit
+        );
+        require!(
+            amount <= self.max_deposit,
+            PrivacyErrorV2::ExceedsMaximumDeposit
+        );
         Ok(())
     }
 
     pub fn validate_withdrawal_amount(&self, amount: u64) -> Result<()> {
-        require!(amount <= self.shielded_balance, PrivacyErrorV2::InsufficientBalance);
+        require!(
+            amount <= self.shielded_balance,
+            PrivacyErrorV2::InsufficientBalance
+        );
         Ok(())
     }
 
@@ -256,7 +268,10 @@ impl AssetVault {
     }
 
     pub fn set_metadata_uri(&mut self, uri: String) -> Result<()> {
-        require!(uri.len() <= MAX_METADATA_URI_LEN, PrivacyErrorV2::InputTooLarge);
+        require!(
+            uri.len() <= MAX_METADATA_URI_LEN,
+            PrivacyErrorV2::InputTooLarge
+        );
         self.metadata_uri = uri;
         Ok(())
     }
@@ -273,11 +288,7 @@ impl AssetVault {
         )
     }
 
-    pub fn seeds<'a>(
-        pool: &'a Pubkey,
-        asset_id: &'a [u8; 32],
-        bump: &'a [u8; 1],
-    ) -> [&'a [u8]; 4] {
+    pub fn seeds<'a>(pool: &'a Pubkey, asset_id: &'a [u8; 32], bump: &'a [u8; 1]) -> [&'a [u8]; 4] {
         [Self::SEED_PREFIX, pool.as_ref(), asset_id.as_ref(), bump]
     }
 }

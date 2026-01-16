@@ -1,5 +1,3 @@
-use anchor_lang::prelude::*;
-
 /// Log a label + current compute units (when cu-debug is enabled).
 /// On non-BPF builds, it only prints the label.
 #[cfg(feature = "cu-debug")]

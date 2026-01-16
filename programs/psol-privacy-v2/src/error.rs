@@ -170,7 +170,6 @@ pub enum PrivacyErrorV2 {
     #[msg("Required account is missing")]
     MissingAccount,
 
-
     #[msg("Relayer token account owner does not match relayer signer")]
     RelayerMismatch,
 
@@ -305,6 +304,27 @@ pub enum PrivacyErrorV2 {
 
     #[msg("Invalid action data")]
     InvalidActionData,
+
+    // ========================================================================
+    // Yield Mode Errors
+    // ========================================================================
+    #[msg("Yield asset must use withdraw_yield_v2 instruction")]
+    YieldAssetRequiresYieldExit,
+
+    #[msg("Maximum yield mints exceeded")]
+    YieldMintsExceeded,
+
+    #[msg("Yield mint already exists in registry")]
+    YieldMintAlreadyExists,
+
+    #[msg("Yield mint not found in registry")]
+    YieldMintNotFound,
+
+    #[msg("Non-yield asset cannot use yield exit")]
+    NonYieldAssetCannotUseYieldExit,
+
+    #[msg("Yield registry required when yield enforcement is enabled")]
+    YieldRegistryRequired,
 }
 
 impl PrivacyErrorV2 {

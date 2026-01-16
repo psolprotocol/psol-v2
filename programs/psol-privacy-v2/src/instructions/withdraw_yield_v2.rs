@@ -10,9 +10,8 @@ use crate::crypto::WithdrawV2PublicInputs;
 use crate::error::PrivacyErrorV2;
 use crate::events::WithdrawV2Event;
 use crate::state::{
-    AssetVault, MerkleTreeV2, PendingDepositsBuffer,
-    PoolConfigV2, RelayerNode, RelayerRegistry, SpentNullifierV2, SpendType,
-    VerificationKeyAccountV2,
+    AssetVault, MerkleTreeV2, PendingDepositsBuffer, PoolConfigV2, RelayerNode, RelayerRegistry,
+    SpendType, SpentNullifierV2, VerificationKeyAccountV2, YieldRegistry,
 };
 use crate::ProofType;
 
@@ -46,7 +45,7 @@ pub struct WithdrawYieldV2<'info> {
         has_one = merkle_tree,
         has_one = relayer_registry,
         // CRITICAL: Relayer must be the authorized yield relayer
-        constraint = relayer.key() == pool_config.yield_relayer 
+        constraint = relayer.key() == pool_config.yield_relayer
             @ PrivacyErrorV2::Unauthorized,
     )]
     pub pool_config: Box<Account<'info, PoolConfigV2>>,
@@ -84,7 +83,7 @@ pub struct WithdrawYieldV2<'info> {
     /// Vault's token account (source)
     #[account(
         mut,
-        constraint = vault_token_account.key() == asset_vault.token_account 
+        constraint = vault_token_account.key() == asset_vault.token_account
             @ PrivacyErrorV2::InvalidVaultTokenAccount,
     )]
     pub vault_token_account: Box<Account<'info, TokenAccount>>,
@@ -140,6 +139,13 @@ pub struct WithdrawYieldV2<'info> {
     pub relayer_node: Option<Account<'info, RelayerNode>>,
 
     /// Token program
+    /// Yield registry (validates yield assets)
+    #[account(
+        seeds = [YieldRegistry::SEED_PREFIX, pool_config.key().as_ref()],
+        bump = yield_registry.bump,
+    )]
+    pub yield_registry: Account<'info, YieldRegistry>,
+
     pub token_program: Program<'info, Token>,
 
     /// System program
@@ -147,7 +153,7 @@ pub struct WithdrawYieldV2<'info> {
 }
 
 /// Handler for withdraw_yield_v2 instruction
-/// 
+///
 /// This reuses withdraw_v2 logic but enforces:
 /// - Relayer must be pool_config.yield_relayer
 /// - Relayer must be a signer
@@ -167,16 +173,13 @@ pub fn handler(
 ) -> Result<()> {
     // NOTE: Relayer signer check is already enforced by Signer<'info> and constraint
     // NOTE: yield_relayer match is already enforced by pool_config constraint
-    
+
     // =========================================================================
     // INPUT VALIDATION (fail fast before any state changes)
     // =========================================================================
 
     // Validate proof data length (Groth16: 2*G1 + 1*G2 = 256 bytes)
-    require!(
-        proof_data.len() == 256,
-        PrivacyErrorV2::InvalidProofFormat
-    );
+    require!(proof_data.len() == 256, PrivacyErrorV2::InvalidProofFormat);
 
     // Validate amount is above minimum
     require!(
@@ -226,6 +229,14 @@ pub fn handler(
     require!(
         asset_id == ctx.accounts.asset_vault.asset_id,
         PrivacyErrorV2::AssetIdMismatch
+    );
+
+    // =========================================================================
+    // YIELD ENFORCEMENT: Require asset must be a yield asset
+    // =========================================================================
+    require!(
+        ctx.accounts.yield_registry.is_yield_asset(&asset_id),
+        PrivacyErrorV2::NonYieldAssetCannotUseYieldExit
     );
 
     // Validate sufficient vault balance
@@ -307,7 +318,9 @@ pub fn handler(
     }
 
     // Add change commitment to pending buffer
-    ctx.accounts.pending_buffer.add_pending(change_commitment, timestamp)?;
+    ctx.accounts
+        .pending_buffer
+        .add_pending(change_commitment, timestamp)?;
 
     // Calculate recipient amount after relayer fee
     let recipient_amount = amount

@@ -1,3 +1,12 @@
+#![allow(clippy::doc_lazy_continuation)]
+#![allow(clippy::unwrap_or_default)]
+#![allow(clippy::explicit_auto_deref)]
+#![allow(clippy::manual_range_contains)]
+#![allow(clippy::items_after_test_module)]
+#![allow(clippy::needless_return)]
+#![allow(clippy::redundant_slicing)]
+#![allow(clippy::nonminimal_bool)]
+
 use anchor_lang::prelude::*;
 
 #[cfg(all(feature = "insecure-dev", not(debug_assertions)))]
@@ -31,13 +40,13 @@ pub(crate) use crate::instructions::relayer::configure_registry::__client_accoun
 pub(crate) use crate::instructions::relayer::deactivate_relayer::__client_accounts_deactivate_relayer;
 pub(crate) use crate::instructions::relayer::register_relayer::__client_accounts_register_relayer;
 pub(crate) use crate::instructions::relayer::update_relayer::__client_accounts_update_relayer;
+pub(crate) use crate::instructions::set_verification_key_chunked::__client_accounts_append_vk_ic_v2;
+pub(crate) use crate::instructions::set_verification_key_chunked::__client_accounts_finalize_vk_v2;
+pub(crate) use crate::instructions::set_verification_key_chunked::__client_accounts_initialize_vk_v2;
 pub(crate) use crate::instructions::set_verification_key_v2::__client_accounts_lock_verification_key_v2;
 pub(crate) use crate::instructions::set_verification_key_v2::__client_accounts_set_verification_key_v2;
 pub(crate) use crate::instructions::withdraw_masp::__client_accounts_withdraw_masp;
 pub(crate) use crate::instructions::withdraw_v2::__client_accounts_withdraw_v2;
-pub(crate) use crate::instructions::set_verification_key_chunked::__client_accounts_initialize_vk_v2;
-pub(crate) use crate::instructions::set_verification_key_chunked::__client_accounts_append_vk_ic_v2;
-pub(crate) use crate::instructions::set_verification_key_chunked::__client_accounts_finalize_vk_v2;
 
 #[program]
 pub mod psol_privacy_v2 {
@@ -55,14 +64,13 @@ pub mod psol_privacy_v2 {
         instructions::initialize_pool_registries::handler(ctx)
     }
 
-    
     pub fn initialize_pending_deposits_buffer(
         ctx: Context<InitializePendingDepositsBuffer>,
     ) -> Result<()> {
         instructions::initialize_pending_deposits_buffer::handler(ctx)
     }
 
-pub fn register_asset(ctx: Context<RegisterAsset>, asset_id: [u8; 32]) -> Result<()> {
+    pub fn register_asset(ctx: Context<RegisterAsset>, asset_id: [u8; 32]) -> Result<()> {
         instructions::register_asset::handler(ctx, asset_id)
     }
 
@@ -125,10 +133,7 @@ pub fn register_asset(ctx: Context<RegisterAsset>, asset_id: [u8; 32]) -> Result
     }
 
     /// Finalize VK after all IC points uploaded (chunked upload step 3)
-    pub fn finalize_vk_v2(
-        ctx: Context<FinalizeVkV2>,
-        proof_type: ProofType,
-    ) -> Result<()> {
+    pub fn finalize_vk_v2(ctx: Context<FinalizeVkV2>, proof_type: ProofType) -> Result<()> {
         instructions::set_verification_key_chunked::finalize_vk_handler(ctx, proof_type)
     }
 
@@ -288,35 +293,50 @@ pub fn register_asset(ctx: Context<RegisterAsset>, asset_id: [u8; 32]) -> Result
     }
 }
 
-    /// Withdraw Yield V2 - Yield Mode with 5% performance fee
-    ///
-    /// Gated by yield_relayer signer for fee enforcement on positive yield
-    #[allow(clippy::too_many_arguments)]
-    pub fn withdraw_yield_v2(
-        ctx: Context<WithdrawYieldV2>,
-        proof_data: Vec<u8>,
-        merkle_root: [u8; 32],
-        asset_id: [u8; 32],
-        nullifier_hash_0: [u8; 32],
-        nullifier_hash_1: [u8; 32],
-        change_commitment: [u8; 32],
-        recipient: Pubkey,
-        amount: u64,
-        relayer_fee: u64,
-    ) -> Result<()> {
-        withdraw_yield_v2::handler(
-            ctx,
-            proof_data,
-            merkle_root,
-            asset_id,
-            nullifier_hash_0,
-            nullifier_hash_1,
-            change_commitment,
-            recipient,
-            amount,
-            relayer_fee,
-        )
-    }
+/// Withdraw Yield V2 - Yield Mode with 5% performance fee
+///
+/// Gated by yield_relayer signer for fee enforcement on positive yield
+#[allow(clippy::too_many_arguments)]
+pub fn withdraw_yield_v2(
+    ctx: Context<WithdrawYieldV2>,
+    proof_data: Vec<u8>,
+    merkle_root: [u8; 32],
+    asset_id: [u8; 32],
+    nullifier_hash_0: [u8; 32],
+    nullifier_hash_1: [u8; 32],
+    change_commitment: [u8; 32],
+    recipient: Pubkey,
+    amount: u64,
+    relayer_fee: u64,
+) -> Result<()> {
+    withdraw_yield_v2::handler(
+        ctx,
+        proof_data,
+        merkle_root,
+        asset_id,
+        nullifier_hash_0,
+        nullifier_hash_1,
+        change_commitment,
+        recipient,
+        amount,
+        relayer_fee,
+    )
+}
+
+/// Initialize Yield Registry
+pub fn init_yield_registry(ctx: Context<InitYieldRegistry>) -> Result<()> {
+    init_yield_registry::handler(ctx)
+}
+
+/// Add a yield mint to the registry
+pub fn add_yield_mint(ctx: Context<ManageYieldMints>, mint: Pubkey) -> Result<()> {
+    manage_yield_mints::add_yield_mint(ctx, mint)
+}
+
+/// Remove a yield mint from the registry
+pub fn remove_yield_mint(ctx: Context<ManageYieldMints>, mint: Pubkey) -> Result<()> {
+    manage_yield_mints::remove_yield_mint(ctx, mint)
+}
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ProofType {

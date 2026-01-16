@@ -72,10 +72,16 @@ pub fn handler(ctx: Context<RegisterAsset>, asset_id: [u8; 32]) -> Result<()> {
 
     // Redundant with the account constraint, but keeps safety if constraint is edited later.
     let expected_asset_id = crate::state::asset_vault::compute_asset_id(&ctx.accounts.mint.key());
-    require!(asset_id == expected_asset_id, PrivacyErrorV2::InvalidAssetId);
+    require!(
+        asset_id == expected_asset_id,
+        PrivacyErrorV2::InvalidAssetId
+    );
 
     // Verify pool can register more assets
-    require!(pool_config.can_register_asset(), PrivacyErrorV2::TooManyAssets);
+    require!(
+        pool_config.can_register_asset(),
+        PrivacyErrorV2::TooManyAssets
+    );
 
     let timestamp = Clock::get()?.unix_timestamp;
     let vault_bump = ctx.bumps.asset_vault;

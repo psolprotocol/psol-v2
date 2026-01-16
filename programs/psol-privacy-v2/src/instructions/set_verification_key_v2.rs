@@ -55,14 +55,11 @@ pub fn handler(
 
     // SECURITY: Check VK is not locked in pool config
     pool_config.require_vk_unlocked(proof_type)?;
-    
+
     // SECURITY: Defense-in-depth - also check the VK account's own lock flag
     // This catches cases where pool_config and vk_account get out of sync
     if vk_account.is_initialized {
-        require!(
-            !vk_account.is_locked,
-            PrivacyErrorV2::VerificationKeyLocked
-        );
+        require!(!vk_account.is_locked, PrivacyErrorV2::VerificationKeyLocked);
     }
 
     // Validate IC length matches expected for proof type

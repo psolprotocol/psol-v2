@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! BN254 (alt_bn128) Elliptic Curve Operations
 //!
 //! On Solana: Uses native syscalls (sol_alt_bn128_group_op) for ~100x cheaper computation.
@@ -34,7 +35,7 @@
 use crate::error::PrivacyErrorV2;
 use anchor_lang::prelude::*;
 
-use super::field::{BN254_FP_MODULUS, be_subtract, is_g1_identity};
+use super::field::{be_subtract, is_g1_identity, BN254_FP_MODULUS};
 
 // ============================================================================
 // SYSCALL CONSTANTS - MUST MATCH SOLANA'S alt_bn128 INTERFACE
@@ -75,9 +76,8 @@ pub fn g1_add(a: &[u8; 64], b: &[u8; 64]) -> Result<[u8; 64]> {
     input[64..128].copy_from_slice(b);
 
     let mut result = [0u8; 64];
-    let ret = unsafe {
-        sol_alt_bn128_group_op(ALT_BN128_ADD, input.as_ptr(), 128, result.as_mut_ptr())
-    };
+    let ret =
+        unsafe { sol_alt_bn128_group_op(ALT_BN128_ADD, input.as_ptr(), 128, result.as_mut_ptr()) };
 
     if ret != 0 {
         return Err(PrivacyErrorV2::CryptographyError.into());
@@ -97,9 +97,8 @@ pub fn g1_mul(point: &[u8; 64], scalar: &[u8; 32]) -> Result<[u8; 64]> {
     // No padding: exactly 96 bytes
 
     let mut result = [0u8; 64];
-    let ret = unsafe {
-        sol_alt_bn128_group_op(ALT_BN128_MUL, input.as_ptr(), 96, result.as_mut_ptr())
-    };
+    let ret =
+        unsafe { sol_alt_bn128_group_op(ALT_BN128_MUL, input.as_ptr(), 96, result.as_mut_ptr()) };
 
     if ret != 0 {
         return Err(PrivacyErrorV2::CryptographyError.into());
@@ -213,9 +212,9 @@ fn bytes_to_g2(bytes: &[u8; 128]) -> Option<G2Affine> {
     // G2 encoding: x1 || x0 || y1 || y0 (imaginary part first, then real)
     // This matches snarkjs/Ethereum BN254 serialization format.
     // Fq2 = c0 + c1*u where u² = -1, so c1 is imaginary, c0 is real
-    let x_c1 = bytes_to_fq(bytes[0..32].try_into().unwrap())?;   // x imaginary
-    let x_c0 = bytes_to_fq(bytes[32..64].try_into().unwrap())?;  // x real
-    let y_c1 = bytes_to_fq(bytes[64..96].try_into().unwrap())?;  // y imaginary
+    let x_c1 = bytes_to_fq(bytes[0..32].try_into().unwrap())?; // x imaginary
+    let x_c0 = bytes_to_fq(bytes[32..64].try_into().unwrap())?; // x real
+    let y_c1 = bytes_to_fq(bytes[64..96].try_into().unwrap())?; // y imaginary
     let y_c0 = bytes_to_fq(bytes[96..128].try_into().unwrap())?; // y real
     let x = Fq2::new(x_c0, x_c1);
     let y = Fq2::new(y_c0, y_c1);
@@ -264,7 +263,7 @@ pub fn pairing_check_4(pairs: &[[u8; 192]; 4]) -> Result<bool> {
 
     // Compute multi-pairing: e(g1[0], g2[0]) * e(g1[1], g2[1]) * ...
     let result = Bn254::multi_pairing(&g1_points, &g2_points);
-    
+
     // Check if result is identity element in GT
     Ok(result.is_zero())
 }
@@ -291,7 +290,7 @@ pub fn g1_negate(point: &[u8; 64]) -> Result<[u8; 64]> {
 
     // y' = p - y (using Fp modulus)
     let y: &[u8; 32] = point[32..64].try_into().unwrap();
-    
+
     // CRITICAL: if y == 0, then -y = 0 (not p, which is non-canonical)
     if y.iter().all(|&b| b == 0) {
         // y' = 0
@@ -324,14 +323,11 @@ mod tests {
 
     // G1 generator point (1, 2)
     const G1_GEN: [u8; 64] = [
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x02,
     ];
 
     #[test]
@@ -397,7 +393,7 @@ mod tests {
         let mut two = [0u8; 32];
         two[31] = 2;
         let double = g1_mul(&G1_GEN, &two).unwrap();
-        
+
         // Verify it's on the curve by checking G + G = 2G
         let add_result = g1_add(&G1_GEN, &G1_GEN).unwrap();
         assert_eq!(double, add_result);
@@ -410,17 +406,18 @@ mod tests {
         // Construct a point with y=0 (not a real curve point, but tests the logic)
         let mut point_with_y_zero = [0u8; 64];
         point_with_y_zero[31] = 1; // x = 1
-        // y = 0 (already all zeros in bytes 32..64)
-        
+                                   // y = 0 (already all zeros in bytes 32..64)
+
         let negated = g1_negate(&point_with_y_zero).unwrap();
-        
+
         // y' must be 0, NOT p
         let y_prime: &[u8; 32] = negated[32..64].try_into().unwrap();
         assert!(
             y_prime.iter().all(|&b| b == 0),
-            "g1_negate(y=0) must return y'=0, not p. Got: {:?}", y_prime
+            "g1_negate(y=0) must return y'=0, not p. Got: {:?}",
+            y_prime
         );
-        
+
         // Verify it's NOT equal to p (the bug we're preventing)
         assert_ne!(y_prime, &BN254_FP_MODULUS);
     }
@@ -433,32 +430,32 @@ mod tests {
     fn test_pairing_identity_verifies_g2_encoding() {
         use ark_bn254::{G1Affine, G2Affine};
         use ark_ec::AffineRepr;
-        
+
         // Get arkworks generator points
         let g1 = G1Affine::generator();
         let g2 = G2Affine::generator();
-        
+
         // Convert to our byte format
         let g1_bytes = g1_to_bytes(g1);
         let g2_bytes = g2_to_bytes(g2);
-        
+
         // Compute -G1
         let neg_g1_bytes = g1_negate(&g1_bytes).unwrap();
-        
+
         // Build pairing check: e(G1, G2) * e(-G1, G2) = e(G1, G2) * e(G1, G2)^(-1) = 1
         // We need 4 pairs, so pad with identity pairs
         let identity_g1 = [0u8; 64];
         let identity_g2 = [0u8; 128];
-        
+
         let pairs: [[u8; 192]; 4] = [
-            make_pairing_element(&g1_bytes, &g2_bytes),      // e(G1, G2)
-            make_pairing_element(&neg_g1_bytes, &g2_bytes),  // e(-G1, G2)
+            make_pairing_element(&g1_bytes, &g2_bytes), // e(G1, G2)
+            make_pairing_element(&neg_g1_bytes, &g2_bytes), // e(-G1, G2)
             make_pairing_element(&identity_g1, &identity_g2), // identity
             make_pairing_element(&identity_g1, &identity_g2), // identity
         ];
-        
+
         let result = pairing_check_4(&pairs).expect("pairing check failed");
-        
+
         assert!(
             result,
             "Pairing identity e(G1,G2)*e(-G1,G2)=1 failed. \
@@ -471,26 +468,24 @@ mod tests {
     /// This matches snarkjs/Ethereum BN254 serialization format.
     #[cfg(not(any(target_os = "solana", target_arch = "bpf")))]
     fn g2_to_bytes(point: G2Affine) -> [u8; 128] {
-        use ark_ff::PrimeField;
-        
         if point.is_zero() {
             return [0u8; 128];
         }
-        
+
         let mut bytes = [0u8; 128];
-        
+
         // Fq2 = c0 + c1*u where u² = -1, so c1 is imaginary, c0 is real
         // Output layout: x_c1 || x_c0 || y_c1 || y_c0 (imaginary first!)
         let x_c0 = point.x.c0; // real
         let x_c1 = point.x.c1; // imaginary
         let y_c0 = point.y.c0; // real
         let y_c1 = point.y.c1; // imaginary
-        
-        bytes[0..32].copy_from_slice(&fq_to_bytes(x_c1));   // x imaginary
-        bytes[32..64].copy_from_slice(&fq_to_bytes(x_c0));  // x real
-        bytes[64..96].copy_from_slice(&fq_to_bytes(y_c1));  // y imaginary
+
+        bytes[0..32].copy_from_slice(&fq_to_bytes(x_c1)); // x imaginary
+        bytes[32..64].copy_from_slice(&fq_to_bytes(x_c0)); // x real
+        bytes[64..96].copy_from_slice(&fq_to_bytes(y_c1)); // y imaginary
         bytes[96..128].copy_from_slice(&fq_to_bytes(y_c0)); // y real
-        
+
         bytes
     }
 }

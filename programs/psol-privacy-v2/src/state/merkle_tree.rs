@@ -164,6 +164,7 @@ impl MerkleTreeV2 {
     ///
     /// # Returns
     /// Vector of zero hashes for each level (length = depth + 1)
+    #[allow(dead_code)]
     fn compute_zero_values(depth: u8) -> Result<Vec<[u8; 32]>> {
         let mut zeros = Vec::with_capacity((depth + 1) as usize);
 
@@ -234,7 +235,8 @@ impl MerkleTreeV2 {
             } else {
                 // Left child: update filled_subtree, hash with zero
                 self.filled_subtrees[level_usize] = current_hash;
-                current_hash = crate::crypto::hash_two_to_one(&current_hash, &self.zeros[level_usize])?;
+                current_hash =
+                    crate::crypto::hash_two_to_one(&current_hash, &self.zeros[level_usize])?;
             }
         }
 
@@ -283,7 +285,7 @@ impl MerkleTreeV2 {
         if root.iter().all(|&b| b == 0) {
             return false;
         }
-        
+
         // Check current root first (most common case)
         if *root == self.current_root {
             return true;

@@ -3,8 +3,10 @@ use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
 
 use crate::crypto::DepositPublicInputs;
 use crate::error::PrivacyErrorV2;
+use crate::state::{
+    AssetVault, MerkleTreeV2, PendingDepositsBuffer, PoolConfigV2, VerificationKeyAccountV2,
+};
 use crate::utils::cu;
-use crate::state::{AssetVault, MerkleTreeV2, PoolConfigV2, VerificationKeyAccountV2, PendingDepositsBuffer};
 use crate::ProofType;
 
 /// Accounts required for a MASP deposit.
@@ -51,7 +53,6 @@ pub struct DepositMasp<'info> {
         constraint = pending_buffer.pool == pool_config.key() @ PrivacyErrorV2::InvalidPoolReference,
     )]
     pub pending_buffer: Box<Account<'info, PendingDepositsBuffer>>,
-
 
     /// Asset vault configuration for this asset
     #[account(
@@ -120,7 +121,7 @@ pub fn handler(
     // IMPORTANT:
     // - ctx.accounts.pool_config is Box<Account<PoolConfigV2>> so it has `.key()`
     // - after deref, PoolConfigV2 itself does NOT have `.key()`
-    let pool_key = ctx.accounts.pool_config.key();
+    let _pool_key = ctx.accounts.pool_config.key();
 
     // Deref Box<Account<...>> to inner mutable account data for updates.
     let pool_config: &mut PoolConfigV2 = &mut *ctx.accounts.pool_config;
@@ -146,7 +147,10 @@ pub fn handler(
     require!(proof_data.len() == 256, PrivacyErrorV2::InvalidProofFormat);
     cu("deposit: after proof len");
 
-    require!(asset_vault.asset_id == asset_id, PrivacyErrorV2::AssetIdMismatch);
+    require!(
+        asset_vault.asset_id == asset_id,
+        PrivacyErrorV2::AssetIdMismatch
+    );
 
     require!(!merkle_tree.is_full(), PrivacyErrorV2::MerkleTreeFull);
 
@@ -195,7 +199,7 @@ pub fn handler(
     // Ensure the Merkle tree can eventually fit all pending + this new deposit
     let available = merkle_tree.available_space() as usize;
     let pending = pending_buffer.size();
-    require!(available >= pending + 1, PrivacyErrorV2::MerkleTreeFull);
+    require!(available > pending, PrivacyErrorV2::MerkleTreeFull);
 
     cu("deposit: before pending_buffer.add_pending");
     let pending_index = pending_buffer.add_pending(commitment, timestamp)?;
@@ -210,7 +214,7 @@ pub fn handler(
     asset_vault.record_deposit(amount, timestamp)?;
     pool_config.record_deposit(timestamp)?;
 
-        msg!(
+    msg!(
         "MASP deposit queued: pending_index={}, pending_count={}",
         pending_index,
         pending_count
@@ -231,7 +235,9 @@ mod tests {
 #[cfg(any(target_os = "solana", target_arch = "bpf"))]
 #[inline(always)]
 fn log_cu() {
-    unsafe { sol_log_compute_units_(); }
+    unsafe {
+        sol_log_compute_units_();
+    }
 }
 
 #[cfg(any(target_os = "solana", target_arch = "bpf"))]

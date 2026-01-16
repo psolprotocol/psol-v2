@@ -10,10 +10,10 @@ pub struct PoolConfigV2 {
     pub merkle_tree: Pubkey,
     pub relayer_registry: Pubkey,
     pub compliance_config: Pubkey,
-    
+
     /// Yield Mode: relayer that can sign yield withdrawals (5% fee enforcement)
     pub yield_relayer: Pubkey,
-    
+
     pub tree_depth: u8,
     pub registered_asset_count: u16,
     pub max_assets: u16,
@@ -21,10 +21,10 @@ pub struct PoolConfigV2 {
     pub is_paused: bool,
     pub vk_configured: u8,
     pub vk_locked: u8,
-    
+
     /// Yield Mode: performance fee in basis points (500 = 5%)
     pub yield_fee_bps: u16,
-    
+
     pub total_deposits: u64,
     pub total_withdrawals: u64,
     pub total_join_splits: u64,
@@ -37,8 +37,30 @@ pub struct PoolConfigV2 {
 }
 
 impl PoolConfigV2 {
-    pub const LEN: usize =
-        8 + 32 + 32 + 32 + 32 + 32 + 32 + 1 + 2 + 2 + 1 + 1 + 1 + 1 + 2 + 8 + 8 + 8 + 8 + 8 + 8 + 1 + 1 + 30;
+    pub const LEN: usize = 8
+        + 32
+        + 32
+        + 32
+        + 32
+        + 32
+        + 32
+        + 1
+        + 2
+        + 2
+        + 1
+        + 1
+        + 1
+        + 1
+        + 2
+        + 8
+        + 8
+        + 8
+        + 8
+        + 8
+        + 8
+        + 1
+        + 1
+        + 30;
     pub const VERSION: u8 = 2;
     pub const DEFAULT_MAX_ASSETS: u16 = 100;
     pub const FEATURE_MASP: u8 = 1 << 0;
@@ -46,6 +68,7 @@ impl PoolConfigV2 {
     pub const FEATURE_MEMBERSHIP: u8 = 1 << 2;
     pub const FEATURE_SHIELDED_CPI: u8 = 1 << 3;
     pub const FEATURE_COMPLIANCE: u8 = 1 << 4;
+    pub const FEATURE_YIELD_ENFORCEMENT: u8 = 1 << 5;
     pub const YIELD_FEE_BPS: u16 = 500; // 5% performance fee
 
     #[allow(clippy::too_many_arguments)]
@@ -220,6 +243,11 @@ impl PoolConfigV2 {
         Ok(())
     }
 
+    /// Check if yield enforcement is enabled
+    pub fn is_yield_enforcement_enabled(&self) -> bool {
+        (self.feature_flags & Self::FEATURE_YIELD_ENFORCEMENT) != 0
+    }
+
     #[inline]
     pub fn set_paused(&mut self, paused: bool) {
         self.is_paused = paused;
@@ -337,6 +365,8 @@ mod tests {
             merkle_tree: Pubkey::default(),
             relayer_registry: Pubkey::default(),
             compliance_config: Pubkey::default(),
+            yield_relayer: Pubkey::default(),
+            yield_fee_bps: 500,
             tree_depth: 20,
             registered_asset_count: 0,
             max_assets: 100,
@@ -352,7 +382,7 @@ mod tests {
             last_activity_at: 0,
             version: 2,
             feature_flags: 0,
-            _reserved: [0u8; 64],
+            _reserved: [0u8; 30],
         };
 
         assert!(!config.is_vk_configured(ProofType::Withdraw));
@@ -373,6 +403,8 @@ mod tests {
             merkle_tree: Pubkey::default(),
             relayer_registry: Pubkey::default(),
             compliance_config: Pubkey::default(),
+            yield_relayer: Pubkey::default(),
+            yield_fee_bps: 500,
             tree_depth: 20,
             registered_asset_count: 0,
             max_assets: 100,
@@ -388,7 +420,7 @@ mod tests {
             last_activity_at: 0,
             version: 2,
             feature_flags: PoolConfigV2::FEATURE_MASP,
-            _reserved: [0u8; 64],
+            _reserved: [0u8; 30],
         };
 
         assert!(config.is_feature_enabled(PoolConfigV2::FEATURE_MASP));

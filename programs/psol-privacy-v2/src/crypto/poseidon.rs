@@ -1,3 +1,4 @@
+#![allow(clippy::identity_op)]
 //! Poseidon (circomlib) for BN254 scalar field, Solana/BPF-safe.
 //!
 //! Key properties:
@@ -11,7 +12,7 @@
 //! - All mix functions are #[inline(never)] to prevent frame bloat
 //! - Constants accessed by reference, never copied
 //! - Permutation functions are #[inline(never)]
-use ark_ff::{BigInteger, Field, PrimeField, AdditiveGroup};
+use ark_ff::{AdditiveGroup, BigInteger, Field, PrimeField};
 
 include!("poseidon_bn254_constants_fr.in.rs");
 
@@ -199,7 +200,7 @@ fn mix_s_t3(state: &mut [Fr; 3], s_chunk: &[Fr]) {
     // state[1] = in1 + in0*S[3]
     let mut new1 = in1;
     acc_term(&mut new1, &s_chunk[3], in0);
-    
+
     // state[2] = in2 + in0*S[4]
     let mut new2 = in2;
     acc_term(&mut new2, &s_chunk[4], in0);
@@ -224,10 +225,10 @@ fn mix_s_t4(state: &mut [Fr; 4], s_chunk: &[Fr]) {
 
     let mut new1 = in1;
     acc_term(&mut new1, &s_chunk[4], in0);
-    
+
     let mut new2 = in2;
     acc_term(&mut new2, &s_chunk[5], in0);
-    
+
     let mut new3 = in3;
     acc_term(&mut new3, &s_chunk[6], in0);
 
@@ -254,13 +255,13 @@ fn mix_s_t5(state: &mut [Fr; 5], s_chunk: &[Fr]) {
 
     let mut new1 = in1;
     acc_term(&mut new1, &s_chunk[5], in0);
-    
+
     let mut new2 = in2;
     acc_term(&mut new2, &s_chunk[6], in0);
-    
+
     let mut new3 = in3;
     acc_term(&mut new3, &s_chunk[7], in0);
-    
+
     let mut new4 = in4;
     acc_term(&mut new4, &s_chunk[8], in0);
 
@@ -329,7 +330,7 @@ fn sbox_full_t5(state: &mut [Fr; 5]) {
 
 // =============================================================================
 // PERMUTATION FUNCTIONS
-// 
+//
 // circomlibjs round structure (nRoundsF=8):
 // 1. Initial ARK: state += C[0..t]
 // 2. First half - 1 (3 rounds): SBOX → ARK → MIX(M)
@@ -364,7 +365,7 @@ fn poseidon_ex_t3(a: Fr, b: Fr) -> Fr {
     for r in 0..N_ROUNDS_P_T3 {
         state[0] = sigma5(state[0]);
         state[0] += C_T3[c_part_base + r];
-mix_s_t3(&mut state, &S_T3[r * (t * 2 - 1)..]);
+        mix_s_t3(&mut state, &S_T3[r * (t * 2 - 1)..]);
     }
 
     // 5. Second half - 1 (3 rounds with M)
@@ -403,7 +404,7 @@ fn poseidon_ex_t4(a: Fr, b: Fr, c: Fr) -> Fr {
     for r in 0..N_ROUNDS_P_T4 {
         state[0] = sigma5(state[0]);
         state[0] += C_T4[c_part_base + r];
-mix_s_t4(&mut state, &S_T4[r * (t * 2 - 1)..]);
+        mix_s_t4(&mut state, &S_T4[r * (t * 2 - 1)..]);
     }
 
     let c_full2_base = c_part_base + N_ROUNDS_P_T4;
@@ -440,7 +441,7 @@ fn poseidon_ex_t5(a: Fr, b: Fr, c: Fr, d: Fr) -> Fr {
     for r in 0..N_ROUNDS_P_T5 {
         state[0] = sigma5(state[0]);
         state[0] += C_T5[c_part_base + r];
-mix_s_t5(&mut state, &S_T5[r * (t * 2 - 1)..]);
+        mix_s_t5(&mut state, &S_T5[r * (t * 2 - 1)..]);
     }
 
     let c_full2_base = c_part_base + N_ROUNDS_P_T5;
@@ -460,8 +461,8 @@ mix_s_t5(&mut state, &S_T5[r * (t * 2 - 1)..]);
 // Public API
 // =============================================================================
 
-use anchor_lang::prelude::*;
 use crate::error::PrivacyErrorV2;
+use anchor_lang::prelude::*;
 
 pub type Scalar = [u8; 32];
 pub const IS_PLACEHOLDER: bool = false;
@@ -624,7 +625,9 @@ mod tests {
 
     #[test]
     fn test_not_placeholder() {
-        assert!(!IS_PLACEHOLDER);
+        #[inline(never)]
+        fn is_placeholder_runtime() -> bool { IS_PLACEHOLDER }
+        assert!(!is_placeholder_runtime());
     }
 
     #[test]
@@ -632,10 +635,9 @@ mod tests {
         let zero = [0u8; 32];
         let hash = poseidon2(&zero, &zero).unwrap();
         let expected = [
-            0x20, 0x98, 0xf5, 0xfb, 0x9e, 0x23, 0x9e, 0xab,
-            0x3c, 0xea, 0xc3, 0xf2, 0x7b, 0x81, 0xe4, 0x81,
-            0xdc, 0x31, 0x24, 0xd5, 0x5f, 0xfe, 0xd5, 0x23,
-            0xa8, 0x39, 0xee, 0x84, 0x46, 0xb6, 0x48, 0x64,
+            0x20, 0x98, 0xf5, 0xfb, 0x9e, 0x23, 0x9e, 0xab, 0x3c, 0xea, 0xc3, 0xf2, 0x7b, 0x81,
+            0xe4, 0x81, 0xdc, 0x31, 0x24, 0xd5, 0x5f, 0xfe, 0xd5, 0x23, 0xa8, 0x39, 0xee, 0x84,
+            0x46, 0xb6, 0x48, 0x64,
         ];
         assert_eq!(hash, expected, "Poseidon2(0,0) mismatch");
     }
@@ -646,10 +648,9 @@ mod tests {
         let two = scalar_from_u64(2);
         let hash = poseidon2(&one, &two).unwrap();
         let expected = [
-            0x11, 0x5c, 0xc0, 0xf5, 0xe7, 0xd6, 0x90, 0x41,
-            0x3d, 0xf6, 0x4c, 0x6b, 0x96, 0x62, 0xe9, 0xcf,
-            0x2a, 0x36, 0x17, 0xf2, 0x74, 0x32, 0x45, 0x51,
-            0x9e, 0x19, 0x60, 0x7a, 0x44, 0x17, 0x18, 0x9a,
+            0x11, 0x5c, 0xc0, 0xf5, 0xe7, 0xd6, 0x90, 0x41, 0x3d, 0xf6, 0x4c, 0x6b, 0x96, 0x62,
+            0xe9, 0xcf, 0x2a, 0x36, 0x17, 0xf2, 0x74, 0x32, 0x45, 0x51, 0x9e, 0x19, 0x60, 0x7a,
+            0x44, 0x17, 0x18, 0x9a,
         ];
         assert_eq!(hash, expected, "Poseidon2(1,2) mismatch");
     }
@@ -661,10 +662,9 @@ mod tests {
         let three = scalar_from_u64(3);
         let hash = poseidon3(&one, &two, &three).unwrap();
         let expected = [
-            0x0e, 0x77, 0x32, 0xd8, 0x9e, 0x69, 0x39, 0xc0,
-            0xff, 0x03, 0xd5, 0xe5, 0x8d, 0xab, 0x63, 0x02,
-            0xf3, 0x23, 0x0e, 0x26, 0x9d, 0xc5, 0xb9, 0x68,
-            0xf7, 0x25, 0xdf, 0x34, 0xab, 0x36, 0xd7, 0x32,
+            0x0e, 0x77, 0x32, 0xd8, 0x9e, 0x69, 0x39, 0xc0, 0xff, 0x03, 0xd5, 0xe5, 0x8d, 0xab,
+            0x63, 0x02, 0xf3, 0x23, 0x0e, 0x26, 0x9d, 0xc5, 0xb9, 0x68, 0xf7, 0x25, 0xdf, 0x34,
+            0xab, 0x36, 0xd7, 0x32,
         ];
         assert_eq!(hash, expected, "Poseidon3(1,2,3) mismatch");
     }
@@ -677,10 +677,9 @@ mod tests {
         let four = scalar_from_u64(4);
         let hash = poseidon4(&one, &two, &three, &four).unwrap();
         let expected = [
-            0x29, 0x9c, 0x86, 0x7d, 0xb6, 0xc1, 0xfd, 0xd7,
-            0x9d, 0xce, 0xfa, 0x40, 0xe4, 0x51, 0x0b, 0x98,
-            0x37, 0xe6, 0x0e, 0xbb, 0x1c, 0xe0, 0x66, 0x3d,
-            0xba, 0xa5, 0x25, 0xdf, 0x65, 0x25, 0x04, 0x65,
+            0x29, 0x9c, 0x86, 0x7d, 0xb6, 0xc1, 0xfd, 0xd7, 0x9d, 0xce, 0xfa, 0x40, 0xe4, 0x51,
+            0x0b, 0x98, 0x37, 0xe6, 0x0e, 0xbb, 0x1c, 0xe0, 0x66, 0x3d, 0xba, 0xa5, 0x25, 0xdf,
+            0x65, 0x25, 0x04, 0x65,
         ];
         assert_eq!(hash, expected, "Poseidon4(1,2,3,4) mismatch");
     }
@@ -690,10 +689,9 @@ mod tests {
         let zero = [0u8; 32];
         let hash = poseidon4(&zero, &zero, &zero, &zero).unwrap();
         let expected = [
-            0x05, 0x32, 0xfd, 0x43, 0x6e, 0x19, 0xc7, 0x0e,
-            0x51, 0x20, 0x96, 0x94, 0xd9, 0xc2, 0x15, 0x25,
-            0x09, 0x37, 0x92, 0x1b, 0x8b, 0x79, 0x06, 0x04,
-            0x88, 0xc1, 0x20, 0x6d, 0xb7, 0x3e, 0x99, 0x46,
+            0x05, 0x32, 0xfd, 0x43, 0x6e, 0x19, 0xc7, 0x0e, 0x51, 0x20, 0x96, 0x94, 0xd9, 0xc2,
+            0x15, 0x25, 0x09, 0x37, 0x92, 0x1b, 0x8b, 0x79, 0x06, 0x04, 0x88, 0xc1, 0x20, 0x6d,
+            0xb7, 0x3e, 0x99, 0x46,
         ];
         assert_eq!(hash, expected, "Poseidon4(0,0,0,0) mismatch");
     }

@@ -50,7 +50,7 @@ pub fn initialize_vk_handler(
 
     // Check VK is not locked
     pool_config.require_vk_unlocked(proof_type)?;
-    
+
     if vk_account.is_initialized {
         require!(!vk_account.is_locked, PrivacyErrorV2::VerificationKeyLocked);
     }
@@ -75,7 +75,11 @@ pub fn initialize_vk_handler(
     vk_account.is_locked = false;
     vk_account.bump = ctx.bumps.vk_account;
 
-    msg!("Initialized VK for {:?}, expecting {} IC points", proof_type, expected_ic_count);
+    msg!(
+        "Initialized VK for {:?}, expecting {} IC points",
+        proof_type,
+        expected_ic_count
+    );
 
     Ok(())
 }
@@ -106,7 +110,10 @@ pub fn append_vk_ic_handler(
     let vk_account = &mut ctx.accounts.vk_account;
 
     require!(!vk_account.is_locked, PrivacyErrorV2::VerificationKeyLocked);
-    require!(!vk_account.is_initialized, PrivacyErrorV2::VkAlreadyFinalized);
+    require!(
+        !vk_account.is_initialized,
+        PrivacyErrorV2::VkAlreadyFinalized
+    );
 
     // Check we won't exceed expected count
     let new_len = vk_account.vk_ic.len() + ic_points.len();
@@ -120,7 +127,11 @@ pub fn append_vk_ic_handler(
         vk_account.vk_ic.push(ic);
     }
 
-    msg!("Appended IC points, now have {}/{}", vk_account.vk_ic.len(), vk_account.vk_ic_len);
+    msg!(
+        "Appended IC points, now have {}/{}",
+        vk_account.vk_ic.len(),
+        vk_account.vk_ic_len
+    );
 
     Ok(())
 }
@@ -146,15 +157,15 @@ pub struct FinalizeVkV2<'info> {
 }
 
 /// Finalize VK after all IC points are uploaded
-pub fn finalize_vk_handler(
-    ctx: Context<FinalizeVkV2>,
-    proof_type: ProofType,
-) -> Result<()> {
+pub fn finalize_vk_handler(ctx: Context<FinalizeVkV2>, proof_type: ProofType) -> Result<()> {
     let pool_config = &mut ctx.accounts.pool_config;
     let vk_account = &mut ctx.accounts.vk_account;
 
     require!(!vk_account.is_locked, PrivacyErrorV2::VerificationKeyLocked);
-    require!(!vk_account.is_initialized, PrivacyErrorV2::VkAlreadyFinalized);
+    require!(
+        !vk_account.is_initialized,
+        PrivacyErrorV2::VkAlreadyFinalized
+    );
 
     // Verify all IC points are present
     require!(
@@ -182,7 +193,11 @@ pub fn finalize_vk_handler(
         timestamp,
     });
 
-    msg!("Finalized VK for {:?} with {} IC points", proof_type, vk_account.vk_ic_len);
+    msg!(
+        "Finalized VK for {:?} with {} IC points",
+        proof_type,
+        vk_account.vk_ic_len
+    );
 
     Ok(())
 }

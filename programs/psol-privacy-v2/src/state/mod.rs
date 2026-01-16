@@ -24,3 +24,6 @@ pub use merkle_tree::{
 
 pub use compliance::{AuditMetadata, MAX_ENCRYPTED_METADATA_LEN};
 pub use relayer::MAX_RELAYER_METADATA_URI_LEN;
+
+pub mod yield_registry;
+pub use yield_registry::YieldRegistry;

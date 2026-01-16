@@ -17,9 +17,8 @@ use crate::crypto::WithdrawV2PublicInputs;
 use crate::error::PrivacyErrorV2;
 use crate::events::WithdrawV2Event;
 use crate::state::{
-    AssetVault, MerkleTreeV2, PendingDepositsBuffer,
-    PoolConfigV2, RelayerNode, RelayerRegistry, SpentNullifierV2, SpendType,
-    VerificationKeyAccountV2,
+    AssetVault, MerkleTreeV2, PendingDepositsBuffer, PoolConfigV2, RelayerNode, RelayerRegistry,
+    SpendType, SpentNullifierV2, VerificationKeyAccountV2, YieldRegistry,
 };
 use crate::ProofType;
 
@@ -89,7 +88,7 @@ pub struct WithdrawV2<'info> {
     /// Vault's token account (source)
     #[account(
         mut,
-        constraint = vault_token_account.key() == asset_vault.token_account 
+        constraint = vault_token_account.key() == asset_vault.token_account
             @ PrivacyErrorV2::InvalidVaultTokenAccount,
     )]
     pub vault_token_account: Box<Account<'info, TokenAccount>>,
@@ -145,6 +144,9 @@ pub struct WithdrawV2<'info> {
     /// Relayer node (optional, for registered relayers)
     pub relayer_node: Option<Account<'info, RelayerNode>>,
 
+    /// Optional: Yield registry (for yield asset enforcement)
+    pub yield_registry: Option<Account<'info, YieldRegistry>>,
+
     /// Token program
     pub token_program: Program<'info, Token>,
 
@@ -171,10 +173,7 @@ pub fn handler(
     // =========================================================================
 
     // Validate proof data length (Groth16: 2*G1 + 1*G2 = 256 bytes)
-    require!(
-        proof_data.len() == 256,
-        PrivacyErrorV2::InvalidProofFormat
-    );
+    require!(proof_data.len() == 256, PrivacyErrorV2::InvalidProofFormat);
 
     // Validate amount is above minimum
     require!(
@@ -239,6 +238,23 @@ pub fn handler(
         PrivacyErrorV2::AssetIdMismatch
     );
 
+    // =========================================================================
+    // YIELD ENFORCEMENT: Reject yield assets in permissionless withdraw
+    // =========================================================================
+    if ctx.accounts.pool_config.is_yield_enforcement_enabled() {
+        // CRITICAL: Require yield_registry when enforcement enabled
+        let yield_registry = ctx
+            .accounts
+            .yield_registry
+            .as_ref()
+            .ok_or(PrivacyErrorV2::YieldRegistryRequired)?;
+
+        require!(
+            !yield_registry.is_yield_asset(&asset_id),
+            PrivacyErrorV2::YieldAssetRequiresYieldExit
+        );
+    }
+
     // Validate sufficient vault balance
     require!(
         ctx.accounts.vault_token_account.amount >= amount,
@@ -254,10 +270,7 @@ pub fn handler(
             &relayer_node_key,
         )?;
 
-        require!(
-            relayer_node.is_active,
-            PrivacyErrorV2::RelayerNotActive
-        );
+        require!(relayer_node.is_active, PrivacyErrorV2::RelayerNotActive);
         require!(
             relayer_node.operator == ctx.accounts.relayer.key(),
             PrivacyErrorV2::Unauthorized
@@ -344,7 +357,9 @@ pub fn handler(
 
     // Add change commitment to pending buffer
 
-    ctx.accounts.pending_buffer.add_pending(change_commitment, timestamp)?;
+    ctx.accounts
+        .pending_buffer
+        .add_pending(change_commitment, timestamp)?;
 
     // Calculate recipient amount after relayer fee
     let recipient_amount = amount

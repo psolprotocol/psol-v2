@@ -1,5 +1,5 @@
 //! Settle Deposits Batch - Production-grade off-chain proof verification
-//! 
+//!
 //! Replaces on-chain Merkle insertion (which exceeds CU limits) with
 //! off-chain proof generation + on-chain verification.
 //!
@@ -10,12 +10,12 @@
 //! 4. This instruction verifies proof and updates state
 
 use anchor_lang::prelude::*;
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 
+use crate::crypto::groth16::{verify, Proof, VerificationKey};
 use crate::error::PrivacyErrorV2;
 use crate::events::{BatchSettledEvent, CommitmentInsertedEvent};
 use crate::state::{MerkleTreeV2, PendingDepositsBuffer, PoolConfigV2, VerificationKeyAccountV2};
-use crate::crypto::groth16::{Proof, VerificationKey, verify};
 use crate::ProofType;
 
 /// Maximum batch size must match circuit's maxBatch parameter
@@ -96,7 +96,7 @@ fn sha256_to_field(hash: &[u8; 32]) -> [u8; 32] {
 fn compute_commitments_hash(commitments: &[[u8; 32]], batch_size: usize) -> [u8; 32] {
     // Create fixed-size buffer matching circuit (16 * 32 = 512 bytes)
     let mut buffer = vec![0u8; MAX_BATCH_SIZE * 32];
-    
+
     // Copy active commitments
     for (i, commitment) in commitments.iter().enumerate() {
         if i >= batch_size {
@@ -104,10 +104,10 @@ fn compute_commitments_hash(commitments: &[[u8; 32]], batch_size: usize) -> [u8;
         }
         buffer[i * 32..(i + 1) * 32].copy_from_slice(commitment);
     }
-    
+
     // SHA256 the entire buffer (matching circuit)
     let hash = Sha256::digest(&buffer);
-    
+
     {
         let mut h = [0u8; 32];
         h.copy_from_slice(&hash);
@@ -129,9 +129,12 @@ pub fn handler(ctx: Context<SettleDepositsBatch>, args: SettleDepositsBatchArgs)
     // 1. VALIDATE BATCH SIZE
     // =========================================================================
     let batch_size = args.batch_size as usize;
-    
+
     require!(batch_size > 0, PrivacyErrorV2::InvalidBatchSize);
-    require!(batch_size <= MAX_BATCH_SIZE, PrivacyErrorV2::InvalidBatchSize);
+    require!(
+        batch_size <= MAX_BATCH_SIZE,
+        PrivacyErrorV2::InvalidBatchSize
+    );
     require!(
         batch_size <= pending_buffer.size(),
         PrivacyErrorV2::InvalidBatchSize
@@ -154,14 +157,11 @@ pub fn handler(ctx: Context<SettleDepositsBatch>, args: SettleDepositsBatchArgs)
     // 3. GET COMMITMENTS AND COMPUTE HASH
     // =========================================================================
     let pending_deposits = pending_buffer.prepare_batch(batch_size as u16);
-    let commitments: Vec<[u8; 32]> = pending_deposits
-        .iter()
-        .map(|d| d.commitment)
-        .collect();
+    let commitments: Vec<[u8; 32]> = pending_deposits.iter().map(|d| d.commitment).collect();
 
     // Compute sha256 hash matching circuit encoding
     let commitments_sha256 = compute_commitments_hash(&commitments, batch_size);
-    
+
     // Convert to field element (take lower 253 bits)
     let commitments_hash_field = sha256_to_field(&commitments_sha256);
 
@@ -184,7 +184,7 @@ pub fn handler(ctx: Context<SettleDepositsBatch>, args: SettleDepositsBatchArgs)
     // 5. VERIFY GROTH16 PROOF
     // =========================================================================
     let proof = Proof::from_bytes(&args.proof)?;
-    
+
     let vk = VerificationKey::from_account(
         &vk_account.vk_alpha_g1,
         &vk_account.vk_beta_g2,
@@ -203,15 +203,16 @@ pub fn handler(ctx: Context<SettleDepositsBatch>, args: SettleDepositsBatchArgs)
     // =========================================================================
     // Update root
     merkle_tree.current_root = args.new_root;
-    
+
     // Update next leaf index
     merkle_tree.next_leaf_index = start_index + batch_size as u32;
-    
+
     // Add to root history
     // Add to root history (circular buffer)
     let history_idx = merkle_tree.root_history_index as usize;
     merkle_tree.root_history[history_idx] = args.new_root;
-    merkle_tree.root_history_index = (merkle_tree.root_history_index + 1) % merkle_tree.root_history_size;
+    merkle_tree.root_history_index =
+        (merkle_tree.root_history_index + 1) % merkle_tree.root_history_size;
 
     // =========================================================================
     // 6b. EMIT PER-COMMITMENT EVENTS (RECOVERY LOG)
@@ -297,7 +298,7 @@ mod tests {
         let commitment = [0x42u8; 32];
         let commitments = vec![commitment];
         let hash = compute_commitments_hash(&commitments, 1);
-        
+
         // Should be non-zero
         assert!(hash.iter().any(|&b| b != 0));
     }

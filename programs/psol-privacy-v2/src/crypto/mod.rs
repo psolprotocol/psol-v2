@@ -14,12 +14,12 @@
 //! G2 points: 128 bytes (x_c0 || x_c1 || y_c0 || y_c1)
 
 // Core modules
-pub mod field;
 pub mod alt_bn128;
-pub mod poseidon;
-pub mod precomputed_zeros;
+pub mod field;
 pub mod groth16;
 pub mod keccak;
+pub mod poseidon;
+pub mod precomputed_zeros;
 pub mod public_inputs;
 
 // NOTE: Poseidon vector tests are in tests/poseidon_vectors_test.rs (integration test)
@@ -36,11 +36,8 @@ pub mod public_inputs;
 // ============================================================================
 
 pub use field::{
-    BN254_FP_MODULUS, BN254_FR_MODULUS,
-    is_valid_fp, is_valid_fr,
-    validate_fp, validate_fr,
-    is_zero, is_g1_identity,
-    be_subtract, u64_to_be32,
+    be_subtract, is_g1_identity, is_valid_fp, is_valid_fr, is_zero, u64_to_be32, validate_fp,
+    validate_fr, BN254_FP_MODULUS, BN254_FR_MODULUS,
 };
 
 // Backward compatibility aliases
@@ -51,10 +48,7 @@ pub const BN254_SCALAR_MODULUS: [u8; 32] = BN254_FR_MODULUS;
 // RE-EXPORTS: alt_bn128
 // ============================================================================
 
-pub use alt_bn128::{
-    g1_add, g1_mul, g1_negate,
-    make_pairing_element, pairing_check_4,
-};
+pub use alt_bn128::{g1_add, g1_mul, g1_negate, make_pairing_element, pairing_check_4};
 
 // Backward compatibility
 pub fn verify_pairing(elements: &[[u8; 192]; 4]) -> anchor_lang::prelude::Result<bool> {
@@ -66,14 +60,10 @@ pub fn verify_pairing(elements: &[[u8; 192]; 4]) -> anchor_lang::prelude::Result
 // ============================================================================
 
 pub use poseidon::{
-    poseidon2, poseidon3, poseidon4,
-    compute_commitment, compute_nullifier_hash, verify_commitment,
-    hash_two_to_one, poseidon_hash_3, poseidon_hash_4,
-    is_zero as is_zero_hash, empty_leaf_hash,
-    is_canonical_fr, is_valid_scalar as poseidon_is_valid_scalar,
-    is_placeholder_implementation, IS_PLACEHOLDER,
-    u64_to_scalar_be,
-    Scalar as PoseidonScalarField,
+    compute_commitment, compute_nullifier_hash, empty_leaf_hash, hash_two_to_one, is_canonical_fr,
+    is_placeholder_implementation, is_valid_scalar as poseidon_is_valid_scalar,
+    is_zero as is_zero_hash, poseidon2, poseidon3, poseidon4, poseidon_hash_3, poseidon_hash_4,
+    u64_to_scalar_be, verify_commitment, Scalar as PoseidonScalarField, IS_PLACEHOLDER,
 };
 
 // ============================================================================
@@ -81,15 +71,27 @@ pub use poseidon::{
 // ============================================================================
 
 pub use groth16::{
-    verify, verify_with_dev_mode,
-    verify_deposit, verify_withdraw,
-    Proof, VerificationKey, ProofType,
-    is_dev_mode, PROOF_SIZE, MAX_PUBLIC_INPUTS,
-    G1Point, G2Point, Scalar,
+    is_dev_mode,
+    verify,
+    verify_deposit,
+    verify_deposit_proof,
+    verify_groth16,
+    verify_groth16_with_dev_mode,
+    verify_joinsplit_proof,
+    verify_membership_proof,
+    verify_with_dev_mode,
+    verify_withdraw,
+    verify_withdraw_proof,
+    G1Point,
+    G2Point,
     // Legacy aliases
-    Groth16Proof, verify_groth16, verify_groth16_with_dev_mode,
-    verify_deposit_proof, verify_withdraw_proof,
-    verify_joinsplit_proof, verify_membership_proof,
+    Groth16Proof,
+    Proof,
+    ProofType,
+    Scalar,
+    VerificationKey,
+    MAX_PUBLIC_INPUTS,
+    PROOF_SIZE,
 };
 
 // Re-export verify_proof_from_account from this module
@@ -133,13 +135,8 @@ pub fn verify_proof_from_account(
     proof_bytes: &[u8],
     public_inputs: &[Scalar],
 ) -> anchor_lang::prelude::Result<bool> {
-    let vk = VerificationKey::from_account(
-        vk_alpha_g1,
-        vk_beta_g2,
-        vk_gamma_g2,
-        vk_delta_g2,
-        vk_ic,
-    );
+    let vk =
+        VerificationKey::from_account(vk_alpha_g1, vk_beta_g2, vk_gamma_g2, vk_delta_g2, vk_ic);
     let proof = Proof::from_bytes(proof_bytes)?;
     verify(&vk, &proof, public_inputs)
 }
@@ -149,12 +146,8 @@ pub fn verify_proof_from_account(
 // ============================================================================
 
 pub use keccak::{
-    keccak256,
+    derive_asset_id, derive_asset_id_u32, hash_commitment, hash_verification_key, keccak256,
     keccak256_concat,
-    derive_asset_id,
-    derive_asset_id_u32,
-    hash_verification_key,
-    hash_commitment,
 };
 
 // ============================================================================
@@ -162,16 +155,9 @@ pub use keccak::{
 // ============================================================================
 
 pub use public_inputs::{
-    WITHDRAW_V2_SCHEMA_VERSION,
-    DepositPublicInputs,
-    WithdrawPublicInputs,
-    WithdrawV2PublicInputs,
-    JoinSplitPublicInputs,
-    MembershipPublicInputs,
-    WithdrawPublicInputsBuilder,
-    JoinSplitPublicInputsBuilder,
-    MAX_JS_INPUTS,
-    MAX_JS_OUTPUTS,
+    DepositPublicInputs, JoinSplitPublicInputs, JoinSplitPublicInputsBuilder,
+    MembershipPublicInputs, WithdrawPublicInputs, WithdrawPublicInputsBuilder,
+    WithdrawV2PublicInputs, MAX_JS_INPUTS, MAX_JS_OUTPUTS, WITHDRAW_V2_SCHEMA_VERSION,
 };
 
 // ============================================================================
@@ -186,14 +172,10 @@ pub const G2_IDENTITY: G2Point = [0u8; 128];
 
 /// G1 generator point (1, 2)
 pub const G1_GENERATOR: G1Point = [
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
 ];
 
 pub type ScalarField = Scalar;

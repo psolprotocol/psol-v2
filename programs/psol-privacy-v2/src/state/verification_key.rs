@@ -211,6 +211,10 @@ impl From<&VerificationKeyAccountV2> for VerificationKeyV2 {
 
 impl VerificationKeyV2 {
     pub fn num_public_inputs(&self) -> usize {
-        if self.ic.is_empty() { 0 } else { self.ic.len() - 1 }
+        if self.ic.is_empty() {
+            0
+        } else {
+            self.ic.len() - 1
+        }
     }
 }
