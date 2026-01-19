@@ -46,6 +46,10 @@ pub(crate) use crate::instructions::set_verification_key_chunked::__client_accou
 pub(crate) use crate::instructions::set_verification_key_v2::__client_accounts_lock_verification_key_v2;
 pub(crate) use crate::instructions::set_verification_key_v2::__client_accounts_set_verification_key_v2;
 pub(crate) use crate::instructions::withdraw_masp::__client_accounts_withdraw_masp;
+pub(crate) use crate::instructions::withdraw_yield_v2::__client_accounts_withdraw_yield_v2;
+pub(crate) use crate::instructions::init_yield_registry::__client_accounts_init_yield_registry;
+pub(crate) use crate::instructions::manage_yield_mints::__client_accounts_manage_yield_mints;
+pub(crate) use crate::instructions::set_feature_flags::__client_accounts_set_feature_flags;
 pub(crate) use crate::instructions::withdraw_v2::__client_accounts_withdraw_v2;
 
 #[program]
@@ -291,53 +295,63 @@ pub mod psol_privacy_v2 {
             relayer_fee,
         )
     }
-}
 
-/// Withdraw Yield V2 - Yield Mode with 5% performance fee
-///
-/// Gated by yield_relayer signer for fee enforcement on positive yield
-#[allow(clippy::too_many_arguments)]
-pub fn withdraw_yield_v2(
-    ctx: Context<WithdrawYieldV2>,
-    proof_data: Vec<u8>,
-    merkle_root: [u8; 32],
-    asset_id: [u8; 32],
-    nullifier_hash_0: [u8; 32],
-    nullifier_hash_1: [u8; 32],
-    change_commitment: [u8; 32],
-    recipient: Pubkey,
-    amount: u64,
-    relayer_fee: u64,
-) -> Result<()> {
-    withdraw_yield_v2::handler(
-        ctx,
-        proof_data,
-        merkle_root,
-        asset_id,
-        nullifier_hash_0,
-        nullifier_hash_1,
-        change_commitment,
-        recipient,
-        amount,
-        relayer_fee,
-    )
-}
+    /// Withdraw Yield V2 - Yield Mode with 5% performance fee
+    ///
+    /// Gated by yield_relayer signer for fee enforcement on positive yield
+    #[allow(clippy::too_many_arguments)]
+    pub fn withdraw_yield_v2(
+        ctx: Context<WithdrawYieldV2>,
+        proof_data: Vec<u8>,
+        merkle_root: [u8; 32],
+        asset_id: [u8; 32],
+        nullifier_hash_0: [u8; 32],
+        nullifier_hash_1: [u8; 32],
+        change_commitment: [u8; 32],
+        recipient: Pubkey,
+        amount: u64,
+        relayer_fee: u64,
+    ) -> Result<()> {
+        instructions::withdraw_yield_v2::handler(
+            ctx,
+            proof_data,
+            merkle_root,
+            asset_id,
+            nullifier_hash_0,
+            nullifier_hash_1,
+            change_commitment,
+            recipient,
+            amount,
+            relayer_fee,
+        )
+    }
 
-/// Initialize Yield Registry
-pub fn init_yield_registry(ctx: Context<InitYieldRegistry>) -> Result<()> {
-    init_yield_registry::handler(ctx)
-}
+    /// Initialize Yield Registry
+    pub fn init_yield_registry(ctx: Context<InitYieldRegistry>) -> Result<()> {
+        instructions::init_yield_registry::handler(ctx)
+    }
 
-/// Add a yield mint to the registry
-pub fn add_yield_mint(ctx: Context<ManageYieldMints>, mint: Pubkey) -> Result<()> {
-    manage_yield_mints::add_yield_mint(ctx, mint)
-}
+    /// Add a yield mint to the registry
+    pub fn add_yield_mint(ctx: Context<ManageYieldMints>, mint: Pubkey) -> Result<()> {
+        instructions::manage_yield_mints::add_yield_mint(ctx, mint)
+    }
 
-/// Remove a yield mint from the registry
-pub fn remove_yield_mint(ctx: Context<ManageYieldMints>, mint: Pubkey) -> Result<()> {
-    manage_yield_mints::remove_yield_mint(ctx, mint)
-}
+    /// Remove a yield mint from the registry
+    pub fn remove_yield_mint(ctx: Context<ManageYieldMints>, mint: Pubkey) -> Result<()> {
+        instructions::manage_yield_mints::remove_yield_mint(ctx, mint)
+    }
 
+    /// Enable a feature flag (authority only)
+    pub fn enable_feature(ctx: Context<SetFeatureFlags>, feature: u8) -> Result<()> {
+        instructions::set_feature_flags::enable_feature(ctx, feature)
+    }
+
+    /// Disable a feature flag (authority only)
+    pub fn disable_feature(ctx: Context<SetFeatureFlags>, feature: u8) -> Result<()> {
+        instructions::set_feature_flags::disable_feature(ctx, feature)
+    }
+
+}
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ProofType {
     Deposit = 0,

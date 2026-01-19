@@ -50,3 +50,6 @@ pub use init_yield_registry::InitYieldRegistry;
 
 pub mod manage_yield_mints;
 pub use manage_yield_mints::ManageYieldMints;
+
+pub mod set_feature_flags;
+pub use set_feature_flags::SetFeatureFlags;

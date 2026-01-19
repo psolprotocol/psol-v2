@@ -1,0 +1,72 @@
+# pSOL v2 Relayer Configuration
+# Copy this to .env and fill in your values
+
+# =============================================================================
+# REQUIRED
+# =============================================================================
+
+# Relayer wallet keypair (JSON array of secret key bytes)
+# Generate with: solana-keygen new -o relayer-keypair.json
+# Then: cat relayer-keypair.json
+RELAYER_KEYPAIR=[1,2,3,...]
+
+# Or use file path instead:
+# RELAYER_KEYPAIR_PATH=/path/to/relayer-keypair.json
+
+# =============================================================================
+# NETWORK
+# =============================================================================
+
+# Solana RPC endpoint
+RPC_ENDPOINT=https://api.devnet.solana.com
+
+# Or use Helius for better performance:
+# RPC_ENDPOINT=https://devnet.helius-rpc.com/?api-key=YOUR_API_KEY
+
+# =============================================================================
+# PROGRAM CONFIGURATION
+# =============================================================================
+
+# pSOL v2 program ID (devnet)
+PROGRAM_ID=BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb
+
+# Pool configuration account
+POOL_CONFIG=GZiRVMV7FjrGxjE379HiEyHyVCisHkFnjMJen95kEVEQ
+
+# Merkle tree depth
+TREE_DEPTH=20
+
+# =============================================================================
+# RELAYER SETTINGS
+# =============================================================================
+
+# Server port
+PORT=3001
+
+# Fee in basis points (50 = 0.5%)
+FEE_BPS=50
+
+# Withdrawal limits (in lamports)
+MIN_WITHDRAWAL=1000000
+MAX_WITHDRAWAL=1000000000000
+
+# Supported asset IDs (comma-separated hex strings)
+# Leave empty to support all assets
+SUPPORTED_ASSETS=
+
+# =============================================================================
+# CIRCUIT PATHS
+# =============================================================================
+
+# Path to compiled circuits directory
+CIRCUITS_PATH=./circuits/build
+
+# Path to withdraw verification key
+WITHDRAW_VK_PATH=./circuits/build/withdraw_vk.json
+
+# =============================================================================
+# CORS
+# =============================================================================
+
+# Allowed origins (use * for development, specific domains for production)
+CORS_ORIGIN=*

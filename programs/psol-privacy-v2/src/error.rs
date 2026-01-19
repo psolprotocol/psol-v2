@@ -325,6 +325,10 @@ pub enum PrivacyErrorV2 {
 
     #[msg("Yield registry required when yield enforcement is enabled")]
     YieldRegistryRequired,
+    #[msg("Invalid feature flag")]
+    InvalidFeatureFlag,
+    #[msg("Cannot disable core feature")]
+    CannotDisableCoreFeature,
 }
 
 impl PrivacyErrorV2 {

@@ -325,6 +325,7 @@ impl PoolConfigV2 {
         self.last_activity_at = timestamp;
         self.max_assets = Self::DEFAULT_MAX_ASSETS;
         self.registered_asset_count = 0;
+        self.feature_flags = Self::FEATURE_MASP;
         self._reserved = [0u8; 30];
     }
 
