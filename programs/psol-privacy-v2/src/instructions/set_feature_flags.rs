@@ -9,13 +9,13 @@ use crate::state::PoolConfigV2;
 
 #[derive(Accounts)]
 pub struct SetFeatureFlags<'info> {
+    /// Pool authority - must be signer
     #[account(mut)]
     pub authority: Signer<'info>,
 
+    /// Pool config - validated via has_one (no PDA seeds constraint)
     #[account(
         mut,
-        seeds = [PoolConfigV2::SEED_PREFIX, authority.key().as_ref()],
-        bump = pool_config.bump,
         has_one = authority @ PrivacyErrorV2::InvalidAuthority,
     )]
     pub pool_config: Account<'info, PoolConfigV2>,

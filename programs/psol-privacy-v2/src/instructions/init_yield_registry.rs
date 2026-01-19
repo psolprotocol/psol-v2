@@ -1,4 +1,10 @@
 //! Initialize Yield Registry Instruction
+//!
+//! Creates a YieldRegistry PDA for a pool. The registry tracks which mints
+//! are yield-bearing (LSTs) and must use withdraw_yield_v2 with fee enforcement.
+//!
+//! Security: pool_config is validated via has_one = authority (signer required).
+//! YieldRegistry remains a PDA derived from pool_config.key() for uniqueness.
 
 use crate::error::PrivacyErrorV2;
 use crate::state::{PoolConfigV2, YieldRegistry};
@@ -6,16 +12,19 @@ use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
 pub struct InitYieldRegistry<'info> {
+    /// Pool authority - must be signer
     #[account(mut)]
     pub authority: Signer<'info>,
 
+    /// Pool config - validated via has_one (no PDA seeds constraint)
+    /// This supports both PDA and keypair-based pool configs
     #[account(
-        seeds = [PoolConfigV2::SEED_PREFIX, authority.key().as_ref()],
-        bump = pool_config.bump,
         has_one = authority @ PrivacyErrorV2::InvalidAuthority,
     )]
     pub pool_config: Account<'info, PoolConfigV2>,
 
+    /// Yield registry - PDA derived from pool_config key
+    /// Ensures one registry per pool, regardless of pool_config type
     #[account(
         init,
         payer = authority,
@@ -29,6 +38,13 @@ pub struct InitYieldRegistry<'info> {
 }
 
 pub fn handler(ctx: Context<InitYieldRegistry>) -> Result<()> {
+    // Double-check authority matches (belt and suspenders)
+    require!(
+        ctx.accounts.pool_config.authority == ctx.accounts.authority.key(),
+        PrivacyErrorV2::InvalidAuthority
+    );
+
+    // Initialize registry with pool linkage
     ctx.accounts.yield_registry.initialize(
         ctx.accounts.pool_config.key(),
         ctx.accounts.authority.key(),
