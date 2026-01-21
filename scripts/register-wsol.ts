@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import { createHash } from 'crypto';
 
 const PROGRAM_ID = new PublicKey('BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb');
-const POOL_CONFIG = new PublicKey('HiStZaTziXH3u742d3vDGgzU478LKZZZr9mkRPo37R9v');
+const POOL_CONFIG = new PublicKey('uUhux7yXzGuA1rCNBQyaTrWuEW6yYUUTSAFnDVaefqw');
 const WSOL_MINT = new PublicKey('So11111111111111111111111111111111111111112');
 
 // Simple keccak256 using js-sha3
@@ -14,7 +14,7 @@ async function main() {
   const connection = new Connection('https://api.devnet.solana.com', 'confirmed');
   
   // Load wallet
-  const keypairPath = process.env.HOME + '/.config/solana/id.json';
+  const keypairPath = process.env.ANCHOR_WALLET || "/home/vscode/.config/solana/id.json";
   const keypair = Keypair.fromSecretKey(
     Uint8Array.from(JSON.parse(fs.readFileSync(keypairPath, 'utf-8')))
   );
@@ -31,10 +31,15 @@ async function main() {
   
   const program = new Program(idl, provider);
   
-  // Compute asset ID (keccak256 of mint)
+  // Compute asset ID (matches relayer: prefix + mint, first byte = 0)
   const mintBuffer = WSOL_MINT.toBuffer();
-  const hashHex = keccak256(mintBuffer);
-  const assetId = Uint8Array.from(Buffer.from(hashHex, 'hex'));
+  const prefix = Buffer.from('psol:asset_id:v1');
+  const combined = Buffer.concat([prefix, mintBuffer]);
+  const hashHex = keccak256(combined);
+  const hashBuffer = Buffer.from(hashHex, 'hex');
+  const assetId = Buffer.alloc(32);
+  assetId[0] = 0x00;
+  hashBuffer.copy(assetId, 1, 0, 31);
   console.log('Asset ID:', Buffer.from(assetId).toString('hex'));
   
   // Derive PDAs
@@ -58,9 +63,9 @@ async function main() {
       .accounts({
         authority: keypair.publicKey,
         poolConfig: POOL_CONFIG,
-        assetVault,
+        assetVault: assetVault,
         mint: WSOL_MINT,
-        vaultTokenAccount,
+        vaultTokenAccount: vaultTokenAccount,
         tokenProgram: new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'),
         systemProgram: new PublicKey('11111111111111111111111111111111'),
         rent: new PublicKey('SysvarRent111111111111111111111111111111111'),

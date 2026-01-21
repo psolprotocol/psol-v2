@@ -33,8 +33,10 @@ async function main() {
 
   const connection = new Connection("https://api.devnet.solana.com", "confirmed");
   
+  const keypairPath = process.env.ANCHOR_WALLET || "/home/vscode/.config/solana/pool-authority-v5.json";
+
   const authority = Keypair.fromSecretKey(
-    Uint8Array.from(JSON.parse(fs.readFileSync(process.env.ANCHOR_WALLET!, "utf8")))
+    Uint8Array.from(JSON.parse(fs.readFileSync(keypairPath, "utf8")))
   );
   
   console.log("Authority:", authority.publicKey.toString());

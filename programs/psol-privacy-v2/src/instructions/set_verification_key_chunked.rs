@@ -1,7 +1,12 @@
 //! Chunked Verification Key Upload for pSOL v2
 //!
-//! Allows uploading large verification keys in multiple transactions.
-//! Flow: initialize_vk -> append_vk_ic (multiple) -> finalize_vk
+//! Upload large verification keys in multiple transactions.
+//! Flow:
+//!   initialize_vk_v2 -> append_vk_ic_v2 (multiple) -> finalize_vk_v2
+//!
+//! State model (VerificationKeyAccountV2):
+//! - is_initialized: VK is complete and usable
+//! - is_locked: VK is immutable (cannot be modified anymore)
 
 use anchor_lang::prelude::*;
 
@@ -48,31 +53,42 @@ pub fn initialize_vk_handler(
     let pool_config = &ctx.accounts.pool_config;
     let vk_account = &mut ctx.accounts.vk_account;
 
-    // Check VK is not locked
+    // Pool-level policy gate
     pool_config.require_vk_unlocked(proof_type)?;
 
-    if vk_account.is_initialized {
-        require!(!vk_account.is_locked, PrivacyErrorV2::VerificationKeyLocked);
-    }
+    // Account-level gates
+    require!(!vk_account.is_locked, PrivacyErrorV2::VerificationKeyLocked);
+    require!(
+        !vk_account.is_initialized,
+        PrivacyErrorV2::VkAlreadyFinalized
+    );
 
-    // Validate expected IC count
+    // Validate expected IC count for the proof type
     let required_ic = VerificationKeyAccountV2::expected_ic_points(proof_type);
     require!(
         expected_ic_count == required_ic,
         PrivacyErrorV2::VkIcLengthMismatch
     );
 
-    // Initialize account
+    // Populate base VK fields
     vk_account.pool = pool_config.key();
     vk_account.proof_type = proof_type as u8;
     vk_account.vk_alpha_g1 = vk_alpha_g1;
     vk_account.vk_beta_g2 = vk_beta_g2;
     vk_account.vk_gamma_g2 = vk_gamma_g2;
     vk_account.vk_delta_g2 = vk_delta_g2;
+
+    // Reset IC vector and lifecycle fields deterministically
     vk_account.vk_ic_len = expected_ic_count;
     vk_account.vk_ic = Vec::with_capacity(expected_ic_count as usize);
-    vk_account.is_initialized = false; // Not ready until finalized
+
+    vk_account.is_initialized = false;
     vk_account.is_locked = false;
+    vk_account.set_at = 0;
+    vk_account.locked_at = 0;
+    vk_account.vk_hash = [0u8; 32];
+    vk_account._reserved = [0u8; 32];
+
     vk_account.bump = ctx.bumps.vk_account;
 
     msg!(
@@ -90,7 +106,9 @@ pub fn initialize_vk_handler(
 pub struct AppendVkIcV2<'info> {
     pub authority: Signer<'info>,
 
-    #[account(has_one = authority @ PrivacyErrorV2::Unauthorized)]
+    #[account(
+        has_one = authority @ PrivacyErrorV2::Unauthorized,
+    )]
     pub pool_config: Account<'info, PoolConfigV2>,
 
     #[account(
@@ -109,7 +127,10 @@ pub fn append_vk_ic_handler(
 ) -> Result<()> {
     let vk_account = &mut ctx.accounts.vk_account;
 
+    // Cannot mutate a locked VK
     require!(!vk_account.is_locked, PrivacyErrorV2::VerificationKeyLocked);
+
+    // Cannot append after finalization
     require!(
         !vk_account.is_initialized,
         PrivacyErrorV2::VkAlreadyFinalized
@@ -122,10 +143,8 @@ pub fn append_vk_ic_handler(
         PrivacyErrorV2::VkIcLengthMismatch
     );
 
-    // Append IC points
-    for ic in ic_points {
-        vk_account.vk_ic.push(ic);
-    }
+    // Append
+    vk_account.vk_ic.extend(ic_points);
 
     msg!(
         "Appended IC points, now have {}/{}",
@@ -156,32 +175,42 @@ pub struct FinalizeVkV2<'info> {
     pub vk_account: Account<'info, VerificationKeyAccountV2>,
 }
 
-/// Finalize VK after all IC points are uploaded
+/// Finalize VK after all IC points are uploaded.
+/// Also supports repairing legacy accounts that were initialized but not locked.
 pub fn finalize_vk_handler(ctx: Context<FinalizeVkV2>, proof_type: ProofType) -> Result<()> {
     let pool_config = &mut ctx.accounts.pool_config;
     let vk_account = &mut ctx.accounts.vk_account;
 
+    // Cannot touch a locked VK
     require!(!vk_account.is_locked, PrivacyErrorV2::VerificationKeyLocked);
-    require!(
-        !vk_account.is_initialized,
-        PrivacyErrorV2::VkAlreadyFinalized
-    );
 
-    // Verify all IC points are present
+    // Must be complete before finalizing or locking
     require!(
         vk_account.vk_ic.len() == vk_account.vk_ic_len as usize,
         PrivacyErrorV2::VkIcLengthMismatch
     );
 
-    let clock = Clock::get()?;
-    let timestamp = clock.unix_timestamp;
+    let timestamp = Clock::get()?.unix_timestamp;
 
-    // Mark as initialized
+    // Legacy repair path: already initialized (finalized earlier) but not locked.
+    if vk_account.is_initialized {
+        vk_account.is_locked = true;
+        vk_account.locked_at = timestamp;
+
+        msg!("Locked existing VK for {:?}", proof_type);
+        return Ok(());
+    }
+
+    // Fresh finalize path
     vk_account.is_initialized = true;
     vk_account.set_at = timestamp;
     vk_account.vk_hash = vk_account.compute_vk_hash_internal();
 
-    // Update pool config
+    // Lock so it can’t be modified later
+    vk_account.is_locked = true;
+    vk_account.locked_at = timestamp;
+
+    // Mark pool config as having this VK configured
     pool_config.set_vk_configured(proof_type);
 
     emit!(VerificationKeySetV2 {

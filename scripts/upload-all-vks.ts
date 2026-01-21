@@ -9,7 +9,7 @@ import * as fs from "fs";
 import * as path from "path";
 
 const PROGRAM_ID = new PublicKey("BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb");
-const POOL_CONFIG = new PublicKey("2Nz4ursFKF6HjtofSFZcn5n4jionZXRfEyPgprBERVqQ");
+const POOL_CONFIG = new PublicKey("J92qBrNomkSQ6tjmjbh7rVk2T8R6e6yxkGbB7jQirRRX");
 
 const VK_CONFIGS = [
   { name: "deposit", path: "circuits/build/deposit_vk.json", seed: "vk_deposit", proofType: { deposit: {} } },
@@ -86,7 +86,7 @@ async function uploadVK(
 
   if (vkAccount) {
     try {
-      const vkData = await program.account.verificationKeyAccountV2.fetch(vkPda);
+      const vkData = await (program.account as any).verificationKeyAccountV2.fetch(vkPda);
       if (vkData.isValid) {
         console.log(`✓ VK already uploaded and valid!`);
         return;
@@ -231,7 +231,7 @@ async function main() {
     );
 
     try {
-      const vkData = await program.account.verificationKeyAccountV2.fetch(vkPda);
+      const vkData = await (program.account as any).verificationKeyAccountV2.fetch(vkPda);
       console.log(`${config.name}: ✅ Valid=${vkData.isValid}, IC=${vkData.vkIc?.length || 0} points`);
     } catch (e) {
       console.log(`${config.name}: ❌ Not found`);
