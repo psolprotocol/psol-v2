@@ -25,9 +25,9 @@ const snarkjs = require("snarkjs");
 // ============================================================================
 
 const PROGRAM_ID = new PublicKey("BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb");
-const POOL_CONFIG = new PublicKey("DPZe7uST1mBxzVkEm215epHjsM7Sa8VCXHr3pv4eLp8X");
-const MERKLE_TREE = new PublicKey("3NPUEWkbkyv7XDjVg98CWmkUz1XFNZ6ogqi18AiTnqgm");
-const PENDING_BUFFER = new PublicKey("DPxeTsLkZaWdenw6gqgU7M6arWhKbo99GDVf2gPtM4NH");
+const POOL_CONFIG = new PublicKey("2Nz4ursFKF6HjtofSFZcn5n4jionZXRfEyPgprBERVqQ");
+const MERKLE_TREE = new PublicKey("5PrZuZjt93CERcoe6NuNpuZoCGR15s1p2msH2xR7eryf");
+const PENDING_BUFFER = new PublicKey("CwZNKy7oJUnyNPPrASRzLMfxvKTrpw3VSBk8ZHNewUw3");
 
 const MAX_BATCH_SIZE = 16;
 const MERKLE_DEPTH = 20;

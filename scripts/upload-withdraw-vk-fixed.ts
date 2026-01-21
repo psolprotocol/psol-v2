@@ -1,5 +1,5 @@
 /**
- * Upload MerkleBatchUpdate Verification Key to Solana
+ * Upload Withdraw V2 Verification Key - Fixed version
  */
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
@@ -7,10 +7,10 @@ import { PublicKey, SystemProgram } from "@solana/web3.js";
 import * as fs from "fs";
 import * as path from "path";
 
-const VK_PATH = path.join(__dirname, "../circuits/build/merkle_batch_update/verification_key.json");
+const VK_PATH = path.join(__dirname, "../circuits/build/withdraw_v2_vk.json");
 const PROGRAM_ID = new PublicKey("BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb");
 const POOL_CONFIG = new PublicKey("uUhux7yXzGuA1rCNBQyaTrWuEW6yYUUTSAFnDVaefqw");
-const VK_SEED = Buffer.from("vk_merkle_batch");
+const VK_SEED = Buffer.from("vk_withdraw_v2");
 
 interface VKJson {
   vk_alpha_1: string[];
@@ -44,6 +44,13 @@ function g2ToBytes(point: string[][]): number[] {
 }
 
 async function main() {
+  // Check if VK file exists
+  if (!fs.existsSync(VK_PATH)) {
+    console.error("❌ Withdraw VK not found at:", VK_PATH);
+    console.log("   Make sure withdraw circuit is compiled.");
+    return;
+  }
+
   const vkJson: VKJson = JSON.parse(fs.readFileSync(VK_PATH, "utf8"));
   console.log(`Loaded VK: ${vkJson.nPublic} public inputs, ${vkJson.IC.length} IC points`);
 
@@ -66,9 +73,8 @@ async function main() {
   console.log(`VK PDA: ${vkPda.toBase58()}`);
 
   const vkAccount = await provider.connection.getAccountInfo(vkPda);
-  const proofTypeArg = { merkleBatchUpdate: {} };
+  const proofTypeArg = { withdrawV2: {} };
 
-  // Anchor 0.32 uses camelCase for accounts
   if (!vkAccount) {
     console.log("Initializing VK account...");
     const tx = await program.methods
@@ -90,10 +96,10 @@ async function main() {
     console.log(`Init tx: ${tx}`);
     await new Promise(r => setTimeout(r, 2000));
   } else {
-    console.log("VK account already exists");
+    console.log("VK account already exists, skipping init");
   }
 
-  // Upload IC points
+  // Upload IC points in chunks
   for (let i = 0; i < icPoints.length; i += 4) {
     const chunk = icPoints.slice(i, Math.min(i + 4, icPoints.length));
     console.log(`Uploading IC points ${i} to ${i + chunk.length - 1}...`);
@@ -121,7 +127,7 @@ async function main() {
     .rpc();
   console.log(`Finalize tx: ${tx}`);
 
-  console.log("\n✅ VK uploaded successfully!");
+  console.log("\n✅ Withdraw VK uploaded successfully!");
 }
 
 main().catch(console.error);

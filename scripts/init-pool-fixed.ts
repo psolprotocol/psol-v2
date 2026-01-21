@@ -49,7 +49,7 @@ async function main() {
     PROGRAM_ID
   );
   const [pendingBuffer] = PublicKey.findProgramAddressSync(
-    [Buffer.from("pending_deposits_buffer"), poolConfig.toBuffer()],
+    [Buffer.from("pending_deposits"), poolConfig.toBuffer()],
     PROGRAM_ID
   );
 

@@ -310,7 +310,7 @@ export class RelayerApiExtensions {
     this.config = config;
     this.connection = new Connection(config.rpcEndpoint, 'confirmed');
     this.router = express.Router();
-    this.merkleTree = new ServerMerkleTree(config.treeDepth);
+    this.merkleTree = null as any; // Initialized in initialize()
     
     this.setupRoutes();
   }
@@ -672,7 +672,7 @@ export class RelayerApiExtensions {
         );
         
         const [pendingBufferPda] = PublicKey.findProgramAddressSync(
-          [Buffer.from('pending_buffer_v2'), this.config.poolConfig.toBuffer()],
+          [Buffer.from('pending_deposits'), this.config.poolConfig.toBuffer()],
           this.config.programId
         );
         
@@ -821,6 +821,110 @@ export class RelayerApiExtensions {
     });
     
     // =========================================================================
+    // GET /api/note/:commitment
+    // Check note status (pending or settled) - used by frontend polling
+    // =========================================================================
+    this.router.get('/note/:commitment', async (req: Request, res: Response) => {
+      try {
+        const commitment = req.params.commitment;
+        
+        // Handle both decimal string and hex formats
+        let commitmentBigInt: bigint;
+        if (commitment.startsWith('0x')) {
+          commitmentBigInt = BigInt(commitment);
+        } else if (/^[0-9a-fA-F]{64}$/.test(commitment)) {
+          commitmentBigInt = BigInt('0x' + commitment);
+        } else {
+          commitmentBigInt = BigInt(commitment);
+        }
+        
+        // Check local tree first (settled notes)
+        const leaves = this.merkleTree.getLeaves();
+        const leafIndex = leaves.findIndex(l => l === commitmentBigInt);
+        
+        if (leafIndex >= 0) {
+          return res.json({
+            success: true,
+            status: 'settled',
+            leafIndex,
+            commitment: commitmentBigInt.toString(),
+          });
+        }
+        
+        // Check pending buffer on-chain
+        const [pendingBufferPda] = PublicKey.findProgramAddressSync(
+          [Buffer.from('pending_deposits'), this.config.poolConfig.toBuffer()],
+          this.config.programId
+        );
+        
+        const pendingInfo = await this.connection.getAccountInfo(pendingBufferPda);
+        if (pendingInfo) {
+          const data = pendingInfo.data;
+          const pendingCount = data.readUInt32LE(40);
+          
+          for (let i = 0; i < pendingCount; i++) {
+            const start = 44 + i * 32;
+            const commitmentBytes = data.slice(start, start + 32);
+            let c = 0n;
+            for (let j = 0; j < 32; j++) {
+              c = (c << 8n) | BigInt(commitmentBytes[j]);
+            }
+            if (c === commitmentBigInt) {
+              return res.json({
+                success: true,
+                status: 'pending',
+                pendingIndex: i,
+                commitment: commitmentBigInt.toString(),
+              });
+            }
+          }
+        }
+        
+        // Not found in either location
+        res.json({ 
+          success: true, 
+          status: 'unknown', 
+          commitment: commitmentBigInt.toString(),
+          hint: 'Commitment not found in pending buffer or merkle tree',
+        });
+      } catch (error: any) {
+        console.error('[note/:commitment] Error:', error);
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+    
+    // =========================================================================
+    // POST /api/settle-note
+    // Manually settle a note (move from pending to merkle tree)
+    // Used when sequencer settles deposits
+    // =========================================================================
+    this.router.post('/settle-note', async (req: Request, res: Response) => {
+      try {
+        const { commitment, leafIndex } = req.body;
+        
+        if (!commitment || leafIndex === undefined) {
+          return res.status(400).json({
+            success: false,
+            error: 'Missing required fields: commitment, leafIndex',
+          });
+        }
+        
+        const commitmentBigInt = BigInt(commitment);
+        this.merkleTree.insertAt(leafIndex, commitmentBigInt);
+        
+        res.json({
+          success: true,
+          commitment: commitmentBigInt.toString(),
+          leafIndex,
+          newMerkleRoot: this.merkleTree.getRoot().toString(),
+        });
+      } catch (error: any) {
+        console.error('[settle-note] Error:', error);
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+    
+    // =========================================================================
     // POST /api/poseidon-hash
     // Generic Poseidon hash endpoint
     // =========================================================================
@@ -885,8 +989,151 @@ export class RelayerApiExtensions {
         res.status(500).json({ success: false, error: error.message });
       }
     });
-  }
+
+    // =========================================================================
+    // BUILD DEPOSIT TRANSACTION
+    // =========================================================================
+    this.router.post('/build-deposit-tx', async (req: Request, res: Response) => {
+      try {
+        const { amount, commitment, assetId, proofData, depositorPubkey, mint } = req.body;
+        
+        if (!amount || !commitment || !assetId || !proofData || !depositorPubkey || !mint) {
+          res.status(400).json({ 
+            success: false, 
+            error: 'Missing required fields: amount, commitment, assetId, proofData, depositorPubkey, mint' 
+          });
+          return;
+        }
+
+        const depositor = new PublicKey(depositorPubkey);
+        const mintPubkey = new PublicKey(mint);
+        
+        // Derive PDAs
+        // Fetch authority from pool_config account (stored at offset 8)
+        const poolConfigInfo = await this.connection.getAccountInfo(this.config.poolConfig);
+        if (!poolConfigInfo) throw new Error("Pool config not found");
+        const authority = new PublicKey(poolConfigInfo.data.slice(8, 40));
+        
+        const [merkleTree] = PublicKey.findProgramAddressSync(
+          [Buffer.from('merkle_tree_v2'), this.config.poolConfig.toBuffer()],
+          this.config.programId
+        );
+        
+        const [pendingBuffer] = PublicKey.findProgramAddressSync(
+          [Buffer.from('pending_deposits'), this.config.poolConfig.toBuffer()],
+          this.config.programId
+        );
+        
+        const assetIdBytes = hexToBytes(assetId);
+        const [assetVault] = PublicKey.findProgramAddressSync(
+          [Buffer.from('vault_v2'), this.config.poolConfig.toBuffer(), assetIdBytes],
+          this.config.programId
+        );
+        
+        const [depositVk] = PublicKey.findProgramAddressSync(
+          [Buffer.from('vk_deposit'), this.config.poolConfig.toBuffer()],
+          this.config.programId
+        );
+        // Fetch vault token account from AssetVault state (stored, not derived)
+        const assetVaultInfo = await this.connection.getAccountInfo(assetVault);
+        if (!assetVaultInfo) {
+          throw new Error('AssetVault not found for this asset. Asset may not be registered.');
+        }
+        // AssetVault layout: discriminator(8) + pool(32) + asset_id(32) + mint(32) + token_account(32)
+        const vaultTokenAccount = new PublicKey(assetVaultInfo.data.slice(104, 136));
+        console.log('[build-deposit-tx] Vault token account from state:', vaultTokenAccount.toBase58());
+
+        // Get user token account
+        const { getAssociatedTokenAddressSync, createAssociatedTokenAccountInstruction } = await import('@solana/spl-token');
+        const userTokenAccount = getAssociatedTokenAddressSync(mintPubkey, depositor);
+        
+        const preInstructions: any[] = [];
+        
+        // Check if user ATA exists
+        const userAtaInfo = await this.connection.getAccountInfo(userTokenAccount);
+        if (!userAtaInfo) {
+          console.log('[build-deposit-tx] User ATA does not exist, adding create instruction');
+          preInstructions.push(createAssociatedTokenAccountInstruction(
+            depositor, userTokenAccount, depositor, mintPubkey
+          ));
+        }
+
+        // Build instruction data manually (discriminator + args)
+        const discriminator = Buffer.from([53, 229, 96, 103, 104, 75, 182, 133]);
+        const amountBuf = Buffer.alloc(8);
+        amountBuf.writeBigUInt64LE(BigInt(amount));
+        const commitmentBytes = hexToBytes(commitment);
+        const proofBytes = hexToBytes(proofData);
+        const proofLenBuf = Buffer.alloc(4);
+        proofLenBuf.writeUInt32LE(proofBytes.length);
+        
+        // encrypted_note = None (0 byte for Option::None)
+        const encryptedNoteNone = Buffer.from([0]);
+        
+        const instructionData = Buffer.concat([
+          discriminator,
+          amountBuf,
+          commitmentBytes,
+          assetIdBytes,
+          proofLenBuf,
+          proofBytes,
+          encryptedNoteNone
+        ]);
+
+        // Build instruction
+        const { TransactionInstruction, Transaction } = await import('@solana/web3.js');
+        const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
+        const SYSTEM_PROGRAM_ID = new PublicKey('11111111111111111111111111111111');
+
+        const ix = new TransactionInstruction({
+          programId: this.config.programId,
+          keys: [
+            { pubkey: depositor, isSigner: true, isWritable: true },
+            { pubkey: this.config.poolConfig, isSigner: false, isWritable: true },
+            { pubkey: authority, isSigner: false, isWritable: false },
+            { pubkey: merkleTree, isSigner: false, isWritable: true },
+            { pubkey: pendingBuffer, isSigner: false, isWritable: true },
+            { pubkey: assetVault, isSigner: false, isWritable: true },
+            { pubkey: vaultTokenAccount, isSigner: false, isWritable: true },
+            { pubkey: userTokenAccount, isSigner: false, isWritable: true },
+            { pubkey: mintPubkey, isSigner: false, isWritable: false },
+            { pubkey: depositVk, isSigner: false, isWritable: false },
+            { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+            { pubkey: SYSTEM_PROGRAM_ID, isSigner: false, isWritable: false },
+          ],
+          data: instructionData,
+        });
+
+        // Get recent blockhash
+        const { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash();
+        
+        const tx = new Transaction();
+        tx.recentBlockhash = blockhash;
+        tx.feePayer = depositor;
+        preInstructions.forEach(pre => tx.add(pre)); tx.add(ix);
+
+        // Serialize (unsigned)
+        const serializedTx = tx.serialize({ requireAllSignatures: false }).toString('base64');
+
+        // Track commitment in local merkle tree for later proof generation
+        const commitmentBigInt = BigInt('0x' + commitment);
+        const insertedLeafIndex = this.merkleTree.insert(commitmentBigInt);
+        console.log(`[build-deposit-tx] Tracked commitment in local tree at index ${insertedLeafIndex}`);
+
+        res.json({
+          success: true,
+          transaction: serializedTx,
+          blockhash,
+          lastValidBlockHeight,
+          leafIndex: insertedLeafIndex, // Return leaf index for frontend tracking
+        });
+      } catch (error: any) {
+        console.error('[build-deposit-tx] Error:', error);
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
   
+  }
   /**
    * Get the Express router
    */

@@ -5,7 +5,7 @@ import * as crypto from "crypto";
 const keccak256 = require("js-sha3").keccak256;
 
 const PROGRAM_ID = new PublicKey("BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb");
-const POOL_CONFIG = new PublicKey("GZiRVMV7FjrGxjE379HiEyHyVCisHkFnjMJen95kEVEQ");
+const POOL_CONFIG = new PublicKey("uUhux7yXzGuA1rCNBQyaTrWuEW6yYUUTSAFnDVaefqw");
 
 const ASSETS = [
   { name: "wSOL", mint: "So11111111111111111111111111111111111111112" },

@@ -7,11 +7,13 @@
  *
  * @module relayer
  */
+import "dotenv/config";
 
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import { createApiExtensions } from './api-extensions';
 import * as fs from 'fs';
 import * as snarkjs from 'snarkjs';
 import {
@@ -64,6 +66,10 @@ interface RelayerConfig {
   port: number;
   /** Path to withdraw verification key JSON (snarkjs vkey) */
   withdrawVkPath: string;
+  /** Path to circuits build directory */
+  circuitsPath: string;
+  /** Merkle tree depth */
+  treeDepth: number;
 }
 
 /** Withdrawal request interface */
@@ -773,19 +779,28 @@ export class RelayerService {
   /**
    * Start the relayer service
    */
-  start(): void {
+  async start(): Promise<void> {
+    // Initialize API extensions for proof generation
+    const apiExtensions = await createApiExtensions({
+      circuitsPath: this.config.circuitsPath,
+      rpcEndpoint: this.config.rpcEndpoint,
+      poolConfig: this.config.poolConfig,
+      programId: this.config.programId,
+      treeDepth: this.config.treeDepth,
+    });
+    
+    // Mount API extensions
+    this.app.use("/api", apiExtensions.getRouter());
+    
     this.app.listen(this.config.port, () => {
-      console.log('========================================');
-      console.log('pSOL v2 Relayer Service Started');
-      console.log('========================================');
+      console.log("========================================");
+      console.log("pSOL v2 Relayer Service Started");
+      console.log("========================================");
       console.log(`Port: ${this.config.port}`);
       console.log(`Operator: ${this.config.walletKeypair.publicKey.toBase58()}`);
       console.log(`Fee: ${this.config.feeBps} bps`);
-      console.log(`Min withdrawal: ${this.config.minWithdrawalAmount}`);
-      console.log(`Max withdrawal: ${this.config.maxWithdrawalAmount}`);
-      console.log(`Proof verification: ${this.withdrawVk ? 'ENABLED' : 'DISABLED'}`);
-      console.log(`Supported assets: ${this.supportedAssets.size}`);
-      console.log('========================================');
+      console.log(`API Extensions: ENABLED`);
+      console.log("========================================");
     });
   }
 }
@@ -928,6 +943,8 @@ export async function main(): Promise<void> {
     maxWithdrawalAmount: BigInt(process.env.MAX_WITHDRAWAL || '1000000000000'),
     port: parseInt(process.env.PORT || '3000', 10),
     withdrawVkPath: process.env.WITHDRAW_VK_PATH || './circuits/withdraw/withdraw.vkey.json',
+    circuitsPath: process.env.CIRCUITS_PATH || "../circuits/build",
+    treeDepth: parseInt(process.env.TREE_DEPTH || "20", 10),
   };
   
   const relayer = createRelayer(config);
@@ -940,7 +957,7 @@ export async function main(): Promise<void> {
     }
   }
   
-  relayer.start();
+  await relayer.start();
 }
 
 // Run if executed directly
