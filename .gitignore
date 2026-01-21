@@ -79,3 +79,4 @@ past_commitments.json
 relayer/.env
 relayer/.env.*
 !relayer/.env.example
+withdraw-circuit.tar.gz
