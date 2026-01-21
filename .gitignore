@@ -70,3 +70,12 @@ pool-authority*.json
 # Generated artifacts (Stage A debug)
 pool-authority-*.json
 past_commitments.json
+.secrets/
+
+# Environment files (never commit secrets)
+.env
+.env.*
+!.env.example
+relayer/.env
+relayer/.env.*
+!relayer/.env.example
