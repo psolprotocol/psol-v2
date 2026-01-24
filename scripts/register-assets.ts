@@ -5,7 +5,7 @@ import * as crypto from "crypto";
 const keccak256 = require("js-sha3").keccak256;
 
 const PROGRAM_ID = new PublicKey("BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb");
-const POOL_CONFIG = new PublicKey("uUhux7yXzGuA1rCNBQyaTrWuEW6yYUUTSAFnDVaefqw");
+const POOL_CONFIG = new PublicKey(process.env.POOL_CONFIG || "uUhux7yXzGuA1rCNBQyaTrWuEW6yYUUTSAFnDVaefqw");
 
 const ASSETS = [
   { name: "wSOL", mint: "So11111111111111111111111111111111111111112" },
@@ -33,7 +33,7 @@ const REGISTER_ASSET_DISCRIMINATOR = crypto.createHash("sha256")
 
 async function main() {
   const connection = new Connection(
-    "https://devnet.helius-rpc.com/?api-key=2f0116cb-6972-4a3d-bb9e-43de29619343",
+    process.env.ANCHOR_PROVIDER_URL || "https://api.devnet.solana.com",
     "confirmed"
   );
 

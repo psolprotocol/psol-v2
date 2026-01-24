@@ -5,7 +5,7 @@ import IDL from '../target/idl/psol_privacy_v2.json';
 
 const RPC_URL = 'https://devnet.helius-rpc.com/?api-key=2f0116cb-6972-4a3d-bb9e-43de29619343';
 const PROGRAM_ID = new PublicKey('BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb');
-const POOL_CONFIG = new PublicKey('GZiRVMV7FjrGxjE379HiEyHyVCisHkFnjMJen95kEVEQ');
+const POOL_CONFIG = new PublicKey('FX26qtKeJN7fUPKfHF17bwhUv2Fah3rS2K1t9AVpcEXj');
 
 async function main() {
   console.log('=== INITIALIZING POOL REGISTRIES ===\n');

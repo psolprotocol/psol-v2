@@ -3,7 +3,7 @@ import { PublicKey } from "@solana/web3.js";
 import * as fs from "fs";
 
 const PROGRAM_ID = new PublicKey("BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb");
-const POOL_CONFIG = new PublicKey("GZiRVMV7FjrGxjE379HiEyHyVCisHkFnjMJen95kEVEQ");
+const POOL_CONFIG = new PublicKey(process.env.POOL_CONFIG || "FX26qtKeJN7fUPKfHF17bwhUv2Fah3rS2K1t9AVpcEXj");
 
 async function main() {
   const provider = anchor.AnchorProvider.env();

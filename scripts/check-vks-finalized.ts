@@ -1,12 +1,21 @@
 import * as anchor from "@coral-xyz/anchor";
 import fs from "fs";
 
-const POOL_CONFIG = new anchor.web3.PublicKey("J92qBrNomkSQ6tjmjbh7rVk2T8R6e6yxkGbB7jQirRRX");
+const POOL_CONFIG = new anchor.web3.PublicKey(process.env.POOL_CONFIG || "J92qBrNomkSQ6tjmjbh7rVk2T8R6e6yxkGbB7jQirRRX");
+const PROGRAM_ID = new anchor.web3.PublicKey("BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb");
+
+function vkPda(seed: string): anchor.web3.PublicKey {
+  const [pda] = anchor.web3.PublicKey.findProgramAddressSync(
+    [Buffer.from(seed), POOL_CONFIG.toBuffer()],
+    PROGRAM_ID
+  );
+  return pda;
+}
 
 const VKS = [
-  { name: "deposit",      addr: new anchor.web3.PublicKey("HJ9SNjUxSdq3zgdkQN6Uv1MchSyagbTpyXy4XpL8tvPF"), expectedIc: 4 },
-  { name: "withdraw",     addr: new anchor.web3.PublicKey("9YsvL8ZZBg82mu1eFjWXJUUsRwy12woBKAaZ2HTcM8p4"), expectedIc: 9 },
-  { name: "merkle_batch", addr: new anchor.web3.PublicKey("7wb5gBid6Xyb1MJ8gLRiYN3faFAWj9ocsHQbWLq99bdN"), expectedIc: 6 },
+  { name: "deposit",      seed: "vk_deposit",      expectedIc: 4 },
+  { name: "withdraw",     seed: "vk_withdraw",     expectedIc: 9 },
+  { name: "merkle_batch", seed: "vk_merkle_batch", expectedIc: 6 },
 ];
 
 (async () => {
@@ -16,8 +25,10 @@ const VKS = [
   const connection = new anchor.web3.Connection(process.env.ANCHOR_PROVIDER_URL!, "confirmed");
 
   for (const vk of VKS) {
-    const info = await connection.getAccountInfo(vk.addr, "confirmed");
-    if (!info?.data) throw new Error(`${vk.name}: missing account ${vk.addr.toBase58()}`);
+    const addr = vkPda(vk.seed);
+
+    const info = await connection.getAccountInfo(addr, "confirmed");
+    if (!info?.data) throw new Error(`${vk.name}: missing account ${addr.toBase58()}`);
 
     const acc: any = coder.decode("VerificationKeyAccountV2", info.data);
 
@@ -30,7 +41,7 @@ const VKS = [
 
     console.log(
       vk.name,
-      vk.addr.toBase58(),
+      addr.toBase58(),
       "poolOK=",
       okPool,
       "initialized=",

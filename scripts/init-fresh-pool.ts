@@ -37,7 +37,7 @@ async function main() {
     fs.readFileSync(path.join(__dirname, "../target/idl/psol_privacy_v2.json"), "utf8")
   );
   
-  const program = new Program(idl, provider);
+  const program = new Program(idl, PROGRAM_ID, provider);
 
   // Derive PDAs
   const [poolConfig] = PublicKey.findProgramAddressSync(
@@ -77,9 +77,9 @@ async function main() {
       .initializePoolV2(TREE_DEPTH)
       .accounts({
         authority: authorityKeypair.publicKey,
-        pool_config: poolConfig,
-        merkle_tree: merkleTree,
-        system_program: SystemProgram.programId,
+        poolConfig: poolConfig,
+        merkleTree: merkleTree,
+        systemProgram: SystemProgram.programId,
       })
       .signers([authorityKeypair])
       .rpc();
@@ -93,9 +93,9 @@ async function main() {
       .initializePendingDepositsBuffer()
       .accounts({
         authority: authorityKeypair.publicKey,
-        pool_config: poolConfig,
-        pending_buffer: pendingBuffer,
-        system_program: SystemProgram.programId,
+        poolConfig: poolConfig,
+        pendingBuffer: pendingBuffer,
+        systemProgram: SystemProgram.programId,
       })
       .signers([authorityKeypair])
       .rpc();
@@ -110,9 +110,9 @@ async function main() {
       network: "devnet",
       rpc: HELIUS_RPC,
       programId: PROGRAM_ID.toString(),
-      pool_config: poolConfig.toString(),
-      merkle_tree: merkleTree.toString(),
-      pending_buffer: pendingBuffer.toString(),
+      poolConfig: poolConfig.toString(),
+      merkleTree: merkleTree.toString(),
+      pendingBuffer: pendingBuffer.toString(),
       authority: authorityKeypair.publicKey.toString(),
       treeDepth: TREE_DEPTH,
       timestamp: new Date().toISOString(),

@@ -9,7 +9,7 @@ import * as fs from "fs";
 import * as path from "path";
 
 const PROGRAM_ID = new PublicKey("BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb");
-const POOL_CONFIG = new PublicKey("J92qBrNomkSQ6tjmjbh7rVk2T8R6e6yxkGbB7jQirRRX");
+const POOL_CONFIG = new PublicKey(process.env.POOL_CONFIG || "J92qBrNomkSQ6tjmjbh7rVk2T8R6e6yxkGbB7jQirRRX");
 
 const VK_CONFIGS = [
   { name: "deposit", path: "circuits/build/deposit_vk.json", seed: "vk_deposit", proofType: { deposit: {} } },

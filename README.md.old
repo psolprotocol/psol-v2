@@ -48,6 +48,7 @@ A user submits a deposit instruction with a ZK proof. The commitment is appended
 ### Settlement Phase
 
 A sequencer batches pending commitments, constructs the Merkle update off-chain, generates a batch proof, and submits a settlement instruction to update the Merkle tree. This approach amortizes insertion costs and keeps on-chain verification bounded.
+
 ```
 User deposit
     |
@@ -99,12 +100,14 @@ Runtime configuration is controlled through environment variables. See the relay
 ### Environment
 
 For Anchor workflows on Devnet:
+
 ```bash
 export ANCHOR_PROVIDER_URL="https://api.devnet.solana.com"
 export ANCHOR_WALLET="$HOME/.config/solana/id.json"
 ```
 
 ### Tests
+
 ```bash
 cargo test -p psol-privacy-v2
 ```
