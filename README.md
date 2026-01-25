@@ -12,13 +12,13 @@ Release: Experimental, under active development
 
 ## Capabilities
 
-The protocol supports shielded pools for multiple SPL token mints, Groth16 proofs over BN254, Poseidon-based commitments, Merkle tree membership proofs, and batched settlement of pending deposits through an off-chain sequencer.
+The protocol supports shielded pools for multiple SPL token mints, Groth16 proofs over BN254, Poseidon-based commitments, Merkle tree membership proofs, batched settlement of pending deposits through an off-chain sequencer, and yield-bearing asset support with performance fee enforcement.
 
 ## Repository Structure
 
 | Directory | Description |
 |-----------|-------------|
-| programs/ | Solana programs for pool state, deposit settlement, and withdrawals |
+| programs/ | Solana programs for pool state, deposit settlement, withdrawals, and yield management |
 | circuits/ | Circom circuits and compiled artifacts for ZK proof generation |
 | relayer/ | Off-chain service for batching, proof generation, and client endpoints |
 | sdk/ | TypeScript SDK for transactions, notes, and proof construction |
@@ -67,21 +67,95 @@ settle_deposits_batch (on-chain)
 Merkle tree updated
 ```
 
-## Relayer Service
+## Yield Earn
 
-The relayer operates as a long-lived service that provides client endpoints and runs the sequencer loop.
+pSOL v2 supports yield-bearing assets such as Liquid Staking Tokens (JitoSOL, mSOL, bSOL, and similar). Users can deposit LSTs into the shielded pool while continuing to earn staking yield. The underlying tokens appreciate in value over time, and users retain privacy throughout.
 
-### Endpoints
+### How It Works
 
-| Endpoint | Description |
-|----------|-------------|
-| GET /api/health | Service health status |
-| GET /api/pool-state | Current pool and Merkle tree state |
-| GET /api/note/:commitment | Note status lookup |
+1. The pool authority initializes a YieldRegistry and registers yield-bearing mints.
+2. Users deposit LSTs into the shielded pool like any other asset.
+3. While in the pool vault, LST tokens continue to accrue staking rewards through price appreciation.
+4. On withdrawal, yield assets must use the `withdraw_yield_v2` instruction.
+5. The yield relayer calculates positive yield off-chain and enforces a 5% performance fee on gains only.
+6. Users receive 95% of earned yield plus their original principal.
 
-### Configuration
+### Yield Components
 
-Runtime configuration is controlled through environment variables. See the relayer directory for details.
+| Component | Description |
+|-----------|-------------|
+| YieldRegistry | On-chain registry tracking which mints are yield-bearing (up to 8 per pool) |
+| yield_relayer | Authorized signer for yield withdrawals, validates fee calculations |
+| yield_fee_bps | Performance fee in basis points (500 = 5%) |
+| FEATURE_YIELD_ENFORCEMENT | Feature flag to enable yield mode on a pool |
+
+### Yield Instructions
+
+| Instruction | Description |
+|-------------|-------------|
+| init_yield_registry | Create YieldRegistry PDA for a pool |
+| add_yield_mint | Register an LST mint as yield-bearing |
+| remove_yield_mint | Remove an LST mint from the registry |
+| withdraw_yield_v2 | Withdraw yield assets with performance fee enforcement |
+| enable_feature / disable_feature | Toggle FEATURE_YIELD_ENFORCEMENT |
+
+### Supported Yield Assets
+
+The YieldRegistry can hold up to 8 yield-bearing mints per pool. Common examples include JitoSOL (Jito Network), mSOL (Marinade Finance), bSOL (BlazeStake), stSOL, and other Solana LSTs.
+
+### Fee Structure
+
+Performance fees apply only to positive yield, not to the original deposit amount. If a user deposits 100 JitoSOL and it appreciates to 105 JitoSOL equivalent value, the 5% fee applies only to the 5 JitoSOL gain. The user receives 104.75 JitoSOL (100 principal + 4.75 net yield).
+
+## API Reference
+
+The pSOL Protocol relayer API is publicly available for integration with privacy-preserving applications on Solana.
+
+Base URL: `https://api.psolprotocol.org/api`
+
+### Health Check
+```
+GET /health
+```
+
+Returns the current status of the relayer service, including RPC latency and proof queue metrics.
+
+Example request:
+```bash
+curl https://api.psolprotocol.org/api/health
+```
+
+Example response:
+```json
+{
+  "status": "ok",
+  "timestamp": 1769303384675,
+  "proofVerificationEnabled": true,
+  "rpcLatencyMs": 140,
+  "proofQueueSize": 0,
+  "proofQueueMax": 5
+}
+```
+
+### Pool State
+```
+GET /pool-state
+```
+
+Returns the current state of the shielded pool, including Merkle tree information and pending deposits.
+
+### Additional Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| /pool-state | GET | Current pool and Merkle tree state |
+| /merkle-proof/:leafIndex | GET | Merkle inclusion proof for a leaf |
+| /withdraw-proof | POST | Generate withdrawal ZK proof |
+| /deposit-proof | POST | Generate deposit ZK proof |
+
+### Network
+
+The API currently operates on Solana Devnet. Mainnet deployment is planned for a future release.
 
 ## Development
 
@@ -114,6 +188,8 @@ cargo test -p psol-privacy-v2
 This is experimental software intended for development and testing.
 
 The circuits have not been formally audited. The trusted setup is not protocol-dedicated. Mainnet deployment requires a security audit, a dedicated trusted setup ceremony, and a complete threat model.
+
+Yield calculations are performed off-chain by the yield relayer. Users trust the relayer to compute fees correctly. Future versions may include on-chain price oracle integration for trustless fee verification.
 
 ## License
 
