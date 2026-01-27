@@ -32,10 +32,10 @@ Program ID: `BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb`
 
 | Component | Address |
 |-----------|---------|
-| Pool Config | `FX26qtKeJN7fUPKfHF17bwhUv2Fah3rS2K1t9AVpcEXj` |
-| Merkle Tree | `6zLFi4vgvaZShwBfFBdYwvfpgLYCE2f698GiiVpdhKgy` |
-| Pending Buffer | `7DnGtZ3PWv89gtqryJky7HpvM62UHpj4JJ4txmzLMwUA` |
-| Pool Authority | `Ar5yGZjo3VpV1e7XRqqNJkBVphRVa8qxYigUKPQVePJXR` |
+| Pool Config | `iWMNRMHKS6zFKaNX1WkCBD3vsdnW4L24qd5Cp7sgLRV` |
+| Merkle Tree | `BhyDXxA7WT5WX7WgbGvqThpUjK8QXDSk891nhfKd32Lv` |
+| Pending Buffer | `3K1GH9JUmoigMu7UTRYmDX9YZ7ZeeHq3r1cVZfKyzzMR` |
+| Pool Authority | `4pFKLUzAXKE5p37wB15oszEG8GDmvjJ6ZbgdqEmfq9LA` |
 
 ## Protocol Overview
 
