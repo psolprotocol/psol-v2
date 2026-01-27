@@ -83,3 +83,5 @@ withdraw-circuit.tar.gz
 
 # Local keys (never commit)
 .keys/
+.keys/
+.keys/relayer-e5jr.json

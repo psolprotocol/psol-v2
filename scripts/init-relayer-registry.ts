@@ -5,14 +5,14 @@ import IDL from '../target/idl/psol_privacy_v2.json';
 
 const RPC_URL = 'https://devnet.helius-rpc.com/?api-key=2f0116cb-6972-4a3d-bb9e-43de29619343';
 const PROGRAM_ID = new PublicKey('BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb');
-const POOL_CONFIG = new PublicKey('FX26qtKeJN7fUPKfHF17bwhUv2Fah3rS2K1t9AVpcEXj');
+const POOL_CONFIG = new PublicKey('iWMNRMHKS6zFKaNX1WkCBD3vsdnW4L24qd5Cp7sgLRV');
 
 async function main() {
   console.log('=== INITIALIZING POOL REGISTRIES ===\n');
 
   // Load authority keypair
   const authorityKeypair = Keypair.fromSecretKey(
-    Uint8Array.from(JSON.parse(fs.readFileSync('pool-authority-2.json', 'utf8')))
+    Uint8Array.from(JSON.parse(fs.readFileSync('.keys/pool-authority-v8.json', 'utf8')))
   );
   console.log('Authority:', authorityKeypair.publicKey.toString());
 

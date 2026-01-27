@@ -1,25 +1,9 @@
-/**
- * Upload MerkleBatchUpdate Verification Key to Solana
- */
 import * as anchor from "@coral-xyz/anchor";
-import { Program } from "@coral-xyz/anchor";
-import { PublicKey, SystemProgram } from "@solana/web3.js";
+import { PublicKey, Keypair, SystemProgram } from "@solana/web3.js";
 import * as fs from "fs";
-import * as path from "path";
 
-const VK_PATH = path.join(__dirname, "../circuits/build/merkle_batch_update/verification_key.json");
 const PROGRAM_ID = new PublicKey("BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb");
-const POOL_CONFIG = new PublicKey("uUhux7yXzGuA1rCNBQyaTrWuEW6yYUUTSAFnDVaefqw");
-const VK_SEED = Buffer.from("vk_merkle_batch");
-
-interface VKJson {
-  vk_alpha_1: string[];
-  vk_beta_2: string[][];
-  vk_gamma_2: string[][];
-  vk_delta_2: string[][];
-  IC: string[][];
-  nPublic: number;
-}
+const POOL_CONFIG = new PublicKey("iWMNRMHKS6zFKaNX1WkCBD3vsdnW4L24qd5Cp7sgLRV");
 
 function decimalToBytes32BE(decimal: string): number[] {
   const bn = BigInt(decimal);
@@ -36,92 +20,56 @@ function g1ToBytes(point: string[]): number[] {
 }
 
 function g2ToBytes(point: string[][]): number[] {
-  const x0 = decimalToBytes32BE(point[0][0]);
-  const x1 = decimalToBytes32BE(point[0][1]);
-  const y0 = decimalToBytes32BE(point[1][0]);
-  const y1 = decimalToBytes32BE(point[1][1]);
-  return [...x1, ...x0, ...y1, ...y0];
+  const x_c0 = decimalToBytes32BE(point[0][0]);
+  const x_c1 = decimalToBytes32BE(point[0][1]);
+  const y_c0 = decimalToBytes32BE(point[1][0]);
+  const y_c1 = decimalToBytes32BE(point[1][1]);
+  return [...x_c1, ...x_c0, ...y_c1, ...y_c0]; // c1 FIRST
 }
 
 async function main() {
-  const vkJson: VKJson = JSON.parse(fs.readFileSync(VK_PATH, "utf8"));
-  console.log(`Loaded VK: ${vkJson.nPublic} public inputs, ${vkJson.IC.length} IC points`);
+  const authority = Keypair.fromSecretKey(
+    Uint8Array.from(JSON.parse(fs.readFileSync(process.env.ANCHOR_WALLET!, "utf8")))
+  );
+  const connection = new anchor.web3.Connection("https://api.devnet.solana.com", "confirmed");
+  const wallet = new anchor.Wallet(authority);
+  const provider = new anchor.AnchorProvider(connection, wallet, { commitment: "confirmed" });
+  anchor.setProvider(provider);
+  
+  const idl = JSON.parse(fs.readFileSync("target/idl/psol_privacy_v2.json", "utf8"));
+  const program = new anchor.Program(idl, provider);
 
+  console.log("Authority:", authority.publicKey.toBase58());
+  console.log("Pool:", POOL_CONFIG.toBase58());
+
+  const vkJson = JSON.parse(fs.readFileSync("circuits/build/merkle_batch_update/verification_key.json", "utf8"));
+  
   const alphaG1 = Array.from(Buffer.from(g1ToBytes(vkJson.vk_alpha_1)));
   const betaG2 = Array.from(Buffer.from(g2ToBytes(vkJson.vk_beta_2)));
   const gammaG2 = Array.from(Buffer.from(g2ToBytes(vkJson.vk_gamma_2)));
   const deltaG2 = Array.from(Buffer.from(g2ToBytes(vkJson.vk_delta_2)));
-  const icPoints = vkJson.IC.map((ic) => Array.from(Buffer.from(g1ToBytes(ic))));
+  const icPoints = vkJson.IC.map((ic: string[]) => Array.from(Buffer.from(g1ToBytes(ic))));
 
-  const provider = anchor.AnchorProvider.env();
-  anchor.setProvider(provider);
-
-  const idl = JSON.parse(fs.readFileSync("target/idl/psol_privacy_v2.json", "utf8"));
-  const program = new Program(idl, provider);
+  console.log("IC count:", icPoints.length);
 
   const [vkPda] = PublicKey.findProgramAddressSync(
-    [VK_SEED, POOL_CONFIG.toBuffer()],
+    [Buffer.from("vk_merkle_batch"), POOL_CONFIG.toBuffer()],
     PROGRAM_ID
   );
-  console.log(`VK PDA: ${vkPda.toBase58()}`);
+  console.log("VK PDA:", vkPda.toBase58());
 
-  const vkAccount = await provider.connection.getAccountInfo(vkPda);
-  const proofTypeArg = { merkleBatchUpdate: {} };
-
-  // Anchor 0.32 uses camelCase for accounts
-  if (!vkAccount) {
-    console.log("Initializing VK account...");
-    const tx = await program.methods
-      .initializeVkV2(
-        proofTypeArg,
-        alphaG1,
-        betaG2,
-        gammaG2,
-        deltaG2,
-        icPoints.length
-      )
-      .accountsStrict({
-        authority: provider.wallet.publicKey,
-        poolConfig: POOL_CONFIG,
-        vkAccount: vkPda,
-        systemProgram: SystemProgram.programId,
-      })
-      .rpc();
-    console.log(`Init tx: ${tx}`);
-    await new Promise(r => setTimeout(r, 2000));
-  } else {
-    console.log("VK account already exists");
-  }
-
-  // Upload IC points
-  for (let i = 0; i < icPoints.length; i += 4) {
-    const chunk = icPoints.slice(i, Math.min(i + 4, icPoints.length));
-    console.log(`Uploading IC points ${i} to ${i + chunk.length - 1}...`);
-    const tx = await program.methods
-      .appendVkIcV2(proofTypeArg, chunk)
-      .accountsStrict({
-        authority: provider.wallet.publicKey,
-        poolConfig: POOL_CONFIG,
-        vkAccount: vkPda,
-      })
-      .rpc();
-    console.log(`Append tx: ${tx}`);
-    await new Promise(r => setTimeout(r, 1000));
-  }
-
-  // Finalize
-  console.log("Finalizing VK...");
   const tx = await program.methods
-    .finalizeVkV2(proofTypeArg)
-    .accountsStrict({
-      authority: provider.wallet.publicKey,
+    .setVerificationKeyV2({ merkleBatchUpdate: {} }, alphaG1, betaG2, gammaG2, deltaG2, icPoints)
+    .accounts({
+      authority: authority.publicKey,
       poolConfig: POOL_CONFIG,
       vkAccount: vkPda,
+      systemProgram: SystemProgram.programId,
     })
+    .signers([authority])
     .rpc();
-  console.log(`Finalize tx: ${tx}`);
 
-  console.log("\n✅ VK uploaded successfully!");
+  console.log("✅ VK uploaded:", tx);
 }
 
 main().catch(console.error);
