@@ -20,7 +20,7 @@ pub mod shielded_cpi;
 pub mod withdraw_masp;
 pub mod withdraw_v2;
 
-pub use admin::{
+pub use admin::{ClearPendingBuffer, ResetMerkleTree,
     AcceptAuthorityTransferV2, CancelAuthorityTransferV2, InitiateAuthorityTransferV2, PausePoolV2,
     UnpausePoolV2,
 };

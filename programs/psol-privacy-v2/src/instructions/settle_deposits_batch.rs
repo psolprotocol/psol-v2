@@ -74,7 +74,6 @@ pub struct SettleDepositsBatchArgs {
     pub proof: [u8; 256],
     /// New Merkle root after insertions
     pub new_root: [u8; 32],
-    /// Number of deposits to process (1 to MAX_BATCH_SIZE)
     pub batch_size: u16,
 }
 
@@ -198,12 +197,16 @@ pub fn handler(ctx: Context<SettleDepositsBatch>, args: SettleDepositsBatchArgs)
 
     msg!("✓ Batch proof verified for {} deposits", batch_size);
 
+    // Emit structured settlement logs for recovery
+    for i in 0..batch_size {
+        msg!("SETTLED_LEAF idx={} commit={:02x?}", start_index + i as u32, commitments[i]);
+    }
+    msg!("SETTLED_BATCH start={} size={} root={:02x?}", start_index, batch_size, args.new_root);
     // =========================================================================
     // 6. UPDATE MERKLE TREE STATE
     // =========================================================================
     // Update root
     merkle_tree.current_root = args.new_root;
-
     // Update next leaf index
     merkle_tree.next_leaf_index = start_index + batch_size as u32;
 

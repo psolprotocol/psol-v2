@@ -13,3 +13,7 @@ pub use authority_v2::{
 };
 pub use pause_v2::PausePoolV2;
 pub use unpause_v2::UnpausePoolV2;
+pub mod clear_pending;
+pub use clear_pending::ClearPendingBuffer;
+pub mod reset_merkle;
+pub use reset_merkle::ResetMerkleTree;

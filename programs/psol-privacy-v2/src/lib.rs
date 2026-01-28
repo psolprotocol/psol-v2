@@ -51,6 +51,8 @@ pub(crate) use crate::instructions::init_yield_registry::__client_accounts_init_
 pub(crate) use crate::instructions::manage_yield_mints::__client_accounts_manage_yield_mints;
 pub(crate) use crate::instructions::set_feature_flags::__client_accounts_set_feature_flags;
 pub(crate) use crate::instructions::withdraw_v2::__client_accounts_withdraw_v2;
+pub(crate) use crate::instructions::admin::clear_pending::__client_accounts_clear_pending_buffer;
+pub(crate) use crate::instructions::admin::reset_merkle::__client_accounts_reset_merkle_tree;
 
 #[program]
 pub mod psol_privacy_v2 {
@@ -147,6 +149,16 @@ pub mod psol_privacy_v2 {
 
     pub fn unpause_pool_v2(ctx: Context<UnpausePoolV2>) -> Result<()> {
         instructions::admin::unpause_v2::handler(ctx)
+    }
+
+    /// Admin: Clear pending deposits buffer (emergency/testing)
+    pub fn clear_pending_buffer(ctx: Context<ClearPendingBuffer>) -> Result<()> {
+        instructions::admin::clear_pending::handler(ctx)
+    }
+
+    /// Admin: Reset merkle tree to empty state
+    pub fn reset_merkle_tree(ctx: Context<ResetMerkleTree>) -> Result<()> {
+        instructions::admin::reset_merkle::handler(ctx)
     }
 
     pub fn initiate_authority_transfer_v2(
