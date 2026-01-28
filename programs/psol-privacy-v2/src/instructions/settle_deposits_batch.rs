@@ -93,26 +93,50 @@ fn sha256_to_field(hash: &[u8; 32]) -> [u8; 32] {
 /// Compute commitments hash matching circuit encoding
 /// Circuit hashes MAX_BATCH_SIZE slots, inactive slots are 0
 fn compute_commitments_hash(commitments: &[[u8; 32]], batch_size: usize) -> [u8; 32] {
-    // Create fixed-size buffer matching circuit (16 * 32 = 512 bytes)
-    let mut buffer = vec![0u8; MAX_BATCH_SIZE * 32];
-
-    // Copy active commitments
-    for (i, commitment) in commitments.iter().enumerate() {
-        if i >= batch_size {
-            break;
+    use sha2::{Digest, Sha256};
+    
+    // BN254 prime p (big-endian)
+    const P: [u8; 32] = [
+        0x30, 0x64, 0x4e, 0x72, 0xe1, 0x31, 0xa0, 0x29,
+        0xb8, 0x50, 0x45, 0xb6, 0x81, 0x81, 0x58, 0x5d,
+        0x97, 0x81, 0x6a, 0x91, 0x68, 0x71, 0xca, 0x8d,
+        0x3c, 0x20, 0x8c, 0x16, 0xd8, 0x7c, 0xfd, 0x47,
+    ];
+    
+    let mut preimage = [0u8; MAX_BATCH_SIZE * 32];
+    
+    for i in 0..MAX_BATCH_SIZE {
+        if i < batch_size && i < commitments.len() {
+            // Reduce mod p if >= p (matches circuit field semantics)
+            let c = &commitments[i];
+            let need_reduce = c.iter().zip(P.iter()).fold(None, |acc, (&a, &b)| {
+                acc.or_else(|| if a > b { Some(true) } else if a < b { Some(false) } else { None })
+            }).unwrap_or(false);
+            
+            if need_reduce {
+                let mut borrow = 0i16;
+                for j in (0..32).rev() {
+                    let diff = c[j] as i16 - P[j] as i16 - borrow;
+                    if diff < 0 {
+                        preimage[i * 32 + j] = (diff + 256) as u8;
+                        borrow = 1;
+                    } else {
+                        preimage[i * 32 + j] = diff as u8;
+                        borrow = 0;
+                    }
+                }
+            } else {
+                preimage[i * 32..(i + 1) * 32].copy_from_slice(c);
+            }
         }
-        buffer[i * 32..(i + 1) * 32].copy_from_slice(commitment);
     }
-
-    // SHA256 the entire buffer (matching circuit)
-    let hash = Sha256::digest(&buffer);
-
-    {
-        let mut h = [0u8; 32];
-        h.copy_from_slice(&hash);
-        h
-    }
+    
+    let hash = Sha256::digest(&preimage);
+    let mut h = [0u8; 32];
+    h.copy_from_slice(&hash);
+    h
 }
+
 
 /// Handler for settle_deposits_batch instruction
 pub fn handler(ctx: Context<SettleDepositsBatch>, args: SettleDepositsBatchArgs) -> Result<()> {
