@@ -7,7 +7,7 @@ import { PublicKey, Keypair, SystemProgram, Transaction, sendAndConfirmTransacti
 import * as fs from "fs";
 
 const PROGRAM_ID = new PublicKey("BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb");
-const POOL_CONFIG = new PublicKey("iWMNRMHKS6zFKaNX1WkCBD3vsdnW4L24qd5Cp7sgLRV");
+const POOL_CONFIG = new PublicKey("uKWvwEoqd46PHeDQHbmrp4gXTgvWBxu7VeWXgFUE9zc");
 
 function decimalToBytes32BE(decimal: string): number[] {
   const bn = BigInt(decimal);

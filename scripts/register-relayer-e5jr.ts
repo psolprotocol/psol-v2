@@ -2,11 +2,11 @@ import { Connection, Keypair, PublicKey, SystemProgram, Transaction, sendAndConf
 import * as fs from "fs";
 
 const PROGRAM_ID = new PublicKey("BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb");
-const POOL_CONFIG = new PublicKey("iWMNRMHKS6zFKaNX1WkCBD3vsdnW4L24qd5Cp7sgLRV");
+const POOL_CONFIG = new PublicKey("uKWvwEoqd46PHeDQHbmrp4gXTgvWBxu7VeWXgFUE9zc");
 const REGISTER_RELAYER_DISCRIMINATOR = Buffer.from([98, 213, 0, 0, 27, 134, 109, 48]);
 
 async function main() {
-  const connection = new Connection("https://api.devnet.solana.com", "confirmed");
+  const connection = new Connection("https://devnet.helius-rpc.com/?api-key=6389a4f7-5cc6-4f91-85e4-3b9718e5840c", "confirmed");
   
   // Relayer keypair - paste from Replit SEQUENCER_KEYPAIR_JSON secret
   const relayerJson = process.env.RELAYER_KEY || fs.readFileSync(".keys/relayer-e5jr.json", "utf8");

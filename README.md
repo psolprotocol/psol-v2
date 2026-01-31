@@ -6,9 +6,9 @@ This repository contains the Solana programs, Circom circuits, relayer and seque
 
 ## Status
 
-Network: Solana Devnet
+**Network:** Solana Devnet
 
-Release: Experimental, under active development
+**Release:** Experimental, under active development
 
 ## Capabilities
 
@@ -18,24 +18,32 @@ The protocol supports shielded pools for multiple SPL token mints, Groth16 proof
 
 | Directory | Description |
 |-----------|-------------|
-| programs/ | Solana programs for pool state, deposit settlement, withdrawals, and yield management |
-| circuits/ | Circom circuits and compiled artifacts for ZK proof generation |
-| relayer/ | Off-chain service for batching, proof generation, and client endpoints |
-| sdk/ | TypeScript SDK for transactions, notes, and proof construction |
-| scripts/ | Deployment, initialization, and registry management tooling |
+| `programs/` | Solana programs for pool state, deposit settlement, withdrawals, and yield management |
+| `circuits/` | Circom circuits and compiled artifacts for ZK proof generation |
+| `relayer/` | Off-chain service for batching, proof generation, and client endpoints |
+| `sdk/` | TypeScript SDK for transactions, notes, and proof construction |
+| `scripts/` | Deployment, initialization, and registry management tooling |
 
 ## Devnet Deployment
 
-Program ID: `BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb`
+**Program ID:** `BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb`
 
 ### Active Pool
 
 | Component | Address |
 |-----------|---------|
-| Pool Config | `iWMNRMHKS6zFKaNX1WkCBD3vsdnW4L24qd5Cp7sgLRV` |
-| Merkle Tree | `BhyDXxA7WT5WX7WgbGvqThpUjK8QXDSk891nhfKd32Lv` |
-| Pending Buffer | `3K1GH9JUmoigMu7UTRYmDX9YZ7ZeeHq3r1cVZfKyzzMR` |
-| Pool Authority | `4pFKLUzAXKE5p37wB15oszEG8GDmvjJ6ZbgdqEmfq9LA` |
+| Pool Config | `uKWvwEoqd46PHeDQHbmrp4gXTgvWBxu7VeWXgFUE9zc` |
+| Merkle Tree | `DR3C2PRhgtcgZDiaAtKGHMK2Z3AZr1QUAHNCeLmJ37W4` |
+| Pending Buffer | `GFfT479ybSWUZgBaq4rLjU2zuwYX8ziPXHqX9rYZmRTS` |
+| Pool Authority | `6qroZpZMFjLzhyBVz8CUeUjWXhmue3EAVQM57FczNysA` |
+| Relayer Registry | `Eo5t5SicskPpzSPxpDWnru6BHvfjEXTNSdSVgD5tErvF` |
+| Compliance Config | `FGkwjNzeC1z2RubycEGAxAocmwKy6SoTd8Ed3QCwzaBF` |
+
+### Supported Assets
+
+| Asset | Mint Address |
+|-------|--------------|
+| wSOL | `So11111111111111111111111111111111111111112` |
 
 ## Protocol Overview
 
@@ -48,6 +56,7 @@ A user submits a deposit instruction with a ZK proof. The commitment is appended
 ### Settlement Phase
 
 A sequencer batches pending commitments, constructs the Merkle update off-chain, generates a batch proof, and submits a settlement instruction to update the Merkle tree. This approach amortizes insertion costs and keeps on-chain verification bounded.
+
 ```
 User deposit
     |
@@ -67,6 +76,15 @@ settle_deposits_batch (on-chain)
 Merkle tree updated
 ```
 
+## Withdrawal Flow
+
+Users generate a ZK proof demonstrating:
+- Knowledge of a valid commitment in the Merkle tree
+- The nullifier has not been spent
+- The recipient and amount match the proof public inputs
+
+The relayer submits the withdrawal transaction, paying gas fees and earning a 0.5% service fee.
+
 ## Yield Earn
 
 pSOL v2 supports yield-bearing assets such as Liquid Staking Tokens (JitoSOL, mSOL, bSOL, and similar). Users can deposit LSTs into the shielded pool while continuing to earn staking yield. The underlying tokens appreciate in value over time, and users retain privacy throughout.
@@ -84,20 +102,20 @@ pSOL v2 supports yield-bearing assets such as Liquid Staking Tokens (JitoSOL, mS
 
 | Component | Description |
 |-----------|-------------|
-| YieldRegistry | On-chain registry tracking which mints are yield-bearing (up to 8 per pool) |
-| yield_relayer | Authorized signer for yield withdrawals, validates fee calculations |
-| yield_fee_bps | Performance fee in basis points (500 = 5%) |
-| FEATURE_YIELD_ENFORCEMENT | Feature flag to enable yield mode on a pool |
+| `YieldRegistry` | On-chain registry tracking which mints are yield-bearing (up to 8 per pool) |
+| `yield_relayer` | Authorized signer for yield withdrawals, validates fee calculations |
+| `yield_fee_bps` | Performance fee in basis points (500 = 5%) |
+| `FEATURE_YIELD_ENFORCEMENT` | Feature flag to enable yield mode on a pool |
 
 ### Yield Instructions
 
 | Instruction | Description |
 |-------------|-------------|
-| init_yield_registry | Create YieldRegistry PDA for a pool |
-| add_yield_mint | Register an LST mint as yield-bearing |
-| remove_yield_mint | Remove an LST mint from the registry |
-| withdraw_yield_v2 | Withdraw yield assets with performance fee enforcement |
-| enable_feature / disable_feature | Toggle FEATURE_YIELD_ENFORCEMENT |
+| `init_yield_registry` | Create YieldRegistry PDA for a pool |
+| `add_yield_mint` | Register an LST mint as yield-bearing |
+| `remove_yield_mint` | Remove an LST mint from the registry |
+| `withdraw_yield_v2` | Withdraw yield assets with performance fee enforcement |
+| `enable_feature` / `disable_feature` | Toggle `FEATURE_YIELD_ENFORCEMENT` |
 
 ### Supported Yield Assets
 
@@ -111,21 +129,24 @@ Performance fees apply only to positive yield, not to the original deposit amoun
 
 The pSOL Protocol relayer API is publicly available for integration with privacy-preserving applications on Solana.
 
-Base URL: `https://api.psolprotocol.org/api`
+**Base URL:** `https://api.psolprotocol.org`
 
 ### Health Check
+
 ```
 GET /health
 ```
 
 Returns the current status of the relayer service, including RPC latency and proof queue metrics.
 
-Example request:
+**Example request:**
+
 ```bash
-curl https://api.psolprotocol.org/api/health
+curl https://api.psolprotocol.org/health
 ```
 
-Example response:
+**Example response:**
+
 ```json
 {
   "status": "ok",
@@ -138,6 +159,7 @@ Example response:
 ```
 
 ### Pool State
+
 ```
 GET /pool-state
 ```
@@ -148,10 +170,12 @@ Returns the current state of the shielded pool, including Merkle tree informatio
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| /pool-state | GET | Current pool and Merkle tree state |
-| /merkle-proof/:leafIndex | GET | Merkle inclusion proof for a leaf |
-| /withdraw-proof | POST | Generate withdrawal ZK proof |
-| /deposit-proof | POST | Generate deposit ZK proof |
+| `/pool-state` | GET | Current pool and Merkle tree state |
+| `/merkle/proof/:leafIndex` | GET | Merkle inclusion proof for a leaf |
+| `/withdraw-proof` | POST | Generate withdrawal ZK proof |
+| `/deposit-proof` | POST | Generate deposit ZK proof |
+| `/api/config` | GET | Pool configuration and supported assets |
+| `/quote` | GET | Get current relayer fee quote |
 
 ### Network
 
@@ -173,21 +197,34 @@ The API currently operates on Solana Devnet. Mainnet deployment is planned for a
 ### Environment
 
 For Anchor workflows on Devnet:
+
 ```bash
 export ANCHOR_PROVIDER_URL="https://api.devnet.solana.com"
 export ANCHOR_WALLET="$HOME/.config/solana/id.json"
 ```
 
 ### Tests
+
 ```bash
 cargo test -p psol-privacy-v2
 ```
+
+## Live Demo
+
+**Frontend:** [pSOL Protocol](https://psol-frontend.replit.app) (or your deployed URL)
+
+**Explorer:** [View Program on Solana Explorer](https://explorer.solana.com/address/BmtMrkgvVML9Gk7Bt6JRqweHAwW69oFTohaBRaLbgqpb?cluster=devnet)
 
 ## Security Considerations
 
 This is experimental software intended for development and testing.
 
-The circuits have not been formally audited. The trusted setup is not protocol-dedicated. Mainnet deployment requires a security audit, a dedicated trusted setup ceremony, and a complete threat model.
+- The circuits have not been formally audited
+- The trusted setup is not protocol-dedicated
+- Mainnet deployment requires:
+  - A security audit
+  - A dedicated trusted setup ceremony
+  - A complete threat model
 
 Yield calculations are performed off-chain by the yield relayer. Users trust the relayer to compute fees correctly. Future versions may include on-chain price oracle integration for trustless fee verification.
 
